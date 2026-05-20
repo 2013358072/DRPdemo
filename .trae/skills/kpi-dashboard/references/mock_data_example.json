@@ -1,0 +1,53 @@
+{
+  "_comment": "绩效考核大屏 Mock 数据完整示例。前端内嵌此结构，无需后端即可演示。",
+  "years": [2023, 2024, 2025],
+  "defaultYear": 2025,
+
+  "overview": {
+    "total": 128,
+    "depts": 14,
+    "done": 96,
+    "rate": "75.0",
+    "excellent": 18,
+    "excellent_rate": "14.1",
+    "unqualified": 5,
+    "unqualified_rate": "3.9"
+  },
+
+  "jobDistribution": [
+    { "name": "技术",   "value": 52 },
+    { "name": "管理",   "value": 20 },
+    { "name": "职能",   "value": 28 },
+    { "name": "销售",   "value": 18 },
+    { "name": "研发",   "value": 10 }
+  ],
+
+  "levelDistribution": [
+    { "name": "优秀",   "value": 18, "level_id": 1 },
+    { "name": "良好",   "value": 45, "level_id": 2 },
+    { "name": "合格",   "value": 48, "level_id": 3 },
+    { "name": "基本合格","value": 12, "level_id": 4 },
+    { "name": "不合格", "value":  5, "level_id": 5 }
+  ],
+
+  "statusDistribution": [
+    { "name": "已确认", "value": 72 },
+    { "name": "评分中", "value": 20 },
+    { "name": "确认中", "value": 15 },
+    { "name": "重评中", "value":  8 },
+    { "name": "已提交", "value": 13 }
+  ],
+
+  "employees": [
+    { "account": "EMP00101", "name": "张伟",   "dept_id": "0101", "dept_name": "前端组",   "job_type": "技术", "job_title": "高级前端工程师", "score": 92, "level_id": 1, "level_name": "优秀",   "status": "已确认" },
+    { "account": "EMP00102", "name": "李娜",   "dept_id": "0101", "dept_name": "前端组",   "job_type": "技术", "job_title": "前端工程师",     "score": 83, "level_id": 2, "level_name": "良好",   "status": "已确认" },
+    { "account": "EMP00201", "name": "王芳",   "dept_id": "0201", "dept_name": "招聘组",   "job_type": "职能", "job_title": "HR专员",         "score": 76, "level_id": 3, "level_name": "合格",   "status": "评分中" },
+    { "account": "EMP00202", "name": "刘洋",   "dept_id": "0202", "dept_name": "培训组",   "job_type": "职能", "job_title": "培训专员",       "score": 68, "level_id": 4, "level_name": "基本合格","status": "确认中" },
+    { "account": "EMP00301", "name": "陈静",   "dept_id": "0301", "dept_name": "会计组",   "job_type": "职能", "job_title": "财务专员",       "score": 55, "level_id": 5, "level_name": "不合格", "status": "重评中" },
+    { "account": "EMP00401", "name": "杨光",   "dept_id": "0401", "dept_name": "品牌组",   "job_type": "销售", "job_title": "品牌经理",       "score": 88, "level_id": 2, "level_name": "良好",   "status": "已提交" },
+    { "account": "EMP00102", "name": "赵磊",   "dept_id": "0102", "dept_name": "后端组",   "job_type": "技术", "job_title": "高级后端工程师", "score": 95, "level_id": 1, "level_name": "优秀",   "status": "已确认" },
+    { "account": "EMP00103", "name": "黄敏",   "dept_id": "0103", "dept_name": "测试组",   "job_type": "技术", "job_title": "测试工程师",     "score": 79, "level_id": 3, "level_name": "合格",   "status": "已确认" },
+    { "account": "EMP00501", "name": "周勇",   "dept_id": "0501", "dept_name": "产品设计组","job_type": "研发", "job_title": "产品经理",       "score": 91, "level_id": 1, "level_name": "优秀",   "status": "已确认" },
+    { "account": "EMP00402", "name": "吴丽",   "dept_id": "0402", "dept_name": "销售组",   "job_type": "销售", "job_title": "销售专员",       "score": 73, "level_id": 3, "level_name": "合格",   "status": "评分中" }
+  ]
+}

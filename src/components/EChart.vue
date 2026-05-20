@@ -10,6 +10,7 @@ const props = defineProps({
   option: { type: Object, required: true },
   theme: { type: String, default: 'dark' },
 })
+const emit = defineEmits(['chart-click'])
 
 const host = ref(null)
 const chart = shallowRef(null)
@@ -40,6 +41,9 @@ function init() {
 
   chart.value = echarts.init(host.value, props.theme, { renderer: 'canvas' })
   chart.value.setOption(props.option, true)
+  chart.value.on('click', (params) => {
+    emit('chart-click', params)
+  })
 
   window.addEventListener('resize', resize)
 

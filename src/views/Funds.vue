@@ -1763,4 +1763,182 @@ function formatYi(value) {
   opacity: 0;
   transform: translate(-50%, 20px);
 }
+
+/* ════════════════════════════════════════════════
+   WHITE THEME OVERRIDES
+   ════════════════════════════════════════════════ */
+.funds-screen {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* ── Panel / card backgrounds ── */
+.glass-panel,
+.funds-screen :deep(.page-backbar),
+.funds-header,
+.meta-card,
+.table-shell,
+.funds-intercept-panel,
+.funds-risk-panel,
+.bottom-card,
+.detail-section,
+.drawer,
+.alert-dialog,
+.reason-box,
+.flow-detail-panel,
+.account-detail-card,
+.payment-detail-panel,
+.risk-panel {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: none !important;
+}
+
+.glass-panel::before,
+.glass-panel::after {
+  display: none !important;
+}
+
+/* ── Typography ── */
+.screen-kicker,
+.meta-label,
+.panel-sub,
+.kpi-foot,
+.table-summary,
+.reason-title,
+.drawer-kicker,
+.timeline-list li span,
+.detail-grid span {
+  color: #64748b !important;
+}
+
+.screen-title,
+.panel-title,
+.meta-card strong,
+.kpi-title,
+.kpi-main strong,
+.result-metrics strong,
+.reason-box p,
+.timeline-list li strong,
+.drawer h3,
+.section-title,
+.table-panel th,
+.table-panel td {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+.kpi-main span { color: #64748b !important; }
+
+/* ── KPI cards ── */
+.kpi-card {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  border-color: #e2e8f0 !important;
+}
+.kpi-card.critical { border-color: #fca5a5 !important; }
+.kpi-card.high     { border-color: #fed7aa !important; }
+
+/* ── Tags / chips ── */
+.kpi-chip {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.tag         { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+.tag.ok      { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #16a34a !important; }
+.tag.watch   { background: #fefce8 !important; border-color: #fde68a !important; color: #ca8a04 !important; }
+.tag.medium  { background: #fff7ed !important; border-color: #fed7aa !important; color: #f97316 !important; }
+.tag.danger  { background: #fef2f2 !important; border-color: #fecaca !important; color: #ef4444 !important; }
+
+.tag-pill, .status-pill { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+.white-list-pill        { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #16a34a !important; }
+
+.risk-pill          { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+.risk-pill.low      { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #16a34a !important; }
+.risk-pill.medium   { background: #fefce8 !important; border-color: #fde68a !important; color: #ca8a04 !important; }
+.risk-pill.high     { background: #fff7ed !important; border-color: #fed7aa !important; color: #f97316 !important; }
+.risk-pill.critical { background: #fef2f2 !important; border-color: #fecaca !important; color: #ef4444 !important; }
+
+/* ── Table ── */
+.payment-table thead th,
+.table-panel thead th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.payment-table tbody tr,
+.payment-row,
+.table-panel tbody tr {
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.payment-table th,
+.payment-table td,
+.table-panel th,
+.table-panel td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+.payment-row:hover,
+.payment-row:hover td { background: #f8fafc !important; }
+.payment-row.active,
+.payment-row.active td { background: #eff6ff !important; }
+.payment-row.intercepted,
+.payment-row.intercepted td { background: #fef2f2 !important; }
+
+/* ── Buttons / inputs ── */
+.filter-bar select,
+.filter-bar input {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.op-btn {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.op-btn:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+/* ── AI / alert boxes ── */
+.ai-box {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.ai-box p {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+.ai-box.critical {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+}
+
+/* ── Timeline ── */
+.timeline-list li {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+/* ── Toast ── */
+.toast-banner {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #fca5a5 !important;
+}
 </style>

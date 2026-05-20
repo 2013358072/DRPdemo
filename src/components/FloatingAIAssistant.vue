@@ -528,8 +528,8 @@ onMounted(() => {
 
 .qa-trigger.active .qa-trigger-core {
   box-shadow:
-    0 0 0 1px rgba(0, 212, 255, 0.36),
-    0 0 32px rgba(0, 212, 255, 0.38),
+    0 0 0 1px rgba(74, 144, 226, 0.36),
+    0 0 32px rgba(74, 144, 226, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
@@ -542,14 +542,14 @@ onMounted(() => {
 }
 
 .qa-trigger-pulse {
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.22) 0%, rgba(0, 212, 255, 0) 72%);
+  background: radial-gradient(circle, rgba(74, 144, 226, 0.22) 0%, rgba(74, 144, 226, 0) 72%);
   animation: qa-pulse 2.4s ease-out infinite;
 }
 
 .qa-trigger-ring {
   inset: 2px;
-  border: 1px solid rgba(0, 212, 255, 0.48);
-  box-shadow: 0 0 18px rgba(0, 212, 255, 0.28);
+  border: 1px solid rgba(74, 144, 226, 0.48);
+  box-shadow: 0 0 18px rgba(74, 144, 226, 0.28);
 }
 
 .qa-trigger-core {
@@ -559,19 +559,19 @@ onMounted(() => {
   justify-content: center;
   background:
     radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.24), transparent 34%),
-    linear-gradient(180deg, rgba(10, 36, 78, 0.9), rgba(5, 14, 32, 0.95));
-  border: 1px solid rgba(125, 211, 252, 0.44);
+    linear-gradient(180deg, rgba(74, 144, 226, 0.92), rgba(43, 96, 165, 0.96));
+  border: 1px solid rgba(74, 144, 226, 0.44);
   backdrop-filter: blur(14px);
   box-shadow:
     0 10px 24px rgba(2, 12, 28, 0.44),
-    0 0 20px rgba(0, 212, 255, 0.24),
+    0 0 20px rgba(74, 144, 226, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .qa-trigger-core svg {
   width: 24px;
   height: 24px;
-  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.38));
+  filter: drop-shadow(0 0 8px rgba(74, 144, 226, 0.38));
 }
 
 .qa-panel {

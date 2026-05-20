@@ -1,0 +1,53 @@
+[
+  {
+    "id": "0001",
+    "name": "股份公司",
+    "children": [
+      {
+        "id": "0100",
+        "name": "技术中心",
+        "children": [
+          { "id": "0101", "name": "前端组", "children": [] },
+          { "id": "0102", "name": "后端组", "children": [] },
+          { "id": "0103", "name": "测试组", "children": [] },
+          { "id": "0104", "name": "运维组", "children": [] }
+        ]
+      },
+      {
+        "id": "0200",
+        "name": "人力资源部",
+        "children": [
+          { "id": "0201", "name": "招聘组", "children": [] },
+          { "id": "0202", "name": "培训组", "children": [] },
+          { "id": "0203", "name": "员工关系组", "children": [] }
+        ]
+      },
+      {
+        "id": "0300",
+        "name": "财务部",
+        "children": [
+          { "id": "0301", "name": "会计组", "children": [] },
+          { "id": "0302", "name": "审计组", "children": [] },
+          { "id": "0303", "name": "资金组", "children": [] }
+        ]
+      },
+      {
+        "id": "0400",
+        "name": "市场部",
+        "children": [
+          { "id": "0401", "name": "品牌组", "children": [] },
+          { "id": "0402", "name": "销售组", "children": [] },
+          { "id": "0403", "name": "客户成功组", "children": [] }
+        ]
+      },
+      {
+        "id": "0500",
+        "name": "产品部",
+        "children": [
+          { "id": "0501", "name": "产品设计组", "children": [] },
+          { "id": "0502", "name": "用户研究组", "children": [] }
+        ]
+      }
+    ]
+  }
+]

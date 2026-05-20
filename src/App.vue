@@ -2,32 +2,18 @@
   <div class="app">
     <!-- 顶部 -->
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 40 40" fill="none">
-            <circle cx="20" cy="20" r="17" stroke="#00d4ff" stroke-width="1" opacity="0.4"/>
-            <circle cx="20" cy="20" r="11" stroke="#00d4ff" stroke-width="1" opacity="0.7"/>
-            <circle cx="20" cy="20" r="5" stroke="#00d4ff" stroke-width="1.5" fill="rgba(0,212,255,0.2)"/>
-            <line x1="20" y1="3" x2="20" y2="9" stroke="#00d4ff" stroke-width="1.5"/>
-            <line x1="20" y1="31" x2="20" y2="37" stroke="#00d4ff" stroke-width="1.5"/>
-            <line x1="3" y1="20" x2="9" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
-            <line x1="31" y1="20" x2="37" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
-            <circle cx="20" cy="20" r="1.5" fill="#ffd700"/>
-          </svg>
-        </div>
-        <div class="brand-text">
-          <div class="cn">穿 透 式 监 管</div>
-        </div>
+      <div class="topbar-left">
+        <button v-if="current !== 'dashboard'" type="button" class="topbar-back-btn" @click="navigate('dashboard')">
+          <span class="topbar-back-arrow">←</span>
+          <span>返回</span>
+        </button>
+        <span v-if="current !== 'dashboard'" class="topbar-app-name">智能穿透监管平台</span>
       </div>
-      <div class="topbar-center-title">全景监管驾驶舱</div>
+      <div class="topbar-center-title">{{ currentPageTitle }}</div>
       <div class="topbar-info">
         <div class="stat">
           <span>系统时间</span>
           <strong>{{ clock }}</strong>
-        </div>
-        <div class="stat">
-          <span>风险闭环率</span>
-          <strong>76.4%</strong>
         </div>
       </div>
     </header>
@@ -84,13 +70,29 @@ const sceneMap = {
   overseas: Procurement,
   ai: AIAgent
 }
+const sceneAliasMap = {
+  dashboard: 'dashboard',
+  investment: 'invest',
+  invest: 'invest',
+  funds: 'finance',
+  finance: 'finance',
+  contract: 'equity',
+  equity: 'equity',
+  procurement: 'overseas',
+  overseas: 'overseas',
+  ai: 'ai',
+}
 
 const DEFAULT_SCENE = 'dashboard'
 const current = ref(DEFAULT_SCENE)
 const currentComponent = computed(() => sceneMap[current.value])
+const currentPageTitle = computed(() => {
+  if (current.value === 'ai') return '指挥调度中心'
+  return '智能穿透监管平台'
+})
 
 function normalizeScene(scene) {
-  return sceneMap[scene] ? scene : DEFAULT_SCENE
+  return sceneAliasMap[scene] || DEFAULT_SCENE
 }
 
 function getSceneFromHash() {
@@ -177,47 +179,83 @@ onUnmounted(() => {
 <style scoped>
 .app {
   display: grid;
-  grid-template-rows: 52px 1fr;
+  grid-template-rows: 44px 1fr;
   height: 100vh; width: 100vw;
 }
 
 /* ====== 顶部 ====== */
 .topbar {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(220px, 1fr);
   align-items: center;
-  padding: 0 20px;
+  padding: 0 18px;
   border-bottom: 1px solid var(--line);
   position: relative;
-  background: linear-gradient(180deg, rgba(8,18,42,0.8), transparent);
+  background: #ffffff;
 }
 .topbar::before {
-  content: ''; position: absolute; height: 2px; bottom: -1px;
+  content: ''; position: absolute; height: 1px; bottom: -1px;
   left: 25%; width: 50%;
-  background: linear-gradient(90deg, transparent, var(--primary), transparent);
-  opacity: 0.55;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.3), transparent);
+  opacity: 1;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-logo { width: 30px; height: 30px; }
-.brand-logo svg { width: 100%; height: 100%; filter: drop-shadow(0 0 8px var(--p-glow)); }
-.brand-text .cn {
-  font-family: var(--f-serif); font-weight: 900; font-size: 16px;
-  letter-spacing: 0.1em;
-  background: linear-gradient(180deg, var(--t-1), var(--primary));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+
+.topbar-left {
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+.topbar-back-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.10);
+}
+
+.topbar-back-arrow {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.topbar-app-name {
+  display: inline-flex;
+  align-items: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .topbar-center-title {
   justify-self: center;
-  padding: 0 18px;
+  padding: 0 12px;
   font-family: var(--f-serif);
   font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #dff6ff;
-  text-shadow: 0 0 14px rgba(0, 212, 255, 0.22);
+  letter-spacing: 0.12em;
+  color: #0f172a;
   white-space: nowrap;
   position: relative;
+  line-height: 1;
 }
 
 .topbar-center-title::before,
@@ -225,27 +263,27 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   top: 50%;
-  width: 26px;
+  width: 18px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.72));
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.42));
   transform: translateY(-50%);
 }
 
 .topbar-center-title::before {
-  left: -8px;
+  left: -4px;
 }
 
 .topbar-center-title::after {
-  right: -8px;
+  right: -4px;
   transform: translateY(-50%) scaleX(-1);
 }
 
-.topbar-info { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+.topbar-info { display: flex; justify-content: flex-end; align-items: center; gap: 16px; justify-self: end; width: 100%; }
 .stat { display: flex; flex-direction: column; align-items: flex-end;
-        color: var(--t-3); font-size: 9px; letter-spacing: 0.1em; }
+        color: #64748b; font-size: 9px; letter-spacing: 0.1em; }
 .stat strong {
-  font-family: var(--f-n); color: var(--t-1);
-  font-size: 12px; font-weight: 600; margin-top: 1px;
+  font-family: var(--f-n); color: #0f172a;
+  font-size: 11px; font-weight: 600; margin-top: 1px;
 }
 
 /* ====== 主体 ====== */
@@ -280,8 +318,8 @@ onUnmounted(() => {
 
 .ai-float.active .ai-float-core {
   box-shadow:
-    0 0 0 1px rgba(0, 212, 255, 0.28),
-    0 0 22px rgba(0, 212, 255, 0.34),
+    0 0 0 1px rgba(74, 144, 226, 0.28),
+    0 0 22px rgba(74, 144, 226, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
@@ -294,8 +332,8 @@ onUnmounted(() => {
 .ai-float-ring {
   inset: 1px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 212, 255, 0.42);
-  box-shadow: 0 0 24px rgba(0, 212, 255, 0.28);
+  border: 1px solid rgba(74, 144, 226, 0.42);
+  box-shadow: 0 0 24px rgba(74, 144, 226, 0.28);
   animation: ai-orbit 3.6s linear infinite;
 }
 
@@ -307,11 +345,11 @@ onUnmounted(() => {
   border-radius: 50%;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.22), transparent 34%),
-    radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.5), rgba(8, 18, 42, 0.98) 72%);
-  border: 1px solid rgba(0, 212, 255, 0.48);
+    radial-gradient(circle at 50% 50%, rgba(74, 144, 226, 0.56), rgba(34, 74, 128, 0.98) 72%);
+  border: 1px solid rgba(74, 144, 226, 0.48);
   box-shadow:
-    0 0 0 1px rgba(0, 212, 255, 0.18),
-    0 0 24px rgba(0, 212, 255, 0.34),
+    0 0 0 1px rgba(74, 144, 226, 0.18),
+    0 0 24px rgba(74, 144, 226, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
@@ -319,7 +357,7 @@ onUnmounted(() => {
   width: 22px;
   height: 22px;
   color: #dff8ff;
-  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.38));
+  filter: drop-shadow(0 0 8px rgba(74, 144, 226, 0.38));
 }
 
 .ai-float-text {
@@ -330,12 +368,12 @@ onUnmounted(() => {
   padding: 1px 6px;
   border-radius: 999px;
   background: rgba(8, 18, 42, 0.92);
-  border: 1px solid rgba(0, 212, 255, 0.24);
+  border: 1px solid rgba(74, 144, 226, 0.24);
   color: var(--primary);
   font-family: var(--f-n);
   font-size: 8px;
   letter-spacing: 0.18em;
-  box-shadow: 0 0 12px rgba(0, 212, 255, 0.12);
+  box-shadow: 0 0 12px rgba(74, 144, 226, 0.12);
 }
 
 @keyframes ai-orbit {

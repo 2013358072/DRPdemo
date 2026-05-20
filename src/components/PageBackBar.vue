@@ -23,7 +23,7 @@ defineEmits(['back'])
 
 <style scoped>
 .page-backbar {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
   min-height: 38px;

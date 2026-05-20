@@ -1882,4 +1882,250 @@ function statusColor(status) {
   background: rgba(116, 154, 255, 0.28);
   border-radius: 999px;
 }
+
+/* ════════════════════════════════════════════════
+   WHITE THEME OVERRIDES
+   ════════════════════════════════════════════════ */
+.procurement-screen {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* ── Panel / card backgrounds ── */
+.glass-panel,
+.proc-header,
+.meta-card,
+.bottom-card,
+.table-shell,
+.drawer-table-shell,
+.drawer,
+.warning-panel,
+.bidder-panel,
+.risk-event-panel,
+.work-order-panel,
+.rectification-panel,
+.profile-card,
+.detail-section,
+.drawer-section,
+.toast-banner {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: none !important;
+}
+
+.glass-panel::after,
+.glass-panel::before {
+  display: none !important;
+}
+
+/* ── Header / label typography ── */
+.screen-kicker,
+.meta-label,
+.reason-title,
+.panel-sub,
+.kpi-foot,
+.table-summary,
+.graph-note,
+.drawer-kicker {
+  color: #64748b !important;
+}
+
+.screen-title,
+.panel-title,
+.meta-card strong,
+.kpi-title,
+.kpi-main strong,
+.result-metrics strong,
+.reason-box p,
+.timeline-list li strong,
+.project-name strong,
+.supplier-name strong,
+.drawer h3,
+.drawer-head h3,
+.drawer-head strong,
+.section-title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+.kpi-main span {
+  color: #64748b !important;
+}
+
+/* ── KPI card inner glow → remove dark glow ── */
+.kpi-card.normal,
+.kpi-card.medium,
+.kpi-card.high,
+.kpi-card.critical {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ── Tags, pills, chips → semantic light colors ── */
+.kpi-chip {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.tag {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.tag.ok,
+.risk-pill.low {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #16a34a !important;
+}
+
+.tag.watch,
+.risk-pill.medium {
+  background: #fefce8 !important;
+  border-color: #fde68a !important;
+  color: #ca8a04 !important;
+}
+
+.tag.medium,
+.risk-pill.high {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
+  color: #f97316 !important;
+}
+
+.tag.danger,
+.mini-tag.danger,
+.risk-pill.critical {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #ef4444 !important;
+}
+
+.tag.focus {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #2563eb !important;
+}
+
+/* ── Table ── */
+.project-table thead th,
+.bidder-table thead th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.project-table tbody tr,
+.bidder-table tbody tr,
+.project-row,
+.bidder-row {
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.project-table th,
+.project-table td,
+.bidder-table th,
+.bidder-table td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+.project-row:hover td,
+.bidder-row:hover {
+  background: #f8fafc !important;
+}
+
+.project-row.active,
+.project-row.active td {
+  background: #eff6ff !important;
+}
+
+/* ── Filter / ops buttons ── */
+.filter-bar select,
+.filter-bar input {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.op-btn {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.op-btn:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+/* ── Drawer internals ── */
+.bidder-row.same-device {
+  background: #fefce8 !important;
+}
+
+.bidder-row.suspicious {
+  background: #fef2f2 !important;
+}
+
+.bidder-row.active {
+  background: #eff6ff !important;
+}
+
+/* ── Dimension cards ── */
+.dimension-card {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.dimension-card span { color: #64748b !important; }
+.dimension-card strong { color: #0f172a !important; }
+.dimension-card em { color: #64748b !important; }
+
+.dimension-card.hit {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+}
+
+.dimension-card.hit strong { color: #ef4444 !important; }
+
+/* ── AI box ── */
+.ai-box {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.ai-box p {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+.ai-box.critical {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+}
+
+.ai-box.critical p {
+  color: #991b1b !important;
+}
+
+/* ── Scrollbar ── */
+.drawer-table-shell::-webkit-scrollbar-thumb,
+.bottom-card::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+}
+
+/* ── Toast ── */
+.toast-banner {
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
 </style>

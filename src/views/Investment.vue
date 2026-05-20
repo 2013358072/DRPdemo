@@ -2182,4 +2182,191 @@ onBeforeUnmount(() => {
   0%, 100% { box-shadow: 0 0 0 rgba(14, 165, 233, 0); }
   50%       { box-shadow: 0 0 16px rgba(14, 165, 233, 0.4); }
 }
+
+/* ════════════════════════════════════════════════
+   WHITE THEME OVERRIDES
+   ════════════════════════════════════════════════ */
+.investment-screen {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* ── Panel / card backgrounds ── */
+.glass-panel,
+.investment-screen :deep(.page-backbar),
+.inv-header,
+.meta-card,
+.table-shell,
+.bottom-info,
+.bottom-info-bar,
+.detail-block,
+.detail-panel,
+.reason-box,
+.matrix-card,
+.chart-card,
+.drawer,
+.alert-dialog,
+.risk-event-card,
+.work-order-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: none !important;
+}
+
+.glass-panel::before,
+.glass-panel::after {
+  display: none !important;
+}
+
+/* ── Typography ── */
+.screen-kicker,
+.meta-label,
+.panel-sub,
+.project-row-meta,
+.info-label,
+.kpi-foot,
+.kpi-status,
+.list-head-stats,
+.mini-stat,
+.drawer-kicker,
+.detail-panel p,
+.detail-panel span,
+.project-table td,
+.project-table tbody td {
+  color: #64748b !important;
+}
+
+.screen-title,
+.panel-title,
+.chart-title-row h3,
+.meta-card strong,
+.kpi-title,
+.kpi-main strong,
+.bottom-info strong,
+.project-name-cell,
+.detail-title,
+.detail-block h3,
+.reason-title,
+.section-title,
+.drawer h3,
+.project-name strong {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+.kpi-main span { color: #64748b !important; }
+
+/* ── KPI cards ── */
+.kpi-card {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  border-color: #e2e8f0 !important;
+}
+.kpi-card.critical { border-color: #fca5a5 !important; }
+.kpi-card.high     { border-color: #fed7aa !important; }
+.kpi-card.normal   { box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important; }
+
+/* ── Scenario / action buttons ── */
+.scenario-btn,
+.ghost-btn,
+.op-btn,
+.quick-chip,
+.filter-bar select,
+.filter-bar input {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.scenario-btn.active,
+.scenario-btn:hover,
+.ghost-btn:hover,
+.op-btn:hover,
+.quick-chip.active,
+.quick-chip:hover {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.10) !important;
+}
+
+/* ── KPI chip + tags ── */
+.kpi-chip {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.tag          { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+.tag.ok       { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #16a34a !important; }
+.tag.watch    { background: #fefce8 !important; border-color: #fde68a !important; color: #ca8a04 !important; }
+.tag.medium   { background: #fff7ed !important; border-color: #fed7aa !important; color: #f97316 !important; }
+.tag.danger   { background: #fef2f2 !important; border-color: #fecaca !important; color: #ef4444 !important; }
+
+.risk-pill          { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #475569 !important; }
+.risk-pill.low      { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #16a34a !important; }
+.risk-pill.medium   { background: #fefce8 !important; border-color: #fde68a !important; color: #ca8a04 !important; }
+.risk-pill.high     { background: #fff7ed !important; border-color: #fed7aa !important; color: #f97316 !important; }
+.risk-pill.critical { background: #fef2f2 !important; border-color: #fecaca !important; color: #ef4444 !important; }
+
+.status-pill, .tag-pill {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+/* ── Table ── */
+.project-table thead th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.project-table tbody tr,
+.project-row {
+  background: #ffffff !important;
+  color: #475569 !important;
+}
+
+.project-table th,
+.project-table td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.project-row:hover,
+.project-row:hover td { background: #f8fafc !important; }
+
+.project-row.active,
+.project-row.active td { background: #eff6ff !important; }
+
+/* ── Success meta card ── */
+.topbar-meta .success,
+.meta-card.success {
+  border-color: #bbf7d0 !important;
+}
+
+/* ── AI boxes ── */
+.ai-box {
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.ai-box p {
+  background: #fff7ed !important;
+  border-color: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+.ai-box.critical {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+}
+
+/* ── Toast ── */
+.toast-banner {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #fca5a5 !important;
+}
 </style>
