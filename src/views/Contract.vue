@@ -13,6 +13,7 @@
     <!-- ══════════ 四阶段穿透视图 ══════════ -->
     <template v-if="viewMode === 'penetration'">
       <div class="ct-main">
+       
         <section class="kpi-row">
           <article
             v-for="kpi in kpiCards"
@@ -30,166 +31,257 @@
         </section>
 
         <div class="ct-body">
-        <!-- 左：公司-分公司-合同 树状列表 -->
-        <aside class="ct-left">
-          <div class="card side-panel tree-panel">
-            <div class="sp-head">
-              <h3>合同列表</h3>
-              <span class="pill blue">{{ contracts.length }} 份</span>
-            </div>
-            <div class="company-tree micro-scroll">
-              <div v-for="grp in companyTree" :key="grp.id" class="ctree-group">
-                <!-- 集团公司行 -->
-                <button class="ctree-row ctree-group-row" type="button" @click="toggleNode(grp.id)">
-                  <span class="ctree-arrow" :class="{ open: expandedNodes.has(grp.id) }">›</span>
-                  <span class="ctree-ico">🏢</span>
-                  <span class="ctree-name">{{ grp.name }}</span>
-                  <span class="ctree-cnt">{{ grp.totalContracts }} 份</span>
+
+          <!-- 左：机构树（仅集团/公司/分公司） -->
+          <aside class="ct-left">
+            <div class="card side-panel tree-panel">
+              <div class="sp-head">
+                <h3>合同智联仓库</h3>
+                <span class="pill blue">{{ companyTree.length }} 集团</span>
+              </div>
+              <div class="company-tree micro-scroll">
+                <!-- 全部 -->
+                <button
+                  class="ctree-row ctree-all-row"
+                  :class="{ 'ctree-selected': selectedOrgId === null }"
+                  type="button"
+                  @click="selectOrg(null)"
+                >
+                  <span class="ctree-ico">🗂</span>
+                  <span class="ctree-name">全部机构</span>
+                  <span class="ctree-cnt">{{ contracts.length }} 份</span>
                 </button>
-                <!-- 分公司 -->
-                <div v-show="expandedNodes.has(grp.id)" class="ctree-children">
-                  <div v-for="br in grp.children" :key="br.id">
-                    <button class="ctree-row ctree-branch-row" type="button" @click="toggleNode(br.id)">
-                      <span class="ctree-arrow" :class="{ open: expandedNodes.has(br.id) }">›</span>
-                      <span class="ctree-ico">🏬</span>
-                      <span class="ctree-name">{{ br.name }}</span>
-                      <span class="ctree-cnt">{{ br.contracts.length }} 份</span>
-                    </button>
-                    <!-- 合同条目 -->
-                    <div v-show="expandedNodes.has(br.id)" class="ctree-contracts">
+                <div v-for="grp in companyTree" :key="grp.id" class="ctree-group">
+                  <button
+                    class="ctree-row ctree-group-row"
+                    :class="{ 'ctree-selected': selectedOrgId === grp.id }"
+                    type="button"
+                    @click="selectOrg(grp.id); toggleNode(grp.id)"
+                  >
+                    <span class="ctree-arrow" :class="{ open: expandedNodes.has(grp.id) }">›</span>
+                    <span class="ctree-ico">🏢</span>
+                    <span class="ctree-name">{{ grp.name }}</span>
+                    <span class="ctree-cnt">{{ grp.totalContracts }} 份</span>
+                  </button>
+                  <div v-show="expandedNodes.has(grp.id)" class="ctree-children">
+                    <div v-for="br in grp.children" :key="br.id">
                       <button
-                        v-for="cid in br.contracts"
-                        :key="cid"
+                        class="ctree-row ctree-branch-row"
+                        :class="{ 'ctree-selected': selectedOrgId === br.id }"
                         type="button"
-                        class="citem"
-                        :class="[`ci-${contractById(cid).risk}`, { active: cid === activeContractId }]"
-                        @click="selectContract(cid)"
+                        @click="selectOrg(br.id)"
                       >
-                        <div class="ci-top">
-                          <span class="ci-id">{{ contractById(cid).id }}</span>
-                          <span class="risk-pill" :class="`rp-${contractById(cid).risk}`">{{ riskLabelMap[contractById(cid).risk] }}</span>
-                        </div>
-                        <div class="ci-name">{{ contractById(cid).name }}</div>
-                        <div class="ci-badges">
-                          <span class="ci-badge ci-badge-cat">{{ contractById(cid).category }}</span>
-                          <span class="ci-badge" :class="`ci-status-${contractById(cid).risk}`">{{ contractById(cid).status }}</span>
-                          <span v-if="contractById(cid).riskCount" class="ci-badge ci-badge-risk">⚠ {{ contractById(cid).riskCount }} 项风险</span>
-                        </div>
-                        <div class="ci-meta">
-                          <span>{{ contractById(cid).supplier }}</span>
-                          <strong :style="{ color: riskColor[contractById(cid).risk] }">{{ contractById(cid).amount }}</strong>
-                        </div>
-                        <div class="ci-dates">
-                          <span>签订 {{ contractById(cid).signDate }}</span>
-                          <span>到期 {{ contractById(cid).expireDate }}</span>
-                        </div>
-                        <div class="ci-progress-row">
-                          <span class="ci-prog-lbl">履约</span>
-                          <div class="ci-prog-bar">
-                            <div class="ci-prog-fill" :style="{ width: contractById(cid).progress + '%', background: riskColor[contractById(cid).risk] }"></div>
-                          </div>
-                          <span class="ci-prog-val">{{ contractById(cid).progress }}%</span>
-                          <span class="ci-prog-sep">·</span>
-                          <span class="ci-prog-lbl">付款</span>
-                          <span class="ci-prog-val" :style="{ color: contractById(cid).paidRatio > contractById(cid).progress ? '#ef4444' : '#16a34a' }">{{ contractById(cid).paidRatio }}%</span>
-                        </div>
-                        <div class="ci-pay-method">付款方式：{{ contractById(cid).payMethod }}</div>
-                        <button
-                          v-if="contractRiskMap[cid]"
-                          type="button"
-                          class="ci-risk-report-btn"
-                          @click.stop="openRisk(contractRiskMap[cid])"
-                        >📋 查看风险报告</button>
+                        <span class="ctree-ico" style="margin-left:12px">🏬</span>
+                        <span class="ctree-name">{{ br.name }}</span>
+                        <span class="ctree-cnt">{{ br.contracts.length }} 份</span>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </aside>
+          </aside>
 
-        <!-- 中：穿透面板 (图表 + 风险核查摘要) -->
-        <main class="ct-center">
-          <div class="card pene-panel">
-            <div class="stage-tabs">
-              <button
-                v-for="(stage, i) in activeStages"
-                :key="stage.id"
-                type="button"
-                class="stage-tab"
-                :class="{ active: activeStageIdx === i, 'has-risk': stage.risks.length > 0 }"
-                @click="activeStageIdx = i"
-              >
-                <span class="sn">{{ i + 1 }}</span>
-                {{ stage.tabLabel }}
-                <span v-if="stage.risks.length" class="risk-badge">{{ stage.risks.length }}</span>
-              </button>
-            </div>
-            <div class="stage-chart">
-              <EChart :option="stageChartOption" />
-            </div>
-            <!-- 风险核查摘要（图表下方） -->
-            <div class="risk-section">
-              <div class="rs-section-head">
-                <span class="rs-section-title">风险核查摘要</span>
-                <span class="pill red" style="font-size:10px;">{{ totalRisks }} 项</span>
-              </div>
-              <template v-if="riskSummary.length">
-                <div v-for="(item, i) in riskSummary" :key="i" class="rs-item" :class="`rs-${item.level}`" @click="jumpToStage(item.stageIdx)">
-                  <div class="rs-top">
-                    <span class="rs-stage">阶段 {{ item.stageIdx + 1 }}・{{ item.stageLabel }}</span>
-                    <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLabelMap[item.level] }}</span>
-                  </div>
-                  <div class="rs-title">{{ item.title }}</div>
-                  <div class="rs-desc">{{ item.desc }}</div>
+          <!-- 中：合同列表 + 风险筛选 -->
+          <main class="ct-center">
+            <div class="card contract-list-panel">
+              <!-- 筛选栏 -->
+              <div class="cl-filter-bar">
+                <div class="cl-filter-tabs">
+                  <button
+                    v-for="f in riskFilters"
+                    :key="f.value"
+                    type="button"
+                    class="clf-tab"
+                    :class="{ active: riskFilter === f.value }"
+                    @click="riskFilter = f.value"
+                  >{{ f.label }}<span v-if="f.count !== undefined" class="clf-count">{{ f.count }}</span></button>
                 </div>
-              </template>
-              <div v-else class="risk-clear"><span>✓</span> 当前合同未发现风险项</div>
-            </div>
-          </div>
-        </main>
+                <span class="cl-total-tip">共 {{ filteredContracts.length }} 份</span>
+              </div>
 
-        <!-- 右：合同详情 -->
-        <aside class="ct-right">
-          <div v-if="activeContract" class="card side-panel detail-panel">
-            <div class="sp-head">
-              <h3>合同详情</h3>
-              <span class="risk-pill" :class="`rp-${activeContract.risk}`">{{ riskLabelMap[activeContract.risk] }}</span>
-            </div>
-            <div class="detail-grid">
-              <div class="dg-row"><span>合同编号</span><strong>{{ activeContract.id }}</strong></div>
-              <div class="dg-row"><span>签约单位</span><strong>{{ activeContract.company }}</strong></div>
-              <div class="dg-row"><span>合作方</span><strong>{{ activeContract.supplier }}</strong></div>
-              <div class="dg-row"><span>合同金额</span><strong :style="{ color: riskColor[activeContract.risk] }">{{ activeContract.amount }}</strong></div>
-              <div class="dg-row"><span>签订日期</span><strong>{{ activeContract.signDate }}</strong></div>
-              <div class="dg-row"><span>付款方式</span><strong>{{ activeContract.payMethod }}</strong></div>
-            </div>
-            <div class="link-section">
-              <div class="ls-title">穿透链路</div>
-              <div class="links-wrap">
-                <span v-for="link in activeContract.links" :key="link.id" class="link-tag" :class="`lt-${link.type}`">
-                  {{ link.id }}<em>{{ link.label }}</em>
-                </span>
+              <!-- 合同卡片列表 -->
+              <div class="cl-list micro-scroll">
+                <div
+                  v-for="c in filteredContracts"
+                  :key="c.id"
+                  class="cl-card"
+                  :class="[`cl-${c.risk}`, { 'cl-active': activeContractId === c.id }]"
+                  @click="selectContract(c.id)"
+                >
+                  <div class="clc-top">
+                    <div class="clc-id-row">
+                      <span class="clc-id">{{ c.id }}</span>
+                      <span class="risk-pill" :class="`rp-${c.risk}`">{{ riskLabelMap[c.risk] }}</span>
+                      <span v-if="c.riskCount" class="clc-risk-cnt">⚠ {{ c.riskCount }} 项</span>
+                    </div>
+                    <div class="clc-name">{{ c.name }}</div>
+                  </div>
+                  <div class="clc-badges">
+                    <span class="ci-badge ci-badge-cat">{{ c.category }}</span>
+                    <span class="ci-badge" :class="`ci-status-${c.risk}`">{{ c.status }}</span>
+                  </div>
+                  <div class="clc-meta-row">
+                    <span class="clc-supplier">{{ c.supplier }}</span>
+                    <strong class="clc-amount" :style="{ color: riskColor[c.risk] }">{{ c.amount }}</strong>
+                  </div>
+                  <div class="ci-dates">
+                    <span>签订 {{ c.signDate }}</span>
+                    <span>到期 {{ c.expireDate }}</span>
+                    <span>{{ c.payMethod }}</span>
+                  </div>
+                  <div class="ci-progress-row">
+                    <span class="ci-prog-lbl">履约</span>
+                    <div class="ci-prog-bar"><div class="ci-prog-fill" :style="{ width: c.progress + '%', background: riskColor[c.risk] }"></div></div>
+                    <span class="ci-prog-val">{{ c.progress }}%</span>
+                    <span class="ci-prog-sep">·</span>
+                    <span class="ci-prog-lbl">付款</span>
+                    <span class="ci-prog-val" :style="{ color: c.paidRatio > c.progress ? '#ef4444' : '#16a34a' }">{{ c.paidRatio }}%</span>
+                  </div>
+                  <div class="clc-actions" @click.stop>
+                    <button type="button" class="clc-btn clc-btn-chart" @click="openDrawer(c.id)">📊 分析图谱</button>
+                    <button type="button" class="clc-btn clc-btn-detail" @click="openContractDetail(c.id)">📄 合同详情</button>
+                  </div>
+                </div>
+                <div v-if="!filteredContracts.length" class="cl-empty">当前筛选条件下暂无合同</div>
               </div>
             </div>
-            <div class="action-btns">
-              <button type="button" class="act-btn primary" @click="showToast('整改工单已派发至合规部', 'info')">派发整改工单</button>
-              <button type="button" class="act-btn danger"  @click="showToast('风险预警已推送至责任人', 'warn')">发起风险预警</button>
-              <button type="button" class="act-btn ghost"   @click="showToast('已纳入月度台账归档', 'info')">纳入台账</button>
-              <button type="button" class="act-btn ghost"   @click="showToast('已标记待闭环，48h 后自动提醒', 'info')">标记待闭环</button>
+          </main>
+
+          <!-- 右：风险项列表 -->
+          <aside class="ct-right">
+            <div class="card risk-items-panel">
+              <div class="sp-head">
+                <h3>风险项</h3>
+                <span v-if="activeContract" class="rip-contract-name pill blue" :title="activeContract.name">{{ activeContract.name }}</span>
+                <span v-else class="pill" style="font-size:9px;color:#94a3b8">点击合同查看</span>
+              </div>
+
+              <div class="ri-list micro-scroll">
+                <div
+                  v-for="item in activeRiskItems"
+                  :key="item.id"
+                  class="ri-card"
+                  :class="`ri-${item.level}`"
+                >
+                  <!-- 顶行：ID · 等级 · 状态 -->
+                  <div class="ric-head">
+                    <span class="ric-id">{{ item.id }}</span>
+                    <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLabelMap[item.level] }}</span>
+                    <span class="ric-status" :class="`rics-${item.statusKey}`">{{ item.status }}</span>
+                  </div>
+                  <!-- 事项名称 -->
+                  <div class="ric-name">{{ item.name }}</div>
+                  <!-- 预警时间 -->
+                  <div class="ric-meta-row">
+                    <span class="ric-time">⏱ {{ item.alertTime }}</span>
+                  </div>
+                  <!-- 涉及主体 -->
+                  <div class="ric-subjects">
+                    <span v-for="s in item.subjects" :key="s" class="ric-subject">{{ s }}</span>
+                  </div>
+                  <!-- 关联索引 -->
+                  <div class="ric-index">🔗 {{ item.relatedIndex }}</div>
+                  <!-- AI 分析三态按钮 -->
+                  <div class="ric-footer" @click.stop>
+                    <button v-if="!item.analyzing && !item.analyzed" class="ric-ai-btn" @click="analyzeRiskItem(item)">✦ AI 分析</button>
+                    <span v-else-if="item.analyzing" class="ric-analyzing">
+                      <span class="di-spin-ring"></span>
+                      <span class="di-spin-lbl">分析中…</span>
+                    </span>
+                    <button v-else class="ric-report-btn" @click="openRisk(item.id)">查看风险报告 ›</button>
+                  </div>
+                </div>
+
+                <div v-if="!activeContract" class="domain-empty">请先在中间列表选择合同</div>
+                <div v-else-if="activeRiskItems.length === 0" class="domain-clear">
+                  <span class="dc-icon">✓</span>
+                  <span>当前合同无风险项记录</span>
+                </div>
+              </div>
+
+              <div v-if="activeContract && activeRiskItems.length" class="action-btns" style="padding-top:8px;border-top:1px solid #f1f5f9">
+                <button type="button" class="act-btn primary" @click="showToast('整改工单已派发至合规部', 'info')">派发整改工单</button>
+                <button type="button" class="act-btn danger"  @click="showToast('风险预警已推送至责任人', 'warn')">发起风险预警</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- 侧拉抽屉：穿透图 + 风险核查摘要 -->
+        <transition name="drawer-slide">
+          <div v-if="drawerOpen" class="ct-drawer">
+            <div class="drawer-mask" @click="drawerOpen = false"></div>
+            <div class="drawer-panel card">
+              <div class="drawer-header">
+                <div class="drawer-title">
+                  <span class="drawer-contract-id">{{ activeContractId }}</span>
+                  <span class="drawer-subtitle">分析图谱 · 风险核查摘要</span>
+                </div>
+                <button type="button" class="drawer-close" @click="drawerOpen = false">✕</button>
+              </div>
+              <!-- 阶段 tabs -->
+              <div class="stage-tabs">
+                <button
+                  v-for="(stage, i) in activeStages"
+                  :key="stage.id"
+                  type="button"
+                  class="stage-tab"
+                  :class="{ active: activeStageIdx === i, 'has-risk': stage.risks.length > 0 }"
+                  @click="activeStageIdx = i"
+                >
+                  <span class="sn">{{ i + 1 }}</span>{{ stage.tabLabel }}
+                  <span v-if="stage.risks.length" class="risk-badge">{{ stage.risks.length }}</span>
+                </button>
+              </div>
+              <!-- 图表 -->
+              <div class="drawer-chart">
+                <EChart :option="stageChartOption" />
+              </div>
+              <!-- 风险摘要 -->
+              <div class="drawer-risk-section">
+                <div class="rs-section-head">
+                  <span class="rs-section-title">风险核查摘要</span>
+                  <span class="pill red" style="font-size:10px">{{ totalRisks }} 项</span>
+                </div>
+                <div class="drawer-risk-list micro-scroll">
+                  <template v-if="riskSummary.length">
+                    <div v-for="(item, i) in riskSummary" :key="i" class="rs-item" :class="`rs-${item.level}`" @click="jumpToStage(item.stageIdx)">
+                      <div class="rs-top">
+                        <span class="rs-stage">阶段 {{ item.stageIdx + 1 }}・{{ item.stageLabel }}</span>
+                        <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLabelMap[item.level] }}</span>
+                      </div>
+                      <div class="rs-title">{{ item.title }}</div>
+                      <div class="rs-desc">{{ item.desc }}</div>
+                    </div>
+                  </template>
+                  <div v-else class="risk-clear"><span>✓</span> 当前合同未发现风险项</div>
+                </div>
+              </div>
             </div>
           </div>
-        </aside>
-        </div>
+        </transition>
+
       </div>
     </template>
-
 
     <!-- ══════════ 风险事项详情报告视图 ══════════ -->
     <template v-if="viewMode === 'risk-detail' && activeRisk">
       <div class="rd-view">
+        <!-- 顶栏（对齐合同详情样式） -->
+        <div class="cd-topbar rd-topbar">
+          <div class="cd-topbar-left">
+            <button type="button" class="rdr-back-btn" @click="backToContractView">← 返回合同智联仓库</button>
+            <span class="cd-id">{{ activeRisk.id }}</span>
+            <span class="risk-pill" :class="`rp-${activeRisk.level}`">{{ riskLevelLabel[activeRisk.level] }}</span>
+          </div>
+          <div class="cd-topbar-right">
+            <span class="cd-status-pill" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">{{ activeRisk.status }}</span>
+            <span style="font-size:10px;color:#94a3b8">生成时间：{{ activeRisk.alertTime }}</span>
+          </div>
+        </div>
 
+        <div class="rd-content">
         <!-- 左侧：报告元信息 + 操作 -->
         <aside class="rd-sidebar">
 
@@ -254,10 +346,6 @@
               <div class="rdr-header-left">
                 <h2>风险事项详情报告</h2>
                 <p>合同管理域 · 采购合同价格异动预警 · 自动生成报告</p>
-              </div>
-              <div class="rdr-header-right">
-                <button type="button" class="rdr-back-btn" @click="backToContractView">返回合同穿透</button>
-                <span class="rdr-time">生成时间：{{ activeRisk.alertTime }}</span>
               </div>
             </div>
 
@@ -387,8 +475,8 @@
                       <button type="button" class="plg-tag" @click="showToast('已定位合同详情 HT-202605002', 'info')">
                         <span class="plg-id">HT-202605002</span><span class="plg-name">本次合同详情</span>
                       </button>
-                      <button type="button" class="plg-tag" @click="showToast('已加载供应商历史合同列表', 'info')">
-                        <span class="plg-id">HT-供应商历史</span><span class="plg-name">供应商历史合同</span>
+                      <button type="button" class="plg-tag pene-active" @click="openPenetration('supplier')">
+                        <span class="plg-id">HT-202602003</span><span class="plg-name">供应商历史合同 ↗</span>
                       </button>
                       <button type="button" class="plg-tag" @click="showToast('已加载合同审批记录 SP-202605002', 'info')">
                         <span class="plg-id">SP-202605002</span><span class="plg-name">合同审批记录</span>
@@ -396,13 +484,13 @@
                     </div>
                   </div>
                   <div class="plg-group plg-proc">
-                    <div class="plg-label">采购域 <span class="plg-nav-hint">↗ 点击跳转采购穿透页</span></div>
+                    <div class="plg-label">采购域 <span class="plg-nav-hint">↗ 点击穿透核查</span></div>
                     <div class="plg-tags">
                       <button type="button" class="plg-tag proc-tag" @click="navigateToProcurement">
                         <span class="plg-id">CG-202605002</span><span class="plg-name">采购计划详情</span>
                       </button>
-                      <button type="button" class="plg-tag proc-tag" @click="navigateToProcurement">
-                        <span class="plg-id">XJ-202605002</span><span class="plg-name">采购询价记录</span>
+                      <button type="button" class="plg-tag proc-tag pene-active" @click="openPenetration('inquiry')">
+                        <span class="plg-id">XJ-202605002</span><span class="plg-name">采购询价记录 ↗</span>
                       </button>
                       <button type="button" class="plg-tag proc-tag" @click="navigateToProcurement">
                         <span class="plg-id">BJ-202605002</span><span class="plg-name">供应商报价记录</span>
@@ -412,8 +500,8 @@
                   <div class="plg-group">
                     <div class="plg-label">财务域</div>
                     <div class="plg-tags">
-                      <button type="button" class="plg-tag fin-tag" @click="showToast('已加载发票详情 FP-202605003', 'info')">
-                        <span class="plg-id">FP-202605003</span><span class="plg-name">发票详情</span>
+                      <button type="button" class="plg-tag fin-tag pene-active" @click="openPenetration('invoice')">
+                        <span class="plg-id">FP-202605003</span><span class="plg-name">财务发票详情 ↗</span>
                       </button>
                       <button type="button" class="plg-tag fin-tag" @click="showToast('已加载会计凭证 PZ-202605003', 'info')">
                         <span class="plg-id">PZ-202605003</span><span class="plg-name">会计凭证详情</span>
@@ -470,11 +558,316 @@
             </div>
           </div>
         </div>
+        </div><!-- /.rd-content -->
+
+        <!-- ══ 穿透详情面板 ══ -->
+        <transition name="pene-slide">
+          <div v-if="peneTarget" class="pene-overlay">
+            <div class="pene-modal card">
+
+              <!-- 面板头 -->
+              <div class="pene-head">
+                <div class="pene-head-left">
+                  <span class="pene-label">穿透核查</span>
+                  <span class="pene-id">{{ peneDataMap[peneTarget].id }}</span>
+                  <span class="pene-title">{{ peneDataMap[peneTarget].title }}</span>
+                </div>
+                <button type="button" class="drawer-close" @click="peneTarget = null">✕</button>
+              </div>
+              <div class="pene-subtitle">{{ peneDataMap[peneTarget].subtitle }}</div>
+
+              <!-- 供应商历史合同 -->
+              <template v-if="peneTarget === 'supplier'">
+                <div class="pene-body micro-scroll">
+                  <div class="pene-sec-title">历史合同价格对比</div>
+                  <table class="pene-table">
+                    <thead><tr>
+                      <th>合同编号</th><th>签订日期</th><th>规格型号</th><th>数量</th><th>单价</th><th>合同金额</th><th>状态</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr v-for="r in peneDataMap.supplier.records" :key="r.contractId" :class="{ 'ptr-current': r.current }">
+                        <td class="mono-cell">{{ r.contractId }}<span v-if="r.current" class="ptr-cur-badge">本次</span></td>
+                        <td>{{ r.date }}</td><td>{{ r.spec }}</td><td>{{ r.qty }}</td>
+                        <td :class="r.current ? 'ptr-price-high' : ''"><strong>{{ r.unitPrice }}</strong></td>
+                        <td>{{ r.amount }}</td>
+                        <td><span class="ptr-status" :class="r.current ? 'ptr-st-active' : 'ptr-st-done'">{{ r.status }}</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="pene-conclusion-box pene-warn">{{ peneDataMap.supplier.conclusion }}</div>
+                </div>
+              </template>
+
+              <!-- 采购询价记录 -->
+              <template v-else-if="peneTarget === 'inquiry'">
+                <div class="pene-body micro-scroll">
+                  <div class="pene-sec-title">询价供应商对比</div>
+                  <table class="pene-table">
+                    <thead><tr>
+                      <th>供应商</th><th>报价</th><th>交货期</th><th>资质等级</th><th>备注</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr v-for="r in peneDataMap.inquiry.records" :key="r.supplier" :class="{ 'ptr-current': r.selected }">
+                        <td>{{ r.supplier }}<span v-if="r.selected" class="ptr-cur-badge">已选</span></td>
+                        <td :class="r.selected ? 'ptr-price-high' : ''"><strong>{{ r.price }}</strong></td>
+                        <td>{{ r.delivery }}</td><td>{{ r.qualification }}</td><td>{{ r.remark }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="pene-kv-row">
+                    <span class="pene-kv-label">同期市场参考价</span>
+                    <strong class="pene-kv-val pene-kv-green">{{ peneDataMap.inquiry.marketRef }}</strong>
+                  </div>
+                  <div class="pene-conclusion-box pene-warn">{{ peneDataMap.inquiry.conclusion }}</div>
+                </div>
+              </template>
+
+              <!-- 财务发票 -->
+              <template v-else-if="peneTarget === 'invoice'">
+                <div class="pene-body micro-scroll">
+                  <div class="pene-sec-title">发票要素核查</div>
+                  <div class="pene-kv-grid">
+                    <div v-for="item in peneDataMap.invoice.items" :key="item.field" class="pene-kv-item">
+                      <span>{{ item.field }}</span><strong>{{ item.value }}</strong>
+                    </div>
+                  </div>
+                  <div class="pene-conclusion-box pene-ok">{{ peneDataMap.invoice.diff }}</div>
+                  <div class="pene-conclusion-box" style="margin-top:6px">{{ peneDataMap.invoice.conclusion }}</div>
+                </div>
+              </template>
+
+              <!-- 核查结论录入 -->
+              <div class="pene-resolution">
+                <div class="pene-res-title">📝 核查结论录入</div>
+                <div class="pene-res-desc">根据以上核查数据，本次价格异动属于：</div>
+                <div class="pene-res-btns">
+                  <button type="button" class="prb-btn prb-resolve" @click="resolveAlert('reasonable')">
+                    <span class="prb-icon">✓</span>
+                    <span class="prb-text"><strong>合理异动</strong><em>补充说明，解除预警</em></span>
+                  </button>
+                  <button type="button" class="prb-btn prb-escalate" @click="resolveAlert('violation')">
+                    <span class="prb-icon">⚠</span>
+                    <span class="prb-text"><strong>违规异动</strong><em>按整改建议处理</em></span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </transition>
 
       </div>
     </template>
 
-  </div>
+    <!-- ══════════ 合同详情页 ══════════ -->
+    <template v-if="viewMode === 'contract-detail' && activeContractDetail">
+      <div class="cd-view micro-scroll">
+        <!-- 顶栏 -->
+        <div class="cd-topbar">
+          <div class="cd-topbar-left">
+            <button type="button" class="rdr-back-btn" @click="viewMode = 'penetration'">← 返回合同智联仓库</button>
+            <span class="cd-id">{{ activeContractDetail.base.contractNo }}</span>
+            <span class="risk-pill" :class="`rp-${activeContractDetail.meta.riskLevel}`">{{ riskLabelMap[activeContractDetail.meta.riskLevel] }}</span>
+          </div>
+          <div class="cd-topbar-right">
+            <span class="cd-status-pill">{{ activeContractDetail.base.status }}</span>
+            <span class="cd-core-risk-inline">⚠ {{ activeContractDetail.meta.coreRisk }}</span>
+          </div>
+        </div>
+
+        <!-- AI 总览 -->
+        <div class="cd-section cd-ai-overview">
+          <div class="cd-sec-title"><span class="cd-sec-num">AI</span>合同解析总览</div>
+          <div class="cd-ai-grid">
+            <div class="cd-ai-item"><span>合同类型</span><strong>{{ activeContractDetail.meta.type }}</strong></div>
+            <div class="cd-ai-item"><span>风险等级</span>
+              <strong :style="{ color: riskColor[activeContractDetail.meta.riskLevel] }">{{ riskLabelMap[activeContractDetail.meta.riskLevel] }}</strong>
+            </div>
+            <div class="cd-ai-item"><span>合同状态</span><strong>{{ activeContractDetail.base.status }}</strong></div>
+          </div>
+        </div>
+
+        <div class="cd-body">
+          <!-- 一：基础主体信息 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">一</span>基础主体信息</div>
+            <div class="cd-three-col">
+              <div class="cd-field-group">
+                <div class="cd-fg-title">合同基本</div>
+                <div class="cd-field"><span>合同编号</span><strong>{{ activeContractDetail.base.contractNo }}</strong></div>
+                <div class="cd-field"><span>合同名称</span><strong>{{ activeContractDetail.base.name }}</strong></div>
+                <div class="cd-field"><span>合同类型</span><strong>{{ activeContractDetail.base.type }}</strong></div>
+                <div class="cd-field"><span>归档编号</span><strong>{{ activeContractDetail.base.archiveNo }}</strong></div>
+              </div>
+              <div class="cd-field-group">
+                <div class="cd-fg-title">甲方（发包方）</div>
+                <div class="cd-field"><span>单位全称</span><strong>{{ activeContractDetail.partyA.name }}</strong></div>
+                <div class="cd-field"><span>统一社会信用代码</span><strong>{{ activeContractDetail.partyA.creditCode }}</strong></div>
+                <div class="cd-field"><span>所属集团</span><strong>{{ activeContractDetail.partyA.group }}</strong></div>
+                <div class="cd-field"><span>联系人</span><strong>{{ activeContractDetail.partyA.contact }}</strong></div>
+              </div>
+              <div class="cd-field-group">
+                <div class="cd-fg-title">乙方（承包方）</div>
+                <div class="cd-field"><span>合作方全称</span><strong>{{ activeContractDetail.partyB.name }}</strong></div>
+                <div class="cd-field"><span>统一社会信用代码</span><strong>{{ activeContractDetail.partyB.creditCode }}</strong></div>
+                <div class="cd-field"><span>企业性质</span><strong>{{ activeContractDetail.partyB.nature }}</strong></div>
+                <div class="cd-field"><span>联系人</span><strong>{{ activeContractDetail.partyB.contact }}</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 二：合同时效数据 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">二</span>合同时效数据</div>
+            <div class="cd-field-row">
+              <div class="cd-field"><span>签订日期</span><strong>{{ activeContractDetail.timeline.signDate }}</strong></div>
+              <div class="cd-field"><span>生效日期</span><strong>{{ activeContractDetail.timeline.effectDate }}</strong></div>
+              <div class="cd-field"><span>终止日期</span><strong>{{ activeContractDetail.timeline.expireDate }}</strong></div>
+              <div class="cd-field"><span>质保期</span><strong>{{ activeContractDetail.timeline.warrantyPeriod }}</strong></div>
+              <div class="cd-field"><span>付款节点</span><strong>{{ activeContractDetail.timeline.payNodes }}</strong></div>
+              <div class="cd-field"><span>履约截止</span><strong>{{ activeContractDetail.timeline.performDeadline }}</strong></div>
+            </div>
+          </div>
+
+          <!-- 三：金额费用结构 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">三</span>金额费用结构化数据</div>
+            <div class="cd-amount-grid">
+              <div class="cd-amount-card cd-amount-total">
+                <span>合同总金额</span>
+                <strong>{{ activeContractDetail.finance.totalAmount }}</strong>
+                <em>{{ activeContractDetail.finance.totalAmountCN }}</em>
+              </div>
+              <div class="cd-amount-card">
+                <span>含税金额</span><strong>{{ activeContractDetail.finance.taxIncluded }}</strong>
+              </div>
+              <div class="cd-amount-card">
+                <span>税率</span><strong>{{ activeContractDetail.finance.taxRate }}</strong>
+              </div>
+              <div class="cd-amount-card">
+                <span>预付款</span><strong>{{ activeContractDetail.finance.prepay }}</strong>
+              </div>
+              <div class="cd-amount-card">
+                <span>进度款</span><strong>{{ activeContractDetail.finance.progress }}</strong>
+              </div>
+              <div class="cd-amount-card">
+                <span>尾款</span><strong>{{ activeContractDetail.finance.final }}</strong>
+              </div>
+              <div class="cd-amount-card">
+                <span>履约保证金</span><strong>{{ activeContractDetail.finance.deposit }}</strong>
+              </div>
+              <div class="cd-amount-card cd-amount-warn">
+                <span>违约金标准</span><strong>{{ activeContractDetail.finance.penalty }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- 四：业务品类与标的 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">四</span>业务品类与标的数据</div>
+            <div class="cd-field-row">
+              <div class="cd-field"><span>业务大类</span><strong>{{ activeContractDetail.subject.category }}</strong></div>
+              <div class="cd-field"><span>采购品目</span><strong>{{ activeContractDetail.subject.item }}</strong></div>
+              <div class="cd-field"><span>标的名称</span><strong>{{ activeContractDetail.subject.name }}</strong></div>
+              <div class="cd-field"><span>规格型号</span><strong>{{ activeContractDetail.subject.spec }}</strong></div>
+              <div class="cd-field"><span>数量/单位</span><strong>{{ activeContractDetail.subject.qty }}</strong></div>
+              <div class="cd-field"><span>单价</span><strong>{{ activeContractDetail.subject.unitPrice }}</strong></div>
+              <div class="cd-field"><span>交付地点</span><strong>{{ activeContractDetail.subject.deliverPlace }}</strong></div>
+              <div class="cd-field"><span>立项文号</span><strong>{{ activeContractDetail.subject.projectNo }}</strong></div>
+            </div>
+          </div>
+
+          <!-- 五：审批与流程 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">五</span>审批与流程数据</div>
+            <div class="cd-field-row">
+              <div class="cd-field"><span>发起部门</span><strong>{{ activeContractDetail.approval.dept }}</strong></div>
+              <div class="cd-field"><span>经办人</span><strong>{{ activeContractDetail.approval.handler }}</strong></div>
+              <div class="cd-field"><span>招标方式</span><strong class="cd-risk-flag">{{ activeContractDetail.approval.bidMethod }}</strong></div>
+              <div class="cd-field"><span>招标编号</span><strong>{{ activeContractDetail.approval.bidNo }}</strong></div>
+              <div class="cd-field"><span>法务审核</span><strong>{{ activeContractDetail.approval.legalStatus }}</strong></div>
+              <div class="cd-field"><span>财务审核</span><strong>{{ activeContractDetail.approval.financeStatus }}</strong></div>
+            </div>
+          </div>
+
+          <!-- 六七八九：履约 · 财务 · 合规 · 存档（四列一行） -->
+          <div class="cd-four-col">
+            <div class="cd-section">
+              <div class="cd-sec-title"><span class="cd-sec-num">六</span>履约管控数据</div>
+              <div class="cd-field"><span>交付方式</span><strong>{{ activeContractDetail.perform.deliverMethod }}</strong></div>
+              <div class="cd-field"><span>验收标准</span><strong>{{ activeContractDetail.perform.acceptStd }}</strong></div>
+              <div class="cd-field"><span>履约责任人</span><strong>{{ activeContractDetail.perform.responsible }}</strong></div>
+              <div class="cd-field"><span>变更次数</span><strong>{{ activeContractDetail.perform.changeCount }}</strong></div>
+              <div class="cd-field"><span>违约情形</span><strong class="cd-risk-flag">{{ activeContractDetail.perform.breachCase }}</strong></div>
+            </div>
+            <div class="cd-section">
+              <div class="cd-sec-title"><span class="cd-sec-num">七</span>财务结算数据</div>
+              <div class="cd-field"><span>结算方式</span><strong>{{ activeContractDetail.settlement.method }}</strong></div>
+              <div class="cd-field"><span>付款周期</span><strong>{{ activeContractDetail.settlement.cycle }}</strong></div>
+              <div class="cd-field"><span>发票类目</span><strong>{{ activeContractDetail.settlement.invoiceType }}</strong></div>
+              <div class="cd-field"><span>对账周期</span><strong>{{ activeContractDetail.settlement.reconcile }}</strong></div>
+              <div class="cd-field"><span>资金计划编号</span><strong>{{ activeContractDetail.settlement.fundPlanNo }}</strong></div>
+            </div>
+            <div class="cd-section">
+              <div class="cd-sec-title"><span class="cd-sec-num">八</span>合规风控字段</div>
+              <div class="cd-field"><span>涉密等级</span><strong>{{ activeContractDetail.compliance.secretLevel }}</strong></div>
+              <div class="cd-field"><span>关联框架协议</span><strong>{{ activeContractDetail.compliance.frameworkRef }}</strong></div>
+              <div class="cd-field"><span>合规风险标签</span>
+                <span class="cd-tags">
+                  <span v-for="t in activeContractDetail.compliance.riskTags" :key="t" class="cd-tag cd-tag-risk">{{ t }}</span>
+                </span>
+              </div>
+              <div class="cd-field"><span>国资监管分类</span><strong>{{ activeContractDetail.compliance.stateAssetCategory }}</strong></div>
+            </div>
+            <div class="cd-section">
+              <div class="cd-sec-title"><span class="cd-sec-num">九</span>存档管理数据</div>
+              <div class="cd-field"><span>归档状态</span><strong>{{ activeContractDetail.archive.status }}</strong></div>
+              <div class="cd-field"><span>归档人</span><strong>{{ activeContractDetail.archive.archivist }}</strong></div>
+              <div class="cd-field"><span>归档时间</span><strong>{{ activeContractDetail.archive.archiveDate }}</strong></div>
+              <div class="cd-field"><span>纸质份数</span><strong>{{ activeContractDetail.archive.paperCount }}</strong></div>
+              <div class="cd-field"><span>合同状态</span><strong>{{ activeContractDetail.archive.contractStatus }}</strong></div>
+            </div>
+          </div>
+
+          <!-- 十：拓展关联 -->
+          <div class="cd-section">
+            <div class="cd-sec-title"><span class="cd-sec-num">十</span>拓展关联数据</div>
+            <div class="cd-field-row">
+              <div class="cd-field"><span>关联项目ID</span><strong>{{ activeContractDetail.extend.projectId }}</strong></div>
+              <div class="cd-field"><span>关联采购订单</span><strong>{{ activeContractDetail.extend.purchaseOrderId }}</strong></div>
+              <div class="cd-field"><span>供应商等级</span><strong>{{ activeContractDetail.extend.supplierGrade }}</strong></div>
+              <div class="cd-field"><span>历史合作次数</span><strong>{{ activeContractDetail.extend.historyCoopCount }}</strong></div>
+              <div class="cd-field"><span>年度框架额度</span><strong>{{ activeContractDetail.extend.annualQuota }}</strong></div>
+              <div class="cd-field"><span>剩余可用额度</span><strong>{{ activeContractDetail.extend.remainQuota }}</strong></div>
+            </div>
+            <!-- 穿透链路 -->
+            <div class="link-section" style="margin-top:10px">
+              <div class="ls-title">穿透链路关联</div>
+              <div class="links-wrap">
+                <span v-for="link in (contractById(activeContractDetail.base.contractNo)?.links || [])" :key="link.id" class="link-tag" :class="`lt-${link.type}`">
+                  {{ link.id }}<em>{{ link.label }}</em>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI 合规审查意见 -->
+          <div class="cd-section cd-ai-review">
+            <div class="cd-sec-title"><span class="cd-sec-num">AI</span>合规审查意见</div>
+            <div v-for="op in activeContractDetail.aiOpinion" :key="op.level" class="cd-opinion-item" :class="`cd-op-${op.level}`">
+              <div class="cd-op-head">
+                <span class="risk-pill" :class="`rp-${op.level}`">{{ riskLabelMap[op.level] }}</span>
+                <span class="cd-op-title">{{ op.title }}</span>
+              </div>
+              <div class="cd-op-body">{{ op.content }}</div>
+              <div class="cd-op-suggest">💡 整改建议：{{ op.suggest }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+  </div><!-- /.ct-scene -->
 </template>
 
 <script setup>
@@ -485,7 +878,7 @@ import EChart from '@/components/EChart.vue'
 const emit = defineEmits(['navigate'])
 
 // ──────────── 全局状态 ────────────
-const viewMode = ref('penetration') // 'penetration' | 'risk-detail'
+const viewMode = ref('penetration') // 'penetration' | 'risk-detail' | 'contract-detail'
 const toastVisible = ref(false)
 const toastText    = ref('')
 const toastType    = ref('info')
@@ -514,10 +907,11 @@ const riskLabelMap = { high: '高风险', medium: '中风险', watch: '关注', 
 const riskColor    = { high: '#ef4444', medium: '#f97316', watch: '#ca8a04', normal: '#16a34a' }
 
 const kpiCards = [
-  { label: '集团总计合同', value: '14,205', unit: '项', badge: '全量监控', color: '#2563eb', bg: '#eff6ff', pillBg: '#dbeafe', sub: '覆盖全集团所有合同台账' },
-  { label: '穿透核查覆盖率', value: '98.4', unit: '%',  badge: '高覆盖',   color: '#16a34a', bg: '#f0fdf4', pillBg: '#dcfce7', sub: '较上季度提升 1.2 个百分点' },
-  { label: '实时触发预警', value: '12',    unit: '件',  badge: '待处置',   color: '#f97316', bg: '#fff7ed', pillBg: '#fed7aa', sub: '本月新增 3 件，已派发 9 件' },
-  { label: '待整改闭环',   value: '3',     unit: '件',  badge: '逾期预警', color: '#ef4444', bg: '#fef2f2', pillBg: '#fee2e2', sub: '最长逾期 14 天，需立即跟进' },
+  { label: '集团总计合同',           value: '14,205',  unit: '项', badge: '全量监控', color: '#2563eb', bg: '#eff6ff', pillBg: '#dbeafe', sub: '覆盖全集团所有合同台账' },
+  { label: '穿透核查覆盖率',         value: '98.4',    unit: '%',  badge: '高覆盖',   color: '#16a34a', bg: '#f0fdf4', pillBg: '#dcfce7', sub: '较上季度提升 1.2 个百分点' },
+  { label: '实时触发预警',           value: '12',      unit: '件', badge: '待处置',   color: '#f97316', bg: '#fff7ed', pillBg: '#fed7aa', sub: '本月新增 3 件，已派发 9 件' },
+  { label: '待整改闭环',             value: '3',       unit: '件', badge: '逾期预警', color: '#ef4444', bg: '#fef2f2', pillBg: '#fee2e2', sub: '最长逾期 14 天，需立即跟进' },
+  { label: 'Agent 内核调用计数',     value: '842,915', unit: '次', badge: '实时统计', color: '#7c3aed', bg: '#f5f3ff', pillBg: '#ede9fe', sub: '累计智能体模型推理调用总量' },
 ]
 
 const contracts = [
@@ -694,6 +1088,311 @@ const activeRisk = computed(() => {
   }
 })
 
+// ──────────────────────────────────────
+// ── 合同列表 · 筛选 · 侧拉 · 风险项 · 详情
+// ──────────────────────────────────────
+const selectedOrgId = ref(null)
+const riskFilter    = ref('all')
+const drawerOpen    = ref(false)
+const peneTarget    = ref(null) // null | 'supplier' | 'inquiry' | 'invoice'
+
+// 各合同的风险项列表（reactive，支持 analyzing/analyzed 状态）
+const riskItemsData = ref({
+  'HT-202605002': [
+    {
+      id: 'HT-2026002', name: '采购合同价格异动预警', level: 'medium',
+      alertTime: '2026-05-17 10:15',
+      subjects: ['本单位XX物资采购部门', '供应商XX建材有限公司'],
+      relatedIndex: '合同编号：HT-202605002；采购计划编号：CG-202605002',
+      status: '核查中', statusKey: 'checking', analyzing: false, analyzed: false,
+    },
+    {
+      id: 'HT-2026003', name: '招标程序缺失预警', level: 'high',
+      alertTime: '2026-05-17 10:16',
+      subjects: ['本单位采购管理部', '经办人XXX'],
+      relatedIndex: '合同编号：HT-202605002；询价记录：XJ-202605002',
+      status: '待核查', statusKey: 'pending', analyzing: false, analyzed: false,
+    },
+    {
+      id: 'HT-2026004', name: '超进度付款风险预警', level: 'high',
+      alertTime: '2026-05-18 09:00',
+      subjects: ['本单位财务部门', '供应商江苏钢材联盟'],
+      relatedIndex: '合同编号：HT-202605002；付款凭证：PZ-202605003',
+      status: '核查中', statusKey: 'checking', analyzing: false, analyzed: false,
+    },
+    {
+      id: 'HT-2026005', name: '发票金额差异提示', level: 'watch',
+      alertTime: '2026-05-18 14:30',
+      subjects: ['本单位财务核算部', '开票方XX建材有限公司'],
+      relatedIndex: '发票号：FP-202605003；合同编号：HT-202605002',
+      status: '待核查', statusKey: 'pending', analyzing: false, analyzed: false,
+    },
+  ],
+  'HT-202604015': [
+    {
+      id: 'HT-2026006', name: '履约进度滞后预警', level: 'medium',
+      alertTime: '2026-05-15 11:20',
+      subjects: ['供应商苏州机电科技', '本单位工程管理部'],
+      relatedIndex: '合同编号：HT-202604015；施工计划编号：SC-202604015',
+      status: '整改中', statusKey: 'fixing', analyzing: false, analyzed: false,
+    },
+    {
+      id: 'HT-2026007', name: '供应商资质复核提示', level: 'watch',
+      alertTime: '2026-05-16 09:00',
+      subjects: ['供应商苏州机电科技', '本单位采购管理部'],
+      relatedIndex: '合同编号：HT-202604015；资质证书：ZZ-202501023',
+      status: '待核查', statusKey: 'pending', analyzing: false, analyzed: false,
+    },
+  ],
+  'HT-202603008': [],
+})
+
+// 穿透核查面板数据
+const peneDataMap = {
+  supplier: {
+    id: 'HT-202602003', title: '供应商历史合同',
+    subtitle: '江苏钢材联盟有限公司 · 历史价格核查',
+    records: [
+      { contractId: 'HT-202605002', date: '2026-04-18', spec: 'HRB400E Φ16mm', qty: '100吨', unitPrice: '5,800元/吨', amount: '58.0万元', status: '执行中', current: true },
+      { contractId: 'HT-202602003', date: '2025-12-10', spec: 'HRB400E Φ16mm', qty: '80吨',  unitPrice: '5,200元/吨', amount: '41.6万元', status: '已完结', current: false },
+      { contractId: 'HT-202601008', date: '2025-08-15', spec: 'HRB400E Φ16mm', qty: '60吨',  unitPrice: '5,150元/吨', amount: '30.9万元', status: '已完结', current: false },
+      { contractId: 'HT-202507021', date: '2025-03-22', spec: 'HRB400E Φ16mm', qty: '50吨',  unitPrice: '5,100元/吨', amount: '25.5万元', status: '已完结', current: false },
+    ],
+    conclusion: '供应商近 3 次同规格合同单价分别为 5,200、5,150、5,100 元/吨，呈缓慢上涨趋势（约 1%/季度）。本次合同单价 5,800 元/吨较历史均价（5,150 元/吨）偏高 12.6%，远超正常涨幅范围，缺乏合理依据。',
+  },
+  inquiry: {
+    id: 'XJ-202605002', title: '采购询价记录',
+    subtitle: '钢材采购询价单 · 同期市场价格核查',
+    records: [
+      { supplier: '江苏钢材联盟有限公司', price: '5,800元/吨', delivery: '7天',  qualification: 'B级', selected: true,  remark: '本次中选' },
+      { supplier: '华东金属材料有限公司', price: '5,750元/吨', delivery: '10天', qualification: 'B级', selected: false, remark: '' },
+    ],
+    marketRef: '5,500元/吨（第三方平台 SJ-20260517001）',
+    conclusion: '本次询价仅邀请 2 家供应商参与，未进行公开竞争性招标；所有报价均高于同期市场公允价格（5,500 元/吨）。按制度规定，单笔采购超 500 万须公开招标，本次操作违规。',
+  },
+  invoice: {
+    id: 'FP-202605003', title: '财务发票详情',
+    subtitle: '增值税专用发票 · 与合同价格一致性核查',
+    items: [
+      { field: '发票号码',   value: 'FP-202605003' },
+      { field: '开票日期',   value: '2026-04-25' },
+      { field: '销售方',     value: '江苏钢材联盟有限公司' },
+      { field: '购买方',     value: '某某建设集团有限公司' },
+      { field: '货物名称',   value: 'Φ16mm 螺纹钢 HRB400E' },
+      { field: '数量',       value: '100 吨' },
+      { field: '不含税单价', value: '5,133.63 元/吨' },
+      { field: '税率',       value: '13%' },
+      { field: '含税单价',   value: '5,800 元/吨 ✓ 与合同一致' },
+      { field: '价税合计',   value: '¥580,000.00' },
+    ],
+    diff: '✓ 发票含税单价（5,800元/吨）与合同约定单价（5,800元/吨）完全一致，未发现发票价格虚高问题。',
+    conclusion: '价格异动发生在合同签订阶段，而非开票环节。问题根源在于招标议价过程，建议重点核查采购经办人的议价行为。',
+  },
+}
+
+// 按机构筛选后的合同基础集
+const filteredContractsBase = computed(() => {
+  if (!selectedOrgId.value) return contracts
+  const grp = companyTree.find(g => g.id === selectedOrgId.value)
+  if (grp) {
+    const ids = grp.children.flatMap(b => b.contracts)
+    return contracts.filter(c => ids.includes(c.id))
+  }
+  for (const g of companyTree) {
+    const br = g.children.find(b => b.id === selectedOrgId.value)
+    if (br) return contracts.filter(c => br.contracts.includes(c.id))
+  }
+  return contracts
+})
+
+// 风险筛选标签（含计数）
+const riskFilters = computed(() => {
+  const base = filteredContractsBase.value
+  return [
+    { value: 'all',    label: '全部',   count: base.length },
+    { value: 'high',   label: '高风险', count: base.filter(c => c.risk === 'high').length },
+    { value: 'medium', label: '中风险', count: base.filter(c => c.risk === 'medium').length },
+    { value: 'watch',  label: '关注',   count: base.filter(c => c.risk === 'watch').length },
+    { value: 'normal', label: '正常',   count: base.filter(c => c.risk === 'normal').length },
+  ]
+})
+
+// 最终展示的合同列表
+const filteredContracts = computed(() => {
+  const base = filteredContractsBase.value
+  if (riskFilter.value === 'all') return base
+  return base.filter(c => c.risk === riskFilter.value)
+})
+
+// 当前合同的风险项
+const activeRiskItems = computed(() =>
+  riskItemsData.value[activeContractId.value] ?? []
+)
+
+function analyzeRiskItem(item) {
+  item.analyzing = true
+  item.analyzed  = false
+  window.setTimeout(() => {
+    item.analyzing = false
+    item.analyzed  = true
+  }, 1800)
+}
+
+// ── 操作函数
+function selectOrg(id) {
+  selectedOrgId.value = id
+  riskFilter.value = 'all'
+}
+
+function openDrawer(contractId) {
+  selectContract(contractId)
+  drawerOpen.value = true
+}
+
+function openContractDetail(contractId) {
+  selectContract(contractId)
+  viewMode.value = 'contract-detail'
+}
+
+function openPenetration(target) {
+  peneTarget.value = target
+}
+
+function resolveAlert(type) {
+  peneTarget.value = null
+  if (type === 'reasonable') {
+    showToast('已录入合理异动说明，预警已解除，等待审批', 'info')
+  } else {
+    showToast('已标记违规异动，整改工单已派发至采购合规部', 'warn')
+  }
+}
+
+// ── 合同详情（十大类结构化数据）
+const contractDetailData = {
+  'HT-202605002': {
+    meta: {
+      type: '物资采购合同',
+      riskLevel: 'high',
+      coreRisk: '价格异动超阈值（+11.5%），未经竞争性招标，付款进度超交付进度',
+    },
+    base: {
+      contractNo: 'HT-202605002',
+      name: '钢材采购框架协议',
+      type: '物资采购合同',
+      archiveNo: 'DA-2026-HT-0032',
+      status: '履行中',
+    },
+    partyA: {
+      name: '某某建设集团有限公司',
+      creditCode: '9132****×××XXXXXX',
+      group: '华东建设集团',
+      contact: 'XXX（采购经办人）',
+    },
+    partyB: {
+      name: '江苏钢材联盟有限公司',
+      creditCode: '9132****×××XXXXXX',
+      nature: '有限责任公司（民营）',
+      contact: 'XXX / 139****XXXX',
+    },
+    timeline: {
+      signDate: '2026-04-18',
+      effectDate: '2026-04-18',
+      expireDate: '2027-04-17',
+      warrantyPeriod: '交付后 12 个月',
+      payNodes: '预付 30% · 进度 50% · 尾款 20%',
+      performDeadline: '2027-03-31',
+    },
+    finance: {
+      totalAmount: '¥ 2.8 亿元',
+      totalAmountCN: '贰亿捌仟万元整',
+      taxIncluded: '¥ 2.8 亿元（含税）',
+      taxRate: '13%（增值税专用发票）',
+      prepay: '¥ 840 万元（30%）',
+      progress: '¥ 1,400 万元（50%）',
+      final: '¥ 560 万元（20%）',
+      deposit: '¥ 280 万元（合同金额 1%）',
+      penalty: '逾期每日 0.05%，上限 10%',
+    },
+    subject: {
+      category: '物资采购',
+      item: '建筑用钢材',
+      name: 'Φ16mm 螺纹钢',
+      spec: 'HRB400E Φ16mm',
+      qty: '100 吨',
+      unitPrice: '5,800 元/吨 ⚠',
+      deliverPlace: '江苏省苏州市工业园区施工现场',
+      projectNo: 'LX-2026-SZ-001',
+    },
+    approval: {
+      dept: '采购管理部',
+      handler: 'XXX',
+      bidMethod: '询价采购（仅 2 家）⚠ 未公开招标',
+      bidNo: 'XJ-202605002',
+      legalStatus: '法务审核通过',
+      financeStatus: '财务审核通过',
+    },
+    perform: {
+      deliverMethod: '供应商送货至施工现场',
+      acceptStd: '国标 GB/T 1499.2-2018',
+      responsible: 'XXX（工程部项目负责人）',
+      changeCount: '0 次',
+      breachCase: '延迟交付 10 天以上触发违约金 ⚠',
+    },
+    settlement: {
+      method: '银行转账',
+      cycle: '验收合格后 30 日内',
+      invoiceType: '增值税专用发票（13%）',
+      reconcile: '每月 25 日',
+      fundPlanNo: 'FP-PLAN-2026-042',
+    },
+    compliance: {
+      secretLevel: '内部',
+      frameworkRef: '无关联框架协议',
+      riskTags: ['价格异动', '招标缺失', '超进度付款'],
+      stateAssetCategory: '国资监管 A 类（重点监控）',
+    },
+    archive: {
+      status: '已归档（电子）',
+      archivist: 'XXX（合同管理员）',
+      archiveDate: '2026-04-20',
+      paperCount: '正本 2 份，副本 3 份',
+      contractStatus: '履行中',
+    },
+    extend: {
+      projectId: 'PROJ-SZ-2026-018',
+      purchaseOrderId: 'CG-202605002',
+      supplierGrade: 'B 级（合格供应商）',
+      historyCoopCount: '3 次',
+      annualQuota: '5,000 万元',
+      remainQuota: '2,200 万元',
+    },
+    aiOpinion: [
+      {
+        level: 'high',
+        title: '招标程序缺失',
+        content: '本合同采用询价采购方式，仅对比 2 家供应商报价，未进行公开招标或竞争性谈判，违反采购管理制度第 12 条"单笔采购金额超 500 万元须公开招标"规定。',
+        suggest: '立即启动采购专项审计，补充招标合规说明；对责任经办人启动问询；后续同类采购严格执行公开招标程序。',
+      },
+      {
+        level: 'medium',
+        title: '合同价格异动超阈值',
+        content: '合同单价 5,800 元/吨，较供应商历史合作均价（5,200 元/吨）偏高 11.5%，超过系统预警阈值（±10%）；较同期市场公允价格（5,500 元/吨）偏高 5.45%，无合理价格说明文件。',
+        suggest: '要求供应商出具价格上涨说明及原材料采购凭证；对接第三方价格平台核实市场价格；如不合理则协商调整或重新询价。',
+      },
+      {
+        level: 'watch',
+        title: '付款进度超交付进度',
+        content: '当前付款进度 64%，交付进度 62%，超进度付款差异约 1,200 万元，存在资金预付风险，需持续跟踪。',
+        suggest: '暂缓第 4 期付款，待交付进度追平后再行结算；加强现场验收管控，确保付款与交付同步推进。',
+      },
+    ],
+  },
+}
+
+const activeContractDetail = computed(() =>
+  contractDetailData[activeContractId.value] ?? contractDetailData['HT-202605002']
+)
+
 </script>
 
 <style scoped>
@@ -780,12 +1479,36 @@ const activeRisk = computed(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* ── 页面大标题 ── */
+.ct-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 2px;
+  flex-shrink: 0;
+}
+.cpt-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.cpt-text {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+.cpt-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: 4px;
 }
 
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 16px 0;
   flex-shrink: 0;
@@ -810,7 +1533,7 @@ const activeRisk = computed(() => {
 
 .ct-body {
   display: grid;
-  grid-template-columns: 480px minmax(0, 1fr) 300px;
+  grid-template-columns: 480px minmax(0, 1fr) 600px;
   gap: 8px;
   padding: 8px 16px 10px;
   min-height: 0;
@@ -927,13 +1650,13 @@ const activeRisk = computed(() => {
 
 .pene-panel { height: 100%; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) 190px; gap: 10px; }
 
-.stage-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
-.stage-tab { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.16s ease; white-space: nowrap; }
+.stage-tabs { display: flex; gap: 8px; flex-wrap: nowrap; padding: 0 14px 10px; }
+.stage-tab { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.16s ease; white-space: nowrap; flex: 1; justify-content: center; }
 .stage-tab:hover, .stage-tab.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; box-shadow: 0 0 0 3px rgba(37,99,235,0.09); }
 
-.sn { width: 17px; height: 17px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-size: 9px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sn { width: 22px; height: 22px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .stage-tab.active .sn { background: #2563eb; color: #fff; }
-.risk-badge { background: #ef4444; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px; }
+.risk-badge { background: #ef4444; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 999px; }
 
 .flow-strip { display: flex; align-items: center; gap: 5px; padding: 10px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow-x: auto; scrollbar-width: none; }
 .flow-strip::-webkit-scrollbar { display: none; }
@@ -1101,13 +1824,22 @@ const activeRisk = computed(() => {
 .rd-view {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  position: relative;
+}
+.rd-topbar { flex-shrink: 0; }
+.rd-content {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 10px;
-  padding: 10px 16px 12px;
 }
 
-.rd-sidebar { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+.rd-sidebar { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; align-self: start; max-height: 100%; }
 
 /* 元信息卡 */
 .rd-meta-card { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -1316,4 +2048,954 @@ const activeRisk = computed(() => {
 .ptm-item span   { font-size: 9px; color: #94a3b8; }
 .ptm-item strong { font-size: 11px; color: #334155; }
 .ptm-item .deadline { color: #ef4444; }
+
+/* ──────────── 机构树选中态 ──────────── */
+.ctree-all-row {
+  font-size: 11px; font-weight: 700; color: #475569;
+  border-bottom: 1px solid #f1f5f9; margin-bottom: 4px; border-radius: 8px;
+}
+.ctree-selected {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+}
+.ctree-selected .ctree-name { color: #1d4ed8; }
+.ctree-selected .ctree-cnt  { color: #93c5fd; }
+.ctree-selected .ctree-arrow { color: #2563eb; }
+
+/* ──────────── 合同列表面板 ──────────── */
+.contract-list-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cl-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.cl-filter-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.clf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap;
+}
+.clf-tab:hover { border-color: #93c5fd; background: #eff6ff; color: #2563eb; }
+.clf-tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.clf-count {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.25);
+  border-radius: 999px;
+  padding: 0 5px;
+  line-height: 1.5;
+}
+.clf-tab:not(.active) .clf-count {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.cl-total-tip { font-size: 10px; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+
+.cl-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+.cl-empty {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 32px 0;
+}
+
+/* ── 合同卡片 ── */
+.cl-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.16s, border-color 0.16s;
+  border-left: 4px solid #e2e8f0;
+}
+.cl-card:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.08); border-color: #bfdbfe; }
+.cl-active { border-color: #93c5fd !important; background: #f0f7ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+.cl-high   { border-left-color: #ef4444; }
+.cl-medium { border-left-color: #f97316; }
+.cl-watch  { border-left-color: #ca8a04; }
+.cl-normal { border-left-color: #16a34a; }
+
+.clc-top { display: flex; flex-direction: column; gap: 3px; }
+.clc-id-row { display: flex; align-items: center; gap: 6px; }
+.clc-id { font-size: 10px; font-weight: 700; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
+.clc-risk-cnt { font-size: 10px; font-weight: 700; color: #ef4444; background: #fef2f2; border-radius: 999px; padding: 0 5px; }
+.clc-name { font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+
+.clc-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.clc-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.clc-supplier { font-size: 10px; color: #64748b; }
+.clc-amount   { font-size: 13px; font-weight: 800; }
+
+/* ── 合同卡片操作按钮区 ── */
+.clc-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+.clc-btn {
+  flex: 1;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.clc-btn:hover { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.clc-btn-chart  { }
+.clc-btn-detail { background: #f0f7ff; border-color: #bfdbfe; color: #1d4ed8; }
+.clc-btn-detail:hover { background: #dbeafe; }
+.clc-btn-risk   { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+.clc-btn-risk:hover { background: #ef4444; color: #fff; }
+
+/* ──────────── 多维风险面板 ──────────── */
+.domain-risk-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+
+.domain-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+.domain-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.domain-item:hover { border-color: #bfdbfe; background: #f8fbff; box-shadow: 0 2px 8px rgba(37,99,235,0.07); }
+
+.di-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.di-icon { font-size: 20px; flex-shrink: 0; line-height: 1; }
+.di-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.di-top-row { display: flex; align-items: center; gap: 6px; }
+.di-domain { font-size: 12px; font-weight: 800; color: #334155; }
+.di-title  { font-size: 11px; color: #64748b; line-height: 1.4; }
+
+.di-action { flex-shrink: 0; }
+
+.di-analyze-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.di-analyze-btn:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+.di-spin-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #2563eb;
+}
+.di-spin-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #bfdbfe;
+  border-top-color: #2563eb;
+  animation: di-spin-anim 0.75s linear infinite;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.di-spin-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563eb;
+  white-space: nowrap;
+}
+@keyframes di-spin-anim {
+  to { transform: rotate(360deg); }
+}
+
+.domain-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #16a34a;
+}
+.dc-icon {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.di-report-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.di-report-btn:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+.domain-empty {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 24px 0;
+}
+
+/* ──────────── 侧拉抽屉 ──────────── */
+.ct-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: all;
+}
+
+.drawer-mask {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+.drawer-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 680px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+  overflow: hidden;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.drawer-title { display: flex; align-items: center; gap: 10px; }
+.drawer-contract-id { font-size: 13px; font-weight: 800; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
+.drawer-subtitle { font-size: 11px; color: #64748b; }
+.drawer-close {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: 0.14s;
+  display: flex; align-items: center; justify-content: center;
+}
+.drawer-close:hover { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+
+.drawer-chart {
+  height: 220px;
+  flex-shrink: 0;
+  padding: 0 14px;
+}
+
+.drawer-risk-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.drawer-risk-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+/* 抽屉整体进出：蒙层 opacity，面板 translateX */
+.drawer-slide-enter-active { transition: opacity 0.25s ease; }
+.drawer-slide-leave-active { transition: opacity 0.2s ease; }
+.drawer-slide-enter-from,
+.drawer-slide-leave-to { opacity: 0; }
+
+.drawer-slide-enter-active .drawer-panel { transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); }
+.drawer-slide-leave-active .drawer-panel { transition: transform 0.22s ease-in; }
+.drawer-slide-enter-from  .drawer-panel  { transform: translateX(100%); }
+.drawer-slide-leave-to    .drawer-panel  { transform: translateX(100%); }
+
+/* ──────────── 合同详情视图 ──────────── */
+.cd-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cd-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.cd-topbar-left  { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.cd-topbar-right { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; justify-content: flex-end; }
+.cd-id { font-size: 13px; font-weight: 800; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
+
+.cd-core-risk-inline {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  background: #fefce8;
+  border: 1px solid #fde68a;
+  border-radius: 7px;
+  padding: 4px 10px;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.cd-ai-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+.cd-status-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+.cd-body { display: flex; flex-direction: column; gap: 10px; }
+
+.cd-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cd-sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #eff6ff;
+}
+.cd-sec-num {
+  display: inline-flex;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* AI 总览 grid */
+.cd-ai-overview { background: linear-gradient(160deg, #eff6ff 0%, #f0f9ff 100%); border-color: #bfdbfe; }
+.cd-ai-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.cd-ai-item {
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cd-ai-item span   { font-size: 10px; color: #3b82f6; }
+.cd-ai-item strong { font-size: 11px; font-weight: 700; color: #0f172a; }
+.cd-ai-item-full { grid-column: 1 / -1; }
+
+/* 两列布局 */
+.cd-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* 三列布局（基础主体信息） */
+.cd-three-col {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* 四列布局（六七八九合并行） */
+.cd-four-col {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* 字段行布局 */
+.cd-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 12px;
+}
+
+.cd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  border-radius: 7px;
+}
+.cd-field span   { font-size: 9px; color: #94a3b8; }
+.cd-field strong { font-size: 11px; font-weight: 600; color: #0f172a; line-height: 1.4; }
+
+.cd-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+.cd-fg-title { font-size: 10px; font-weight: 800; color: #475569; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0; margin-bottom: 2px; }
+
+.cd-risk-flag { color: #ef4444; font-weight: 700; }
+
+/* 金额 grid */
+.cd-amount-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(0,1fr)) repeat(4, minmax(0,1fr));
+  gap: 6px;
+}
+@media (max-width: 1400px) {
+  .cd-amount-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
+.cd-amount-card {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cd-amount-card span   { font-size: 10px; color: #94a3b8; }
+.cd-amount-card strong { font-size: 14px; font-weight: 800; color: #0f172a; }
+.cd-amount-card em     { font-size: 10px; font-style: normal; color: #64748b; }
+.cd-amount-total { background: linear-gradient(160deg, #eff6ff, #f8fafc); border-color: #bfdbfe; }
+.cd-amount-total strong { color: #2563eb; font-size: 16px; }
+.cd-amount-warn { border-color: #fecaca; background: #fff5f5; }
+.cd-amount-warn strong { color: #ef4444; }
+
+/* 合规标签 */
+.cd-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.cd-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+.cd-tag-risk { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+
+/* AI 合规审查 */
+.cd-ai-review { background: #fafafa; }
+.cd-opinion-item {
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd-op-head { display: flex; align-items: center; gap: 8px; }
+.cd-op-title { font-size: 12px; font-weight: 800; color: #0f172a; }
+.cd-op-body  { font-size: 11px; color: #334155; line-height: 1.75; }
+.cd-op-suggest { font-size: 10px; color: #475569; background: #f1f5f9; border-radius: 6px; padding: 6px 9px; border-left: 3px solid #2563eb; }
+
+.cd-op-high   { border-color: #fecaca; background: #fff5f5; }
+.cd-op-high .cd-op-suggest { border-color: #ef4444; }
+.cd-op-medium { border-color: #fed7aa; background: #fff8f1; }
+.cd-op-medium .cd-op-suggest { border-color: #f97316; }
+.cd-op-watch  { border-color: #fde68a; background: #fefce8; }
+.cd-op-watch .cd-op-suggest  { border-color: #ca8a04; }
+
+/* micro-scroll 统一 */
+.micro-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+.micro-scroll::-webkit-scrollbar       { width: 4px; }
+.micro-scroll::-webkit-scrollbar-track { background: transparent; }
+.micro-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 999px; }
+
+/* ──────────── 风险项面板 ──────────── */
+.risk-items-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+.rip-contract-name {
+  font-size: 9px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ri-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
+/* ── 风险项卡片 ── */
+.ri-card {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.16s, border-color 0.16s, background 0.16s;
+}
+.ri-card:hover { background: #fff; box-shadow: 0 4px 16px rgba(15,23,42,0.08); }
+
+.ri-high   { border-left-color: #ef4444; }
+.ri-medium { border-left-color: #f97316; }
+.ri-watch  { border-left-color: #ca8a04; }
+.ri-normal { border-left-color: #16a34a; }
+.ri-high:hover   { border-color: #fca5a5; }
+.ri-medium:hover { border-color: #fed7aa; }
+.ri-watch:hover  { border-color: #fde68a; }
+
+.ric-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ric-id {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  font-family: 'JetBrains Mono', monospace;
+}
+.ric-status {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.rics-checking { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.rics-pending  { background: #fefce8; border: 1px solid #fde68a; color: #a16207; }
+.rics-fixing   { background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; }
+.rics-done     { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+
+.ric-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.ric-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ric-time { font-size: 10px; color: #94a3b8; }
+
+.ric-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ric-subject {
+  font-size: 10px;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.ric-index {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 5px;
+}
+.ric-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 2px;
+}
+.ric-view-hint {
+  font-size: 10px;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* AI 分析按钮 */
+.ric-ai-btn {
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.ric-ai-btn:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+/* 分析中状态 */
+.ric-analyzing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* 查看报告按钮 */
+.ric-report-btn {
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s;
+  white-space: nowrap;
+}
+.ric-report-btn:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+/* ──────────── 穿透详情面板（覆盖在 rd-view 内） ──────────── */
+.pene-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  pointer-events: all;
+}
+
+.pene-modal {
+  width: 680px;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+  overflow: hidden;
+  box-shadow: -8px 0 32px rgba(15,23,42,0.12);
+}
+
+.pene-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.pene-head-left { display: flex; align-items: center; gap: 8px; }
+.pene-label {
+  font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px;
+  background: linear-gradient(135deg, #eff6ff, #f0f9ff); border: 1px solid #bfdbfe; color: #1d4ed8;
+}
+.pene-id    { font-size: 12px; font-weight: 800; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
+.pene-title { font-size: 13px; font-weight: 800; color: #0f172a; }
+.pene-subtitle {
+  font-size: 11px; color: #64748b;
+  padding: 0 16px 10px;
+  flex-shrink: 0;
+}
+
+.pene-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pene-sec-title {
+  font-size: 11px; font-weight: 800; color: #334155;
+  padding-bottom: 6px; border-bottom: 1px solid #f1f5f9;
+}
+
+/* 穿透数据表格 */
+.pene-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.pene-table th {
+  padding: 7px 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+.pene-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f8fafc;
+  color: #334155;
+}
+.pene-table tr:hover td { background: #fafcff; }
+
+.ptr-current td { background: #fffbeb; }
+.ptr-cur-badge {
+  display: inline-flex; margin-left: 5px;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 5px; border-radius: 999px;
+  background: #2563eb; color: #fff;
+}
+.ptr-price-high strong { color: #ef4444; font-weight: 800; }
+.ptr-status {
+  display: inline-flex; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 600;
+}
+.ptr-st-active { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.ptr-st-done   { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+
+.pene-kv-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; background: #f8fafc; border-radius: 8px;
+}
+.pene-kv-label { font-size: 11px; color: #64748b; }
+.pene-kv-val   { font-size: 12px; }
+.pene-kv-green { color: #16a34a; }
+
+.pene-kv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.pene-kv-item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 10px; background: #f8fafc; border-radius: 7px;
+}
+.pene-kv-item span   { font-size: 9px; color: #94a3b8; }
+.pene-kv-item strong { font-size: 11px; color: #0f172a; }
+
+.pene-conclusion-box {
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #334155;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.pene-ok  { background: #f0fdf4 !important; border-color: #bbf7d0 !important; color: #15803d !important; }
+.pene-warn { background: #fef2f2; border-color: #fecaca; }
+
+/* 核查结论录入 */
+.pene-resolution {
+  flex-shrink: 0;
+  padding: 12px 16px 14px;
+  border-top: 2px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.pene-res-title { font-size: 12px; font-weight: 800; color: #0f172a; }
+.pene-res-desc  { font-size: 11px; color: #64748b; }
+.pene-res-btns  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.prb-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  border: 1px solid #e2e8f0; background: #fff;
+  cursor: pointer; text-align: left;
+  transition: 0.16s;
+}
+.prb-icon { font-size: 18px; flex-shrink: 0; }
+.prb-text { display: flex; flex-direction: column; gap: 1px; }
+.prb-text strong { font-size: 12px; color: #0f172a; }
+.prb-text em { font-size: 10px; font-style: normal; color: #64748b; }
+
+.prb-resolve {
+  border-color: #bbf7d0; background: #f0fdf4;
+}
+.prb-resolve .prb-icon { color: #16a34a; }
+.prb-resolve:hover { background: #16a34a; border-color: #16a34a; }
+.prb-resolve:hover strong, .prb-resolve:hover em { color: #fff; }
+
+.prb-escalate {
+  border-color: #fecaca; background: #fef2f2;
+}
+.prb-escalate .prb-icon { color: #ef4444; }
+.prb-escalate:hover { background: #ef4444; border-color: #ef4444; }
+.prb-escalate:hover strong, .prb-escalate:hover em { color: #fff; }
+
+/* 穿透面板滑入动画 */
+.pene-slide-enter-active { transition: transform 0.28s cubic-bezier(0.16,1,0.3,1), opacity 0.2s ease; }
+.pene-slide-leave-active { transition: transform 0.2s ease-in, opacity 0.18s ease; }
+.pene-slide-enter-from, .pene-slide-leave-to { transform: translateX(60px); opacity: 0; }
+
+/* 穿透激活按钮（可点击穿透的链接标记） */
+.plg-tag.pene-active { border-color: #a78bfa; background: #f5f3ff; }
+.plg-tag.pene-active:hover { border-color: #7c3aed; background: #ede9fe; }
+.plg-tag.pene-active .plg-id { color: #7c3aed; }
+.plg-tag.pene-active .plg-name { color: #7c3aed; font-weight: 700; }
 </style>

@@ -89,7 +89,7 @@ const currentComponent = computed(() => sceneMap[current.value])
 const topbarAppName = computed(() => '智能穿透监管平台')
 const currentPageTitle = computed(() => {
   if (current.value === 'ai') return '指挥调度中心'
-  if (current.value === 'equity') return '合同穿透'
+  if (current.value === 'equity') return '合同智联仓库'
   return '智能穿透监管平台'
 })
 
