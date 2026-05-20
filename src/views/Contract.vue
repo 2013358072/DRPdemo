@@ -1,36 +1,6 @@
 <template>
   <div class="ct-scene">
 
-    <!-- ── 顶部导航 ── -->
-    <nav class="ct-nav">
-      <button class="ct-back" @click="handleBack">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M10 3L5 8l5 5" />
-        </svg>
-        {{ viewMode === 'risk-detail' ? '返回风险列表' : '返回大屏' }}
-      </button>
-      <div class="ct-nav-center">
-        <span class="ct-nav-title">合同穿透</span>
-        <div class="ct-view-tabs">
-          <button
-            type="button"
-            class="cvt-btn"
-            :class="{ active: viewMode === 'penetration' }"
-            @click="switchView('penetration')"
-          >四阶段穿透</button>
-          <button
-            type="button"
-            class="cvt-btn"
-            :class="{ active: viewMode === 'risk-list' || viewMode === 'risk-detail' }"
-            @click="switchView('risk-list')"
-          >
-            合同风险列表
-            <span class="cvt-badge">{{ riskList.length }}</span>
-          </button>
-        </div>
-      </div>
-      <div class="ct-nav-meta">合同管理域 · 穿透监管平台</div>
-    </nav>
 
     <!-- Toast -->
     <transition name="toast-fade">
@@ -42,52 +12,146 @@
 
     <!-- ══════════ 四阶段穿透视图 ══════════ -->
     <template v-if="viewMode === 'penetration'">
-      <section class="kpi-row">
-        <article
-          v-for="kpi in kpiCards"
-          :key="kpi.label"
-          class="card kpi-card"
-          :style="{ '--c': kpi.color, '--bg': kpi.bg }"
-        >
-          <div class="kc-head">
-            <span class="kc-label">{{ kpi.label }}</span>
-            <span class="kc-pill" :style="{ background: kpi.pillBg, color: kpi.color }">{{ kpi.badge }}</span>
-          </div>
-          <div class="kc-value" :style="{ color: kpi.color }">{{ kpi.value }}<small>{{ kpi.unit }}</small></div>
-          <div class="kc-sub">{{ kpi.sub }}</div>
-        </article>
-      </section>
+      <div class="ct-main">
+        <section class="kpi-row">
+          <article
+            v-for="kpi in kpiCards"
+            :key="kpi.label"
+            class="card kpi-card"
+            :style="{ '--c': kpi.color, '--bg': kpi.bg }"
+          >
+            <div class="kc-head">
+              <span class="kc-label">{{ kpi.label }}</span>
+              <span class="kc-pill" :style="{ background: kpi.pillBg, color: kpi.color }">{{ kpi.badge }}</span>
+            </div>
+            <div class="kc-value" :style="{ color: kpi.color }">{{ kpi.value }}<small>{{ kpi.unit }}</small></div>
+            <div class="kc-sub">{{ kpi.sub }}</div>
+          </article>
+        </section>
 
-      <div class="ct-body">
-        <!-- 左：合同列表 -->
+        <div class="ct-body">
+        <!-- 左：公司-分公司-合同 树状列表 -->
         <aside class="ct-left">
-          <div class="card side-panel">
+          <div class="card side-panel tree-panel">
             <div class="sp-head">
               <h3>合同列表</h3>
               <span class="pill blue">{{ contracts.length }} 份</span>
             </div>
-            <div class="clist">
-              <button
-                v-for="c in contracts"
-                :key="c.id"
-                type="button"
-                class="citem"
-                :class="[`ci-${c.risk}`, { active: c.id === activeContractId }]"
-                @click="selectContract(c.id)"
-              >
-                <div class="ci-top">
-                  <span class="ci-id">{{ c.id }}</span>
-                  <span class="risk-pill" :class="`rp-${c.risk}`">{{ riskLabelMap[c.risk] }}</span>
+            <div class="company-tree micro-scroll">
+              <div v-for="grp in companyTree" :key="grp.id" class="ctree-group">
+                <!-- 集团公司行 -->
+                <button class="ctree-row ctree-group-row" type="button" @click="toggleNode(grp.id)">
+                  <span class="ctree-arrow" :class="{ open: expandedNodes.has(grp.id) }">›</span>
+                  <span class="ctree-ico">🏢</span>
+                  <span class="ctree-name">{{ grp.name }}</span>
+                  <span class="ctree-cnt">{{ grp.totalContracts }} 份</span>
+                </button>
+                <!-- 分公司 -->
+                <div v-show="expandedNodes.has(grp.id)" class="ctree-children">
+                  <div v-for="br in grp.children" :key="br.id">
+                    <button class="ctree-row ctree-branch-row" type="button" @click="toggleNode(br.id)">
+                      <span class="ctree-arrow" :class="{ open: expandedNodes.has(br.id) }">›</span>
+                      <span class="ctree-ico">🏬</span>
+                      <span class="ctree-name">{{ br.name }}</span>
+                      <span class="ctree-cnt">{{ br.contracts.length }} 份</span>
+                    </button>
+                    <!-- 合同条目 -->
+                    <div v-show="expandedNodes.has(br.id)" class="ctree-contracts">
+                      <button
+                        v-for="cid in br.contracts"
+                        :key="cid"
+                        type="button"
+                        class="citem"
+                        :class="[`ci-${contractById(cid).risk}`, { active: cid === activeContractId }]"
+                        @click="selectContract(cid)"
+                      >
+                        <div class="ci-top">
+                          <span class="ci-id">{{ contractById(cid).id }}</span>
+                          <span class="risk-pill" :class="`rp-${contractById(cid).risk}`">{{ riskLabelMap[contractById(cid).risk] }}</span>
+                        </div>
+                        <div class="ci-name">{{ contractById(cid).name }}</div>
+                        <div class="ci-badges">
+                          <span class="ci-badge ci-badge-cat">{{ contractById(cid).category }}</span>
+                          <span class="ci-badge" :class="`ci-status-${contractById(cid).risk}`">{{ contractById(cid).status }}</span>
+                          <span v-if="contractById(cid).riskCount" class="ci-badge ci-badge-risk">⚠ {{ contractById(cid).riskCount }} 项风险</span>
+                        </div>
+                        <div class="ci-meta">
+                          <span>{{ contractById(cid).supplier }}</span>
+                          <strong :style="{ color: riskColor[contractById(cid).risk] }">{{ contractById(cid).amount }}</strong>
+                        </div>
+                        <div class="ci-dates">
+                          <span>签订 {{ contractById(cid).signDate }}</span>
+                          <span>到期 {{ contractById(cid).expireDate }}</span>
+                        </div>
+                        <div class="ci-progress-row">
+                          <span class="ci-prog-lbl">履约</span>
+                          <div class="ci-prog-bar">
+                            <div class="ci-prog-fill" :style="{ width: contractById(cid).progress + '%', background: riskColor[contractById(cid).risk] }"></div>
+                          </div>
+                          <span class="ci-prog-val">{{ contractById(cid).progress }}%</span>
+                          <span class="ci-prog-sep">·</span>
+                          <span class="ci-prog-lbl">付款</span>
+                          <span class="ci-prog-val" :style="{ color: contractById(cid).paidRatio > contractById(cid).progress ? '#ef4444' : '#16a34a' }">{{ contractById(cid).paidRatio }}%</span>
+                        </div>
+                        <div class="ci-pay-method">付款方式：{{ contractById(cid).payMethod }}</div>
+                        <button
+                          v-if="contractRiskMap[cid]"
+                          type="button"
+                          class="ci-risk-report-btn"
+                          @click.stop="openRisk(contractRiskMap[cid])"
+                        >📋 查看风险报告</button>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div class="ci-name">{{ c.name }}</div>
-                <div class="ci-meta">
-                  <span>{{ c.supplier }}</span>
-                  <strong :style="{ color: riskColor[c.risk] }">{{ c.amount }}</strong>
-                </div>
-              </button>
+              </div>
             </div>
           </div>
+        </aside>
 
+        <!-- 中：穿透面板 (图表 + 风险核查摘要) -->
+        <main class="ct-center">
+          <div class="card pene-panel">
+            <div class="stage-tabs">
+              <button
+                v-for="(stage, i) in activeStages"
+                :key="stage.id"
+                type="button"
+                class="stage-tab"
+                :class="{ active: activeStageIdx === i, 'has-risk': stage.risks.length > 0 }"
+                @click="activeStageIdx = i"
+              >
+                <span class="sn">{{ i + 1 }}</span>
+                {{ stage.tabLabel }}
+                <span v-if="stage.risks.length" class="risk-badge">{{ stage.risks.length }}</span>
+              </button>
+            </div>
+            <div class="stage-chart">
+              <EChart :option="stageChartOption" />
+            </div>
+            <!-- 风险核查摘要（图表下方） -->
+            <div class="risk-section">
+              <div class="rs-section-head">
+                <span class="rs-section-title">风险核查摘要</span>
+                <span class="pill red" style="font-size:10px;">{{ totalRisks }} 项</span>
+              </div>
+              <template v-if="riskSummary.length">
+                <div v-for="(item, i) in riskSummary" :key="i" class="rs-item" :class="`rs-${item.level}`" @click="jumpToStage(item.stageIdx)">
+                  <div class="rs-top">
+                    <span class="rs-stage">阶段 {{ item.stageIdx + 1 }}・{{ item.stageLabel }}</span>
+                    <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLabelMap[item.level] }}</span>
+                  </div>
+                  <div class="rs-title">{{ item.title }}</div>
+                  <div class="rs-desc">{{ item.desc }}</div>
+                </div>
+              </template>
+              <div v-else class="risk-clear"><span>✓</span> 当前合同未发现风险项</div>
+            </div>
+          </div>
+        </main>
+
+        <!-- 右：合同详情 -->
+        <aside class="ct-right">
           <div v-if="activeContract" class="card side-panel detail-panel">
             <div class="sp-head">
               <h3>合同详情</h3>
@@ -117,176 +181,13 @@
             </div>
           </div>
         </aside>
-
-        <!-- 中：穿透面板 -->
-        <main class="ct-center">
-          <div class="card pene-panel">
-            <div class="stage-tabs">
-              <button
-                v-for="(stage, i) in activeStages"
-                :key="stage.id"
-                type="button"
-                class="stage-tab"
-                :class="{ active: activeStageIdx === i, 'has-risk': stage.risks.length > 0 }"
-                @click="activeStageIdx = i"
-              >
-                <span class="sn">{{ i + 1 }}</span>
-                {{ stage.tabLabel }}
-                <span v-if="stage.risks.length" class="risk-badge">{{ stage.risks.length }}</span>
-              </button>
-            </div>
-            <div class="flow-strip">
-              <template v-for="(node, ni) in currentStage.nodes" :key="ni">
-                <div class="flow-node" :class="{ 'fn-warn': node.warn }">
-                  <div class="fn-icon">{{ node.icon }}</div>
-                  <div class="fn-label">{{ node.label }}</div>
-                  <div v-if="node.value" class="fn-value" :class="{ 'fv-warn': node.warn }">{{ node.value }}</div>
-                </div>
-                <div v-if="ni < currentStage.nodes.length - 1" class="flow-sep">
-                  <svg viewBox="0 0 32 12" width="32" height="12">
-                    <path d="M2 6h24M20 2l6 4-6 4" :stroke="node.warn ? '#ef4444' : '#94a3b8'" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </div>
-              </template>
-            </div>
-            <div class="stage-chart">
-              <EChart :option="stageChartOption" />
-            </div>
-            <div class="risk-section">
-              <template v-if="currentStage.risks.length">
-                <div v-for="risk in currentStage.risks" :key="risk.id" class="risk-item" :class="`ri-${risk.level}`">
-                  <span class="ri-dot" :class="`ri-${risk.level}`"></span>
-                  <div class="ri-body"><strong>{{ risk.title }}</strong><span>{{ risk.desc }}</span></div>
-                  <span class="risk-pill" :class="`rp-${risk.level}`">{{ riskLabelMap[risk.level] }}</span>
-                </div>
-              </template>
-              <div v-else class="risk-clear"><span>✓</span> 当前穿透阶段未发现异常风险</div>
-            </div>
-          </div>
-        </main>
-
-        <!-- 右：风险汇总 + AI -->
-        <aside class="ct-right">
-          <div class="card side-panel risk-summary">
-            <div class="sp-head">
-              <h3>风险核查摘要</h3>
-              <span class="pill red">{{ totalRisks }} 项</span>
-            </div>
-            <div class="rs-list">
-              <div v-for="(item, i) in riskSummary" :key="i" class="rs-item" :class="`rs-${item.level}`" @click="jumpToStage(item.stageIdx)">
-                <div class="rs-top">
-                  <span class="rs-stage">阶段 {{ item.stageIdx + 1 }}・{{ item.stageLabel }}</span>
-                  <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLabelMap[item.level] }}</span>
-                </div>
-                <div class="rs-title">{{ item.title }}</div>
-                <div class="rs-desc">{{ item.desc }}</div>
-              </div>
-              <div v-if="!riskSummary.length" class="rs-empty">当前合同未发现风险项</div>
-            </div>
-          </div>
-          <div class="card side-panel ai-block">
-            <div class="sp-head">
-              <h3>AI 穿透研判</h3>
-              <span class="pill" :style="{ background: activeContract?.risk === 'high' ? '#fef2f2' : '#eff6ff', color: activeContract?.risk === 'high' ? '#ef4444' : '#2563eb' }">
-                {{ activeContract?.risk === 'high' ? '重点关注' : activeContract?.risk === 'medium' ? '持续监测' : '正常' }}
-              </span>
-            </div>
-            <div class="ai-conclusion">
-              <p v-for="line in aiConclusion" :key="line">{{ line }}</p>
-            </div>
-            <div class="ai-advice"><strong>整改建议：</strong>{{ activeContract?.advice || '当前合同履约状态良好，继续保持监测。' }}</div>
-          </div>
-        </aside>
+        </div>
       </div>
     </template>
 
-    <!-- ══════════ 合同风险列表视图 ══════════ -->
-    <template v-else-if="viewMode === 'risk-list'">
-      <div class="risk-list-view">
-
-        <!-- 统计条 -->
-        <div class="rl-stats">
-          <div class="card rl-stat-card" v-for="stat in riskStats" :key="stat.label" :class="`rsc-${stat.status}`">
-            <div class="rsc-label">{{ stat.label }}</div>
-            <div class="rsc-value" :style="{ color: stat.color }">{{ stat.count }}</div>
-            <div class="rsc-desc">{{ stat.desc }}</div>
-          </div>
-        </div>
-
-        <!-- 域说明 -->
-        <div class="rl-domain-bar">
-          <div class="ldb-left">
-            <span class="ldb-domain">合同管理域</span>
-            <span class="ldb-sep">·</span>
-            <span class="ldb-sub">风险预警列表 · 截至 2026-05-17</span>
-          </div>
-          <div class="ldb-filters">
-            <button v-for="f in riskFilters" :key="f" type="button" class="ldb-filter" :class="{ active: activeFilter === f }" @click="activeFilter = f">{{ f }}</button>
-            <div class="ldb-search">
-              <input v-model="riskKeyword" type="text" placeholder="搜索风险ID / 事项名称" class="search-inp" />
-            </div>
-          </div>
-        </div>
-
-        <!-- 风险表格 -->
-        <div class="card rl-table-wrap">
-          <table class="rl-table">
-            <thead>
-              <tr>
-                <th style="width:110px">风险ID</th>
-                <th>风险事项名称</th>
-                <th style="width:88px">风险等级</th>
-                <th style="width:140px">预警时间</th>
-                <th>涉及主体</th>
-                <th>关联索引</th>
-                <th style="width:80px">处理状态</th>
-                <th style="width:90px">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="risk in filteredRiskList" :key="risk.id" class="rl-row" @click="openRisk(risk.id)">
-                <td>
-                  <button type="button" class="risk-id-link" @click.stop="openRisk(risk.id)">{{ risk.id }}</button>
-                </td>
-                <td>
-                  <div class="risk-name-cell">
-                    <strong>{{ risk.name }}</strong>
-                    <span>{{ risk.subName }}</span>
-                  </div>
-                </td>
-                <td><span class="risk-pill" :class="`rp-${risk.level}`">{{ riskLevelLabel[risk.level] }}</span></td>
-                <td class="mono-cell">{{ risk.alertTime }}</td>
-                <td>
-                  <div class="subject-cell">
-                    <span v-for="s in risk.subjects" :key="s">{{ s }}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="ref-cell">
-                    <span class="ref-tag">合同：{{ risk.contractRef }}</span>
-                    <span class="ref-tag">采购：{{ risk.procurementRef }}</span>
-                  </div>
-                </td>
-                <td><span class="status-pill" :class="`sp-${risk.statusKey}`">{{ risk.status }}</span></td>
-                <td>
-                  <div class="row-ops">
-                    <button type="button" class="op-btn" @click.stop="openRisk(risk.id)">详情</button>
-                    <button type="button" class="op-btn ghost" @click.stop="showToast('已派发核查工单', 'info')">派单</button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="!filteredRiskList.length">
-                <td colspan="8" class="empty-row">暂无符合条件的风险数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-    </template>
 
     <!-- ══════════ 风险事项详情报告视图 ══════════ -->
-    <template v-else-if="viewMode === 'risk-detail' && activeRisk">
+    <template v-if="viewMode === 'risk-detail' && activeRisk">
       <div class="rd-view">
 
         <!-- 左侧：报告元信息 + 操作 -->
@@ -355,6 +256,7 @@
                 <p>合同管理域 · 采购合同价格异动预警 · 自动生成报告</p>
               </div>
               <div class="rdr-header-right">
+                <button type="button" class="rdr-back-btn" @click="backToContractView">返回合同穿透</button>
                 <span class="rdr-time">生成时间：{{ activeRisk.alertTime }}</span>
               </div>
             </div>
@@ -583,7 +485,7 @@ import EChart from '@/components/EChart.vue'
 const emit = defineEmits(['navigate'])
 
 // ──────────── 全局状态 ────────────
-const viewMode = ref('penetration') // 'penetration' | 'risk-list' | 'risk-detail'
+const viewMode = ref('penetration') // 'penetration' | 'risk-detail'
 const toastVisible = ref(false)
 const toastText    = ref('')
 const toastType    = ref('info')
@@ -596,18 +498,6 @@ function showToast(text, type = 'info') {
   toastVisible.value = true
   window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => { toastVisible.value = false }, 2800)
-}
-
-function handleBack() {
-  if (viewMode.value === 'risk-detail') {
-    viewMode.value = 'risk-list'
-  } else {
-    emit('navigate', 'dashboard')
-  }
-}
-
-function switchView(mode) {
-  viewMode.value = mode
 }
 
 function navigateToProcurement() {
@@ -624,39 +514,82 @@ const riskLabelMap = { high: '高风险', medium: '中风险', watch: '关注', 
 const riskColor    = { high: '#ef4444', medium: '#f97316', watch: '#ca8a04', normal: '#16a34a' }
 
 const kpiCards = [
-  { label: '合同总金额',   value: '8.6',  unit: '亿元', badge: '实时监控', color: '#2563eb', bg: '#eff6ff', pillBg: '#dbeafe', sub: '3 份合同在监控中' },
-  { label: '高风险合同',   value: '1',    unit: '份',   badge: '红色预警', color: '#ef4444', bg: '#fef2f2', pillBg: '#fee2e2', sub: 'HT-202605002 需立即核查' },
-  { label: '采购穿透异常', value: '2',    unit: '项',   badge: '中风险',   color: '#f97316', bg: '#fff7ed', pillBg: '#fed7aa', sub: '未竞争性招标' },
-  { label: '凭证科目异常', value: '1',    unit: '项',   badge: '关注',     color: '#ca8a04', bg: '#fefce8', pillBg: '#fef08a', sub: '发票与合同差异 3%' },
-  { label: '预算超支偏差', value: '11.5', unit: '%',    badge: '预警中',   color: '#f97316', bg: '#fff7ed', pillBg: '#fed7aa', sub: '钢材单价高于预算' },
+  { label: '集团总计合同', value: '14,205', unit: '项', badge: '全量监控', color: '#2563eb', bg: '#eff6ff', pillBg: '#dbeafe', sub: '覆盖全集团所有合同台账' },
+  { label: '穿透核查覆盖率', value: '98.4', unit: '%',  badge: '高覆盖',   color: '#16a34a', bg: '#f0fdf4', pillBg: '#dcfce7', sub: '较上季度提升 1.2 个百分点' },
+  { label: '实时触发预警', value: '12',    unit: '件',  badge: '待处置',   color: '#f97316', bg: '#fff7ed', pillBg: '#fed7aa', sub: '本月新增 3 件，已派发 9 件' },
+  { label: '待整改闭环',   value: '3',     unit: '件',  badge: '逾期预警', color: '#ef4444', bg: '#fef2f2', pillBg: '#fee2e2', sub: '最长逾期 14 天，需立即跟进' },
 ]
 
 const contracts = [
-  { id: 'HT-202605002', name: '钢材采购框架协议',  company: '华东建设集团', supplier: '江苏钢材联盟',   amount: '2.8 亿元', signDate: '2026-04-18', payMethod: '按节点付款', risk: 'high',   advice: '立即启动采购专项审计，核查招标缺失；对超进度付款部分发起退款申请；联动供应商资质复核。', links: [{ id: 'CG-202605002', label: '采购订单', type: 'procurement' }, { id: 'XJ-202605002', label: '询价记录', type: 'inquiry' }, { id: 'FP-202605003', label: '发票凭证', type: 'invoice' }, { id: 'SP-202605002', label: '审批流程', type: 'approval' }, { id: 'PZ-202605003', label: '账务凭证', type: 'voucher' }] },
-  { id: 'HT-202604015', name: '设备安装服务合同',  company: '华东建设集团', supplier: '苏州机电科技',   amount: '3.2 亿元', signDate: '2026-03-10', payMethod: '里程碑付款', risk: 'medium', advice: '跟进履约进度偏差，确认延期原因；下季度启动中期评估。', links: [{ id: 'CG-202604015', label: '采购订单', type: 'procurement' }, { id: 'FP-202604018', label: '发票凭证', type: 'invoice' }] },
-  { id: 'HT-202603008', name: '工程监理服务合同',  company: '南方建工集团', supplier: '长三角监理联盟', amount: '2.6 亿元', signDate: '2026-02-22', payMethod: '月度结算',   risk: 'normal', advice: '合同已完结归档，持续保持监测即可。', links: [{ id: 'CG-202603008', label: '采购订单', type: 'procurement' }] },
+  {
+    id: 'HT-202605002', name: '钢材采购框架协议', company: '华东建设集团', supplier: '江苏钢材联盟',
+    amount: '2.8 亿元', signDate: '2026-04-18', expireDate: '2027-04-17', payMethod: '按节点付款',
+    category: '物资采购', status: '执行中', progress: 62, paidRatio: 64,
+    risk: 'high', riskCount: 4,
+    advice: '立即启动采购专项审计，核查招标缺失；对超进度付款部分发起退款申请；联动供应商资质复核。',
+    links: [{ id: 'CG-202605002', label: '采购订单', type: 'procurement' }, { id: 'XJ-202605002', label: '询价记录', type: 'inquiry' }, { id: 'FP-202605003', label: '发票凭证', type: 'invoice' }, { id: 'SP-202605002', label: '审批流程', type: 'approval' }, { id: 'PZ-202605003', label: '账务凭证', type: 'voucher' }],
+  },
+  {
+    id: 'HT-202604015', name: '设备安装服务合同', company: '华东建设集团', supplier: '苏州机电科技',
+    amount: '3.2 亿元', signDate: '2026-03-10', expireDate: '2026-12-31', payMethod: '里程碑付款',
+    category: '工程服务', status: '执行中', progress: 80, paidRatio: 78,
+    risk: 'medium', riskCount: 1,
+    advice: '跟进履约进度偏差，确认延期原因；下季度启动中期评估。',
+    links: [{ id: 'CG-202604015', label: '采购订单', type: 'procurement' }, { id: 'FP-202604018', label: '发票凭证', type: 'invoice' }],
+  },
+  {
+    id: 'HT-202603008', name: '工程监理服务合同', company: '南方建工集团', supplier: '长三角监理联盟',
+    amount: '2.6 亿元', signDate: '2026-02-22', expireDate: '2026-08-31', payMethod: '月度结算',
+    category: '监理服务', status: '已完结', progress: 100, paidRatio: 100,
+    risk: 'normal', riskCount: 0,
+    advice: '合同已完结归档，持续保持监测即可。',
+    links: [{ id: 'CG-202603008', label: '采购订单', type: 'procurement' }],
+  },
 ]
 
 const stagesMap = {
   'HT-202605002': [
-    { id: 's1', tabLabel: '合同→资金→风险', nodes: [{ icon: '📄', label: '合同签订', value: '2.8 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 62%', active: true }, { icon: '💰', label: '付款节点', value: '1.8 亿', active: true, warn: true }, { icon: '🏦', label: '资金流向', value: '超进度付款', active: true, warn: true }, { icon: '⚠', label: '风险识别', value: '高风险', active: true, warn: true }], risks: [{ id: 'r1', level: 'high', title: '超进度付款', desc: '付款进度 64% 超交付进度 62%，差异金额约 1200 万元' }, { id: 'r2', level: 'medium', title: '履约节点延误', desc: '累计 3 次节点延误，合计延期 14 天' }], chartType: 'stage1' },
-    { id: 's2', tabLabel: '合同→采购→供应商', nodes: [{ icon: '📄', label: '合同', value: '5800 元/吨', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202605002', active: true }, { icon: '📋', label: '招标记录', value: '无竞争招标', active: true, warn: true }, { icon: '🏭', label: '供应商', value: '江苏钢材联盟', active: true, warn: true }], risks: [{ id: 'r3', level: 'high', title: '未竞争性招标', desc: '直接委托采购，未经询价比价，违反采购制度第 12 条' }, { id: 'r4', level: 'medium', title: '价格显著偏高', desc: '合同价 5800 元/吨，市场价 5500，历史均价 5200，偏高 11.5%' }], chartType: 'stage2' },
-    { id: 's3', tabLabel: '合同→凭证→报表', nodes: [{ icon: '📄', label: '合同', value: 'HT-202605002', active: true }, { icon: '🧾', label: '发票凭证', value: 'FP-202605003', active: true, warn: true }, { icon: '📊', label: '会计科目', value: '材料费-钢材', active: true }, { icon: '📑', label: '财务报表', value: '成本超预算', active: true, warn: true }], risks: [{ id: 'r5', level: 'watch', title: '发票金额差异', desc: '发票总额与合同金额差异约 3%，有待核实' }, { id: 'r6', level: 'medium', title: '科目归集异常', desc: '部分费用归入管理费用，与合同约定科目不符' }], chartType: 'stage3' },
-    { id: 's4', tabLabel: '合同→项目→资产', nodes: [{ icon: '📄', label: '合同', value: 'HT-202605002', active: true }, { icon: '🏗', label: '项目关联', value: '苏州科技园工程', active: true }, { icon: '💼', label: '预算对比', value: '超预算 11.5%', active: true, warn: true }, { icon: '🏢', label: '资产评估', value: '未达资本化', active: true }], risks: [{ id: 'r7', level: 'medium', title: '预算超支', desc: '钢材预算 5200 元/吨，实际 5800 元/吨，超出 11.5%' }, { id: 'r8', level: 'watch', title: '资产化条件待确认', desc: '部分物资尚未达到资本化确认条件，需财务核定' }], chartType: 'stage4' },
+    { id: 's1', tabLabel: '交付进度', nodes: [{ icon: '📄', label: '合同签订', value: '2.8 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 62%', active: true }, { icon: '💰', label: '付款节点', value: '1.8 亿', active: true, warn: true }, { icon: '🏦', label: '资金流向', value: '超进度付款', active: true, warn: true }, { icon: '⚠', label: '风险识别', value: '高风险', active: true, warn: true }], risks: [{ id: 'r1', level: 'high', title: '超进度付款', desc: '付款进度 64% 超交付进度 62%，差异金额约 1200 万元' }, { id: 'r2', level: 'medium', title: '履约节点延误', desc: '累计 3 次节点延误，合计延期 14 天' }], chartType: 'stage1' },
+    { id: 's2', tabLabel: '交易金额', nodes: [{ icon: '📄', label: '合同', value: '5800 元/吨', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202605002', active: true }, { icon: '📋', label: '招标记录', value: '无竞争招标', active: true, warn: true }, { icon: '🏭', label: '供应商', value: '江苏钢材联盟', active: true, warn: true }], risks: [{ id: 'r3', level: 'high', title: '未竞争性招标', desc: '直接委托采购，未经询价比价，违反采购制度第 12 条' }, { id: 'r4', level: 'medium', title: '价格显著偏高', desc: '合同价 5800 元/吨，市场价 5500，历史均价 5200，偏高 11.5%' }], chartType: 'stage2' },
+    { id: 's3', tabLabel: '实施费用', nodes: [{ icon: '📄', label: '合同', value: 'HT-202605002', active: true }, { icon: '🧾', label: '发票凭证', value: 'FP-202605003', active: true, warn: true }, { icon: '📊', label: '会计科目', value: '材料费-钢材', active: true }, { icon: '📑', label: '财务报表', value: '成本超预算', active: true, warn: true }], risks: [{ id: 'r5', level: 'watch', title: '发票金额差异', desc: '发票总额与合同金额差异约 3%，有待核实' }, { id: 'r6', level: 'medium', title: '科目归集异常', desc: '部分费用归入管理费用，与合同约定科目不符' }], chartType: 'stage3' },
+    { id: 's4', tabLabel: '项目资产', nodes: [{ icon: '📄', label: '合同', value: 'HT-202605002', active: true }, { icon: '🏗', label: '项目关联', value: '苏州科技园工程', active: true }, { icon: '💼', label: '预算对比', value: '超预算 11.5%', active: true, warn: true }, { icon: '🏢', label: '资产评估', value: '未达资本化', active: true }], risks: [{ id: 'r7', level: 'medium', title: '预算超支', desc: '钢材预算 5200 元/吨，实际 5800 元/吨，超出 11.5%' }, { id: 'r8', level: 'watch', title: '资产化条件待确认', desc: '部分物资尚未达到资本化确认条件，需财务核定' }], chartType: 'stage4' },
   ],
   'HT-202604015': [
-    { id: 's1', tabLabel: '合同→资金→风险', nodes: [{ icon: '📄', label: '合同签订', value: '3.2 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 80%', active: true }, { icon: '💰', label: '付款节点', value: '2.5 亿', active: true }, { icon: '🏦', label: '资金流向', value: '正常', active: true }, { icon: '✔', label: '风险状态', value: '中风险', active: true }], risks: [{ id: 'r1', level: 'medium', title: '履约进度滞后', desc: '实际进度落后计划约 5%，需持续跟进' }], chartType: 'stage1' },
-    { id: 's2', tabLabel: '合同→采购→供应商', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202604015', active: true }, { icon: '📋', label: '招标记录', value: '竞争招标', active: true }, { icon: '🏭', label: '供应商', value: '苏州机电科技', active: true }], risks: [], chartType: 'stage2' },
-    { id: 's3', tabLabel: '合同→凭证→报表', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🧾', label: '发票凭证', value: 'FP-202604018', active: true }, { icon: '📊', label: '会计科目', value: '设备费', active: true }, { icon: '📑', label: '财务报表', value: '正常', active: true }], risks: [], chartType: 'stage3' },
-    { id: 's4', tabLabel: '合同→项目→资产', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🏗', label: '项目关联', value: '苏州科技园', active: true }, { icon: '💼', label: '预算对比', value: '预算匹配', active: true }, { icon: '🏢', label: '资产评估', value: '已资本化', active: true }], risks: [], chartType: 'stage4' },
+    { id: 's1', tabLabel: '交付进度', nodes: [{ icon: '📄', label: '合同签订', value: '3.2 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 80%', active: true }, { icon: '💰', label: '付款节点', value: '2.5 亿', active: true }, { icon: '🏦', label: '资金流向', value: '正常', active: true }, { icon: '✔', label: '风险状态', value: '中风险', active: true }], risks: [{ id: 'r1', level: 'medium', title: '履约进度滞后', desc: '实际进度落后计划约 5%，需持续跟进' }], chartType: 'stage1' },
+    { id: 's2', tabLabel: '交易金额', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202604015', active: true }, { icon: '📋', label: '招标记录', value: '竞争招标', active: true }, { icon: '🏭', label: '供应商', value: '苏州机电科技', active: true }], risks: [], chartType: 'stage2' },
+    { id: 's3', tabLabel: '实施费用', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🧾', label: '发票凭证', value: 'FP-202604018', active: true }, { icon: '📊', label: '会计科目', value: '设备费', active: true }, { icon: '📑', label: '财务报表', value: '正常', active: true }], risks: [], chartType: 'stage3' },
+    { id: 's4', tabLabel: '项目资产', nodes: [{ icon: '📄', label: '合同', value: '3.2 亿', active: true }, { icon: '🏗', label: '项目关联', value: '苏州科技园', active: true }, { icon: '💼', label: '预算对比', value: '预算匹配', active: true }, { icon: '🏢', label: '资产评估', value: '已资本化', active: true }], risks: [], chartType: 'stage4' },
   ],
   'HT-202603008': [
-    { id: 's1', tabLabel: '合同→资金→风险', nodes: [{ icon: '📄', label: '合同签订', value: '2.6 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 100%', active: true }, { icon: '💰', label: '付款节点', value: '2.6 亿', active: true }, { icon: '🏦', label: '资金流向', value: '正常', active: true }, { icon: '✔', label: '风险状态', value: '正常', active: true }], risks: [], chartType: 'stage1' },
-    { id: 's2', tabLabel: '合同→采购→供应商', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202603008', active: true }, { icon: '📋', label: '招标记录', value: '公开招标', active: true }, { icon: '🏭', label: '供应商', value: '长三角监理联盟', active: true }], risks: [], chartType: 'stage2' },
-    { id: 's3', tabLabel: '合同→凭证→报表', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🧾', label: '发票凭证', value: '已完结', active: true }, { icon: '📊', label: '会计科目', value: '管理费用', active: true }, { icon: '📑', label: '财务报表', value: '已归档', active: true }], risks: [], chartType: 'stage3' },
-    { id: 's4', tabLabel: '合同→项目→资产', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🏗', label: '项目关联', value: '南方建工', active: true }, { icon: '💼', label: '预算对比', value: '预算匹配', active: true }, { icon: '🏢', label: '资产评估', value: '费用化', active: true }], risks: [], chartType: 'stage4' },
+    { id: 's1', tabLabel: '交付进度', nodes: [{ icon: '📄', label: '合同签订', value: '2.6 亿', active: true }, { icon: '✅', label: '履约交付', value: '进度 100%', active: true }, { icon: '💰', label: '付款节点', value: '2.6 亿', active: true }, { icon: '🏦', label: '资金流向', value: '正常', active: true }, { icon: '✔', label: '风险状态', value: '正常', active: true }], risks: [], chartType: 'stage1' },
+    { id: 's2', tabLabel: '交易金额', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🛒', label: '采购订单', value: 'CG-202603008', active: true }, { icon: '📋', label: '招标记录', value: '公开招标', active: true }, { icon: '🏭', label: '供应商', value: '长三角监理联盟', active: true }], risks: [], chartType: 'stage2' },
+    { id: 's3', tabLabel: '实施费用', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🧾', label: '发票凭证', value: '已完结', active: true }, { icon: '📊', label: '会计科目', value: '管理费用', active: true }, { icon: '📑', label: '财务报表', value: '已归档', active: true }], risks: [], chartType: 'stage3' },
+    { id: 's4', tabLabel: '项目资产', nodes: [{ icon: '📄', label: '合同', value: '2.6 亿', active: true }, { icon: '🏗', label: '项目关联', value: '南方建工', active: true }, { icon: '💼', label: '预算对比', value: '预算匹配', active: true }, { icon: '🏢', label: '资产评估', value: '费用化', active: true }], risks: [], chartType: 'stage4' },
   ],
 }
+
+// ── 公司-分公司树结构
+const companyTree = [
+  {
+    id: 'grp-hua', name: '华东建设集团', type: 'group', totalContracts: 2,
+    children: [
+      { id: 'sub-hua-1', name: '华东建设（苏州）分公司', contracts: ['HT-202605002', 'HT-202604015'] },
+    ],
+  },
+  {
+    id: 'grp-nan', name: '南方建工集团', type: 'group', totalContracts: 1,
+    children: [
+      { id: 'sub-nan-1', name: '南方建工（广州）分公司', contracts: ['HT-202603008'] },
+    ],
+  },
+]
+const expandedNodes = ref(new Set(['grp-hua', 'sub-hua-1', 'grp-nan', 'sub-nan-1']))
+function toggleNode(id) {
+  const s = new Set(expandedNodes.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  expandedNodes.value = s
+}
+function contractById(id) { return contracts.find(c => c.id === id) ?? contracts[0] }
 
 const activeContractId = ref('HT-202605002')
 const activeStageIdx   = ref(0)
@@ -682,8 +615,27 @@ const aiConclusion = computed(() => {
   return ['① 合同已完结归档，各链路均无异常。', '② 监理合同履约率 100%，可作为优秀案例。']
 })
 
+// 合同 → 关联风险ID 映射
+const contractRiskMap = {
+  'HT-202605002': 'HT-2026002',
+  'HT-202604015': 'HT-2026001',
+}
+
 function selectContract(id) { activeContractId.value = id; activeStageIdx.value = 0 }
 function jumpToStage(idx)   { activeStageIdx.value = idx }
+
+function openRisk(id) {
+  selectedRiskId.value = id
+  if (id === 'HT-2026002') {
+    viewMode.value = 'risk-detail'
+  } else {
+    showToast(`风险详情 ${id} 暂无完整报告，请联系监管部门`, 'warn')
+  }
+}
+
+function backToContractView() {
+  viewMode.value = 'penetration'
+}
 
 // ── EChart ──
 const axisLine  = { lineStyle: { color: '#e2e8f0' } }
@@ -718,71 +670,9 @@ const stageChartOption = computed(() => {
 })
 
 // ──────────────────────────────────────
-// ── 风险列表数据
+// ── 风险详情报告
 // ──────────────────────────────────────
 const riskLevelLabel = { high: '高风险', medium: '中风险', watch: '关注', normal: '正常' }
-
-const riskList = [
-  {
-    id: 'HT-2026002',
-    name: '采购合同价格异动预警',
-    subName: '钢材采购价格偏高 11.5%',
-    level: 'medium',
-    alertTime: '2026-05-17 10:15',
-    subjects: ['本单位XX物资采购部门', '供应商XX建材有限公司'],
-    contractRef: 'HT-202605002',
-    procurementRef: 'CG-202605002',
-    status: '核查中',
-    statusKey: 'checking',
-  },
-  {
-    id: 'HT-2026001',
-    name: '合同履约进度严重滞后预警',
-    subName: '设备安装进度偏差超 15%',
-    level: 'watch',
-    alertTime: '2026-05-14 09:32',
-    subjects: ['本单位基建部门', '供应商苏州机电科技'],
-    contractRef: 'HT-202604015',
-    procurementRef: 'CG-202604015',
-    status: '待核查',
-    statusKey: 'pending',
-  },
-  {
-    id: 'HT-2026003',
-    name: '发票金额与合同不符预警',
-    subName: '发票总额差异约 3%',
-    level: 'watch',
-    alertTime: '2026-05-18 14:20',
-    subjects: ['本单位财务部门', '供应商江苏钢材联盟'],
-    contractRef: 'HT-202605002',
-    procurementRef: 'FP-202605003',
-    status: '待核查',
-    statusKey: 'pending',
-  },
-]
-
-const riskStats = [
-  { label: '合同域风险总计', count: riskList.length, status: 'total', color: '#2563eb', desc: '本月累计', bg: '#eff6ff' },
-  { label: '高风险',   count: riskList.filter((r) => r.level === 'high').length,   status: 'high',   color: '#ef4444', desc: '需立即处理', bg: '#fef2f2' },
-  { label: '中风险',   count: riskList.filter((r) => r.level === 'medium').length, status: 'medium', color: '#f97316', desc: '需重点关注', bg: '#fff7ed' },
-  { label: '关注',     count: riskList.filter((r) => r.level === 'watch').length,  status: 'watch',  color: '#ca8a04', desc: '持续监测',   bg: '#fefce8' },
-  { label: '核查中',   count: riskList.filter((r) => r.statusKey === 'checking').length, status: 'normal', color: '#2563eb', desc: '处理中', bg: '#eff6ff' },
-]
-
-const riskFilters = ['全部', '高风险', '中风险', '关注', '核查中', '待核查']
-const activeFilter  = ref('全部')
-const riskKeyword   = ref('')
-
-const filteredRiskList = computed(() => {
-  return riskList.filter((r) => {
-    const matchFilter = activeFilter.value === '全部' || riskLevelLabel[r.level] === activeFilter.value || r.status === activeFilter.value
-    const kw = riskKeyword.value.trim()
-    const matchKw = !kw || r.id.includes(kw) || r.name.includes(kw) || r.subName.includes(kw)
-    return matchFilter && matchKw
-  })
-})
-
-// ── 风险详情报告 ──
 const selectedRiskId = ref('')
 const activeRisk = computed(() => {
   if (selectedRiskId.value !== 'HT-2026002') return null
@@ -804,14 +694,6 @@ const activeRisk = computed(() => {
   }
 })
 
-function openRisk(id) {
-  selectedRiskId.value = id
-  if (id === 'HT-2026002') {
-    viewMode.value = 'risk-detail'
-  } else {
-    showToast(`风险详情 ${id} 暂无完整报告，请联系监管部门`, 'warn')
-  }
-}
 </script>
 
 <style scoped>
@@ -821,10 +703,9 @@ function openRisk(id) {
   background: #f8fafc;
   overflow: hidden;
   color: #1e293b;
-  font-family: 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 0;
+  font-family: 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ──────────── 顶部导航栏 ──────────── */
@@ -840,28 +721,10 @@ function openRisk(id) {
   flex-shrink: 0;
 }
 
-.ct-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.16s ease;
-  white-space: nowrap;
-}
-
-.ct-back:hover { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
-
-.ct-nav-center {
+.ct-nav-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
 }
 
 .ct-nav-title {
@@ -869,47 +732,8 @@ function openRisk(id) {
   font-weight: 800;
   color: #0f172a;
   white-space: nowrap;
-}
-
-.ct-view-tabs {
-  display: flex;
-  gap: 2px;
-  background: #f1f5f9;
-  border-radius: 8px;
-  padding: 2px;
-}
-
-.cvt-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.15s ease;
-  white-space: nowrap;
-}
-
-.cvt-btn.active {
-  background: #fff;
-  color: #1d4ed8;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
-}
-
-.cvt-badge {
-  background: #ef4444;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 999px;
-  min-width: 16px;
-  text-align: center;
+  padding-left: 4px;
+  border-left: 3px solid #2563eb;
 }
 
 .ct-nav-meta {
@@ -952,11 +776,19 @@ function openRisk(id) {
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translate(-50%, -8px); }
 
 /* ──────────── 穿透视图 ──────────── */
+.ct-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 16px 0;
+  flex-shrink: 0;
 }
 
 .kpi-card {
@@ -978,13 +810,14 @@ function openRisk(id) {
 
 .ct-body {
   display: grid;
-  grid-template-columns: 240px 1fr 280px;
+  grid-template-columns: 480px minmax(0, 1fr) 300px;
   gap: 8px;
   padding: 8px 16px 10px;
   min-height: 0;
 }
 
-.ct-left, .ct-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.ct-left  { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.ct-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .ct-center { min-height: 0; }
 
 .side-panel { display: flex; flex-direction: column; gap: 9px; padding: 12px; min-height: 0; }
@@ -1003,6 +836,37 @@ function openRisk(id) {
 
 .clist { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; flex: 1; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
 
+/* ── 公司树 ── */
+.tree-panel { flex: 1; min-height: 0; }
+.company-tree { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+
+.ctree-group { display: flex; flex-direction: column; gap: 1px; }
+
+.ctree-row {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; text-align: left; border: none; background: none; cursor: pointer;
+  padding: 6px 8px; border-radius: 8px; transition: 0.14s ease;
+}
+.ctree-row:hover { background: #f1f5f9; }
+
+.ctree-group-row { font-size: 12px; font-weight: 800; color: #0f172a; }
+.ctree-branch-row { font-size: 11px; font-weight: 600; color: #334155; padding-left: 18px; }
+
+.ctree-arrow {
+  display: inline-flex; width: 14px; height: 14px; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #94a3b8; flex-shrink: 0;
+  transform: rotate(0deg); transition: transform 0.18s ease;
+}
+.ctree-arrow.open { transform: rotate(90deg); }
+
+.ctree-ico { font-size: 13px; flex-shrink: 0; }
+.ctree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctree-cnt { font-size: 10px; font-weight: 600; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+
+.ctree-children { display: flex; flex-direction: column; gap: 1px; padding-left: 4px; }
+
+.ctree-contracts { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 4px 32px; }
+
 .citem { width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; cursor: pointer; transition: 0.16s ease; display: flex; flex-direction: column; gap: 3px; }
 .citem:hover { border-color: #bfdbfe; box-shadow: 0 3px 10px rgba(37,99,235,0.08); }
 .citem.active { border-color: #93c5fd; background: #eff6ff; }
@@ -1015,11 +879,31 @@ function openRisk(id) {
 .ci-name { font-size: 11px; color: #0f172a; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci-meta { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
 
-.detail-panel { flex: 1; overflow: hidden; }
+.ci-risk-report-btn {
+  margin-top: 5px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #ef4444;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.14s ease;
+}
+.ci-risk-report-btn:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.detail-panel { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
 .detail-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
 .dg-row { display: flex; flex-direction: column; gap: 1px; }
-.dg-row span   { font-size: 9px; color: #94a3b8; }
-.dg-row strong { font-size: 10px; color: #0f172a; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-row span   { font-size: 10px; color: #94a3b8; }
+.dg-row strong { font-size: 11px; color: #0f172a; font-weight: 600; }
 
 .link-section { padding-top: 6px; border-top: 1px solid #f1f5f9; }
 .ls-title { font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; }
@@ -1041,7 +925,7 @@ function openRisk(id) {
 .act-btn.danger  { background: #fef2f2; border-color: #fecaca; color: #ef4444; grid-column: 1 / -1; }
 .act-btn.danger:hover { background: #ef4444; color: #fff; }
 
-.pene-panel { height: 100%; padding: 14px; display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; gap: 10px; }
+.pene-panel { height: 100%; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) 190px; gap: 10px; }
 
 .stage-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
 .stage-tab { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.16s ease; white-space: nowrap; }
@@ -1064,7 +948,9 @@ function openRisk(id) {
 
 .stage-chart { min-height: 0; position: relative; }
 
-.risk-section { display: flex; flex-direction: column; gap: 5px; max-height: 120px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+.risk-section { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; border-top: 1px solid #f1f5f9; padding-top: 6px; }
+.rs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.rs-section-title { font-size: 11px; font-weight: 800; color: #0f172a; }
 .risk-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 9px; border: 1px solid #e2e8f0; background: #f8fafc; }
 .ri-high   { background: #fff5f5; border-color: #fecaca; }
 .ri-medium { background: #fff8f1; border-color: #fed7aa; }
@@ -1097,6 +983,49 @@ function openRisk(id) {
 .ai-conclusion p:last-child { border-bottom: none; }
 .ai-advice { padding: 8px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9px; font-size: 10px; color: #1d4ed8; line-height: 1.6; }
 .ai-advice strong { font-weight: 700; }
+
+/* ──────────── 合同列表项增强 ──────────── */
+.ci-badges {
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 1px 0;
+}
+.ci-badge {
+  font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;
+}
+.ci-badge-cat { background: #f0f9ff; border-color: #bae6fd; color: #0369a1; }
+.ci-badge-risk { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+.ci-status-high   { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
+.ci-status-medium { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.ci-status-normal { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+.ci-status-watch  { background: #fefce8; border-color: #fde68a; color: #a16207; }
+
+.ci-dates {
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: #94a3b8; margin-top: 1px;
+}
+
+.ci-progress-row {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 3px;
+}
+.ci-prog-lbl { font-size: 9px; color: #94a3b8; flex-shrink: 0; }
+.ci-prog-bar {
+  flex: 1; height: 4px; background: #f1f5f9; border-radius: 999px; overflow: hidden; min-width: 0;
+}
+.ci-prog-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.ci-prog-val  { font-size: 9px; font-weight: 700; color: #475569; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+.ci-prog-sep  { font-size: 9px; color: #cbd5e1; flex-shrink: 0; }
+
+.ci-pay-method {
+  font-size: 9px; color: #94a3b8; margin-top: 2px;
+}
+
+/* 风险摘要区域固定滚动 */
+.risk-section {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
 
 /* ──────────── 风险列表视图 ──────────── */
 .risk-list-view {
@@ -1170,11 +1099,12 @@ function openRisk(id) {
 
 /* ──────────── 风险详情报告视图 ──────────── */
 .rd-view {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 10px;
   padding: 10px 16px 12px;
-  min-height: 0;
 }
 
 .rd-sidebar { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
@@ -1234,6 +1164,23 @@ function openRisk(id) {
 .rdr-header { padding: 16px 20px 12px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .rdr-header h2 { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #0f172a; }
 .rdr-header p  { margin: 0; font-size: 11px; color: #64748b; }
+.rdr-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.rdr-back-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+.rdr-back-btn:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
 .rdr-time { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 
 .rdr-scroll { overflow-y: auto; padding: 16px 20px; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }

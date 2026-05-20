@@ -7,7 +7,7 @@
           <span class="topbar-back-arrow">←</span>
           <span>返回</span>
         </button>
-        <span v-if="current !== 'dashboard'" class="topbar-app-name">智能穿透监管平台</span>
+        <span v-if="current !== 'dashboard'" class="topbar-app-name">{{ topbarAppName }}</span>
       </div>
       <div class="topbar-center-title">{{ currentPageTitle }}</div>
       <div class="topbar-info">
@@ -86,8 +86,10 @@ const sceneAliasMap = {
 const DEFAULT_SCENE = 'dashboard'
 const current = ref(DEFAULT_SCENE)
 const currentComponent = computed(() => sceneMap[current.value])
+const topbarAppName = computed(() => '智能穿透监管平台')
 const currentPageTitle = computed(() => {
   if (current.value === 'ai') return '指挥调度中心'
+  if (current.value === 'equity') return '合同穿透'
   return '智能穿透监管平台'
 })
 
