@@ -289,12 +289,12 @@ onUnmounted(() => {
 }
 
 /* ====== 主体 ====== */
-.main { overflow: hidden; min-height: 0; }
+.main { overflow: hidden; min-height: 0; height: 100%; }
 .scene-wrap {
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 10px 20px 10px;
+  overflow: hidden;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .ai-float {

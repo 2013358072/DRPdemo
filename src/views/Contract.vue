@@ -1398,7 +1398,8 @@ const activeContractDetail = computed(() =>
 <style scoped>
 /* ──────────── 场景骨架 ──────────── */
 .ct-scene {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: #f8fafc;
   overflow: hidden;
   color: #1e293b;
@@ -1478,8 +1479,9 @@ const activeContractDetail = computed(() =>
 .ct-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ── 页面大标题 ── */
@@ -1532,16 +1534,19 @@ const activeContractDetail = computed(() =>
 .kc-sub   { font-size: 10px; color: #94a3b8; }
 
 .ct-body {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 480px minmax(0, 1fr) 600px;
+  grid-template-rows: 1fr;
   gap: 8px;
   padding: 8px 16px 10px;
-  min-height: 0;
+  overflow: hidden;
 }
 
-.ct-left  { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.ct-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.ct-center { min-height: 0; }
+.ct-left  { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.ct-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.ct-center { min-height: 0; overflow: hidden; }
 
 .side-panel { display: flex; flex-direction: column; gap: 9px; padding: 12px; min-height: 0; }
 .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
