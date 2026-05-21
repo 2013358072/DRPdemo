@@ -22,11 +22,34 @@ export const SECTORS = [
 export const COMPANIES = [
   { id: 'c1', sectorId: 's1', name: '华东电力有限公司', city: '上海', risk: 'high' },
   { id: 'c2', sectorId: 's1', name: '西北新能源投资公司', city: '西安', risk: 'medium' },
+  { id: 'c8', sectorId: 's1', name: '华北电网运营公司', city: '北京', risk: 'low' },
+  { id: 'c9', sectorId: 's1', name: '南方电力建设公司', city: '广州', risk: 'medium' },
+  { id: 'c10', sectorId: 's1', name: '西南水电开发有限公司', city: '成都', risk: 'high' },
+  { id: 'c11', sectorId: 's1', name: '东北热电联产公司', city: '沈阳', risk: 'low' },
+  { id: 'c12', sectorId: 's1', name: '华中智能电网科技', city: '武汉', risk: 'watch' },
   { id: 'c3', sectorId: 's2', name: '重型装备集团', city: '太原', risk: 'low' },
+  { id: 'c13', sectorId: 's2', name: '精密机械制造公司', city: '洛阳', risk: 'medium' },
+  { id: 'c14', sectorId: 's2', name: '海工装备工程公司', city: '青岛', risk: 'high' },
+  { id: 'c15', sectorId: 's2', name: '轨道交通设备集团', city: '株洲', risk: 'low' },
+  { id: 'c16', sectorId: 's2', name: '特种材料科技公司', city: '宝鸡', risk: 'medium' },
+  { id: 'c17', sectorId: 's2', name: '智能焊接机器人公司', city: '南京', risk: 'watch' },
   { id: 'c4', sectorId: 's3', name: '海外工程总承包公司', city: '北京', risk: 'critical' },
   { id: 'c5', sectorId: 's3', name: '城市基建投资公司', city: '深圳', risk: 'high' },
+  { id: 'c18', sectorId: 's3', name: '路桥隧道工程集团', city: '重庆', risk: 'medium' },
+  { id: 'c19', sectorId: 's3', name: '港口航道建设公司', city: '天津', risk: 'high' },
+  { id: 'c20', sectorId: 's3', name: '水利水电工程局', city: '昆明', risk: 'low' },
+  { id: 'c21', sectorId: 's3', name: '机场建设指挥部', city: '西安', risk: 'medium' },
+  { id: 'c22', sectorId: 's3', name: '铁路工程分公司', city: '兰州', risk: 'watch' },
   { id: 'c6', sectorId: 's4', name: '集团财务公司', city: '北京', risk: 'medium' },
+  { id: 'c23', sectorId: 's4', name: '融资租赁有限公司', city: '上海', risk: 'high' },
+  { id: 'c24', sectorId: 's4', name: '保险经纪公司', city: '深圳', risk: 'low' },
+  { id: 'c25', sectorId: 's4', name: '产业基金管理公司', city: '杭州', risk: 'high' },
+  { id: 'c26', sectorId: 's4', name: '信托投资事业部', city: '北京', risk: 'medium' },
   { id: 'c7', sectorId: 's5', name: '数字科技公司', city: '杭州', risk: 'low' },
+  { id: 'c27', sectorId: 's5', name: '人工智能研究院', city: '合肥', risk: 'medium' },
+  { id: 'c28', sectorId: 's5', name: '环保科技公司', city: '苏州', risk: 'low' },
+  { id: 'c29', sectorId: 's5', name: '新材料研发中心', city: '宁波', risk: 'watch' },
+  { id: 'c30', sectorId: 's5', name: '生物技术孵化平台', city: '无锡', risk: 'medium' },
 ]
 
 export const RISK_SAMPLES = [
@@ -550,13 +573,47 @@ export const DRP_FUNDS_INTERCEPT_RULES = [
 ]
 
 export const CONTRACTS = [
-  { id: 'CT-2026-0312', companyId: 'c5', name: '大型设备采购合同', amountYi: 2.3, partyB: '宏基土木集团', riskClause: '预付100% + 无质保金', level: 'high', performance: 60 },
-  { id: 'CT-2026-0098', companyId: 'c1', name: '燃煤采购长协', amountYi: 2.1, partyB: '北方能源贸易', riskClause: '无', level: 'low', performance: 88 },
-  { id: 'CT-2025-4412', companyId: 'c4', name: '境外分包框架协议', amountYi: 4.2, partyB: '境外分包联合体', riskClause: '争议适用境外专属管辖', level: 'medium', performance: 45 },
-  { id: 'CT-2026-0001', companyId: 'c2', name: '组件框架采购', amountYi: 0.35, partyB: '西北设备成套', riskClause: '无', level: 'low', performance: 92 },
-  { id: 'CT-2026-0015', companyId: 'c3', name: '重型装备运维服务', amountYi: 0.12, partyB: '太原本地服务商', riskClause: '无', level: 'low', performance: 76 },
-  { id: 'CT-2026-0080', companyId: 'c6', name: '同业拆借框架协议', amountYi: 5.0, partyB: '集团内成员单位', riskClause: '利率挂钩条款', level: 'medium', performance: 55 },
-  { id: 'CT-2026-0205', companyId: 'c7', name: '数字化运维项目', amountYi: 0.08, partyB: '杭州云联科技', riskClause: '无', level: 'low', performance: 99 },
+  // ---- 电力能源板块 (s1) ----
+  { id: 'CT-2026-0098', companyId: 'c1', name: '燃煤采购长协', amountYi: 2.1, partyB: '北方能源贸易', riskClause: '无', level: 'low', performance: 88, status: '履行中', category: '物资采购', signDate: '2025-12-20', expireDate: '2026-12-31', payMethod: '月度结算', paidRatio: 82, riskCount: 0 },
+  { id: 'CT-2026-0001', companyId: 'c2', name: '组件框架采购', amountYi: 0.35, partyB: '西北设备成套', riskClause: '无', level: 'low', performance: 92, status: '履行中', category: '物资采购', signDate: '2026-01-10', expireDate: '2026-12-31', payMethod: '分期付款', paidRatio: 88, riskCount: 0 },
+  { id: 'CT-2026-0120', companyId: 'c8', name: '智能变电站EPC总包', amountYi: 6.8, partyB: '国电南瑞科技', riskClause: '延期违约金偏低', level: 'high', performance: 35, status: '预警中', category: '工程总包', signDate: '2026-03-15', expireDate: '2027-06-30', payMethod: '里程碑付款', paidRatio: 45, riskCount: 3 },
+  { id: 'CT-2026-0155', companyId: 'c9', name: '海上风电安装合同', amountYi: 12.4, partyB: '海洋工程局', riskClause: '天气免责条款宽泛', level: 'medium', performance: 42, status: '履行中', category: '工程服务', signDate: '2026-04-01', expireDate: '2027-12-31', payMethod: '节点付款', paidRatio: 38, riskCount: 2 },
+  { id: 'CT-2026-0188', companyId: 'c10', name: '水电站设备采购', amountYi: 4.2, partyB: '东方电气集团', riskClause: '无', level: 'low', performance: 72, status: '履行中', category: '设备采购', signDate: '2026-02-20', expireDate: '2027-03-31', payMethod: '30/40/20/10', paidRatio: 65, riskCount: 0 },
+  { id: 'CT-2026-0220', companyId: 'c11', name: '热电联产燃料供应', amountYi: 1.8, partyB: '东北煤炭集团', riskClause: '价格浮动机制缺失', level: 'medium', performance: 55, status: '履行中', category: '物资采购', signDate: '2026-05-01', expireDate: '2027-04-30', payMethod: '月度结算', paidRatio: 52, riskCount: 1 },
+  { id: 'CT-2026-0250', companyId: 'c12', name: '电网智能化改造', amountYi: 3.6, partyB: '华为数字能源', riskClause: '数据安全责任不清', level: 'watch', performance: 28, status: '履行中', category: '技术服务', signDate: '2026-05-10', expireDate: '2027-08-31', payMethod: '分期付款', paidRatio: 22, riskCount: 1 },
+  { id: 'CT-2026-0288', companyId: 'c1', name: '主变压器成套采购', amountYi: 8.4, partyB: '远东重电制造', riskClause: '无', level: 'normal', performance: 46, status: '履行中', category: '设备采购', signDate: '2026-03-26', expireDate: '2027-02-28', payMethod: '30/30/30/10', paidRatio: 62, riskCount: 0 },
+  // ---- 装备制造板块 (s2) ----
+  { id: 'CT-2026-0015', companyId: 'c3', name: '重型装备运维服务', amountYi: 0.12, partyB: '太原本地服务商', riskClause: '无', level: 'low', performance: 76, status: '履行中', category: '运维服务', signDate: '2026-01-05', expireDate: '2026-12-31', payMethod: '季度结算', paidRatio: 72, riskCount: 0 },
+  { id: 'CT-2026-0300', companyId: 'c13', name: '精密机床进口合同', amountYi: 2.8, partyB: '德国精机集团', riskClause: '汇率风险未对冲', level: 'high', performance: 48, status: '预警中', category: '设备采购', signDate: '2026-04-12', expireDate: '2027-05-31', payMethod: '信用证付款', paidRatio: 55, riskCount: 2 },
+  { id: 'CT-2026-0330', companyId: 'c14', name: '海洋平台建造合同', amountYi: 18.6, partyB: '中海油服工程', riskClause: '交付延期罚则过轻', level: 'high', performance: 22, status: '预警中', category: '工程总包', signDate: '2026-05-08', expireDate: '2028-06-30', payMethod: '里程碑付款', paidRatio: 28, riskCount: 4 },
+  { id: 'CT-2026-0360', companyId: 'c15', name: '高铁轴承采购框架', amountYi: 5.2, partyB: '洛阳LYC轴承', riskClause: '无', level: 'normal', performance: 88, status: '履行中', category: '物资采购', signDate: '2026-02-15', expireDate: '2027-02-28', payMethod: '月度结算', paidRatio: 85, riskCount: 0 },
+  { id: 'CT-2026-0390', companyId: 'c16', name: '特种合金材料供应', amountYi: 1.6, partyB: '宝钛集团', riskClause: '规格标准引用老旧', level: 'watch', performance: 65, status: '履行中', category: '物资采购', signDate: '2026-04-22', expireDate: '2027-04-30', payMethod: '批次结算', paidRatio: 60, riskCount: 1 },
+  { id: 'CT-2026-0420', companyId: 'c17', name: '焊接机器人产线集成', amountYi: 3.2, partyB: '发那科机器人', riskClause: '验收标准模糊', level: 'medium', performance: 58, status: '履行中', category: '设备采购', signDate: '2026-03-08', expireDate: '2027-01-31', payMethod: '40/30/20/10', paidRatio: 52, riskCount: 1 },
+  // ---- 工程建设板块 (s3) ----
+  { id: 'CT-2026-0312', companyId: 'c5', name: '大型设备采购合同', amountYi: 2.3, partyB: '宏基土木集团', riskClause: '预付100% + 无质保金', level: 'high', performance: 60, status: '预警中', category: '设备采购', signDate: '2026-03-12', expireDate: '2027-06-30', payMethod: '全额预付', paidRatio: 100, riskCount: 4 },
+  { id: 'CT-2025-4412', companyId: 'c4', name: '境外分包框架协议', amountYi: 4.2, partyB: '境外分包联合体', riskClause: '争议适用境外专属管辖', level: 'medium', performance: 45, status: '履行中', category: '工程分包', signDate: '2025-12-26', expireDate: '2026-10-31', payMethod: '40/40/20', paidRatio: 78, riskCount: 2 },
+  { id: 'CT-2026-0450', companyId: 'c18', name: '跨江大桥施工总包', amountYi: 28.4, partyB: '中铁大桥局', riskClause: '地质风险由甲方承担', level: 'high', performance: 32, status: '预警中', category: '工程总包', signDate: '2026-04-28', expireDate: '2028-12-31', payMethod: '月度计量', paidRatio: 38, riskCount: 3 },
+  { id: 'CT-2026-0480', companyId: 'c19', name: '深水码头建设工程', amountYi: 9.6, partyB: '中交航务工程局', riskClause: '不可抗力范围过宽', level: 'medium', performance: 55, status: '履行中', category: '工程总包', signDate: '2026-04-05', expireDate: '2027-09-30', payMethod: '节点付款', paidRatio: 48, riskCount: 1 },
+  { id: 'CT-2026-0510', companyId: 'c20', name: '大坝加固改造工程', amountYi: 3.8, partyB: '中国水电基础局', riskClause: '无', level: 'normal', performance: 72, status: '履行中', category: '工程施工', signDate: '2026-03-18', expireDate: '2027-03-31', payMethod: '月度计量', paidRatio: 68, riskCount: 0 },
+  { id: 'CT-2026-0540', companyId: 'c21', name: '航站楼钢结构采购', amountYi: 7.2, partyB: '中建钢构', riskClause: '设计变更责任不清', level: 'medium', performance: 40, status: '预警中', category: '物资采购', signDate: '2026-05-03', expireDate: '2027-08-31', payMethod: '30/40/20/10', paidRatio: 35, riskCount: 2 },
+  { id: 'CT-2026-0570', companyId: 'c22', name: '铁路信号系统集成', amountYi: 5.4, partyB: '中国通号集团', riskClause: '技术标准更新风险', level: 'watch', performance: 62, status: '履行中', category: '系统集成', signDate: '2026-02-28', expireDate: '2027-06-30', payMethod: '里程碑付款', paidRatio: 55, riskCount: 1 },
+  { id: 'CT-2026-0551', companyId: 'c5', name: '片区道路及管廊施工', amountYi: 6.74, partyB: '城建路桥集团', riskClause: '现场签证偏多', level: 'high', performance: 41, status: '预警中', category: '工程施工', signDate: '2026-03-06', expireDate: '2027-08-30', payMethod: '25/25/25/15/10', paidRatio: 58, riskCount: 3 },
+  // ---- 金融服务板块 (s4) ----
+  { id: 'CT-2026-0080', companyId: 'c6', name: '同业拆借框架协议', amountYi: 5.0, partyB: '集团内成员单位', riskClause: '利率挂钩条款', level: 'medium', performance: 55, status: '履行中', category: '金融服务', signDate: '2026-01-15', expireDate: '2026-12-31', payMethod: '到期还本付息', paidRatio: 100, riskCount: 1 },
+  { id: 'CT-2026-0600', companyId: 'c23', name: '设备融资租赁合同', amountYi: 3.5, partyB: '中联重科融资租赁', riskClause: '提前解约罚则过重', level: 'high', performance: 68, status: '预警中', category: '融资租赁', signDate: '2026-05-15', expireDate: '2029-05-31', payMethod: '季度付租', paidRatio: 22, riskCount: 2 },
+  { id: 'CT-2026-0630', companyId: 'c24', name: '工程一切险保单', amountYi: 1.2, partyB: '中国平安财险', riskClause: '免赔条款不清晰', level: 'medium', performance: 90, status: '履行中', category: '保险服务', signDate: '2026-04-01', expireDate: '2027-03-31', payMethod: '年缴', paidRatio: 100, riskCount: 1 },
+  { id: 'CT-2026-0660', companyId: 'c25', name: '产业基金合伙协议', amountYi: 15.0, partyB: '中信产业基金', riskClause: 'GP决策权过大', level: 'high', performance: 35, status: '预警中', category: '基金合伙', signDate: '2026-05-20', expireDate: '2031-05-31', payMethod: 'Capital Call', paidRatio: 18, riskCount: 3 },
+  { id: 'CT-2026-0690', companyId: 'c26', name: '信托受益权转让', amountYi: 8.6, partyB: '中信信托', riskClause: '底层资产穿透不足', level: 'high', performance: 50, status: '核查中', category: '信托投资', signDate: '2026-04-18', expireDate: '2028-04-30', payMethod: '到期兑付', paidRatio: 100, riskCount: 2 },
+  // ---- 科创与其他板块 (s5) ----
+  { id: 'CT-2026-0205', companyId: 'c7', name: '数字化运维项目', amountYi: 0.08, partyB: '杭州云联科技', riskClause: '无', level: 'low', performance: 99, status: '已完结', category: '技术服务', signDate: '2026-04-02', expireDate: '2026-12-31', payMethod: '按月结算', paidRatio: 100, riskCount: 0 },
+  { id: 'CT-2026-0720', companyId: 'c27', name: 'AI大模型训练平台', amountYi: 2.4, partyB: '百度智能云', riskClause: '数据产权归属不清', level: 'medium', performance: 52, status: '履行中', category: '技术服务', signDate: '2026-05-12', expireDate: '2027-05-31', payMethod: '50/30/20', paidRatio: 45, riskCount: 1 },
+  { id: 'CT-2026-0750', companyId: 'c28', name: '工业园区废水处理', amountYi: 1.8, partyB: '碧水源科技', riskClause: '出水标准未量化', level: 'watch', performance: 78, status: '履行中', category: '工程服务', signDate: '2026-03-22', expireDate: '2027-03-31', payMethod: '月度结算', paidRatio: 72, riskCount: 1 },
+  { id: 'CT-2026-0780', companyId: 'c29', name: '碳纤维复合材料研发', amountYi: 0.9, partyB: '中复神鹰碳纤维', riskClause: '知识产权分配模糊', level: 'medium', performance: 42, status: '履行中', category: '研发合作', signDate: '2026-04-28', expireDate: '2027-10-31', payMethod: '阶段付款', paidRatio: 35, riskCount: 1 },
+  { id: 'CT-2026-0810', companyId: 'c30', name: '生物发酵中试平台', amountYi: 1.2, partyB: '凯赛生物', riskClause: '无', level: 'normal', performance: 88, status: '履行中', category: '技术服务', signDate: '2026-02-10', expireDate: '2027-02-28', payMethod: '分期付款', paidRatio: 82, riskCount: 0 },
+  // ---- 跨板块高风险合同 ----
+  { id: 'CT-2026-0840', companyId: 'c10', name: '水电移民安置总包', amountYi: 16.2, partyB: '地方移民开发公司', riskClause: '社会稳定风险未评估', level: 'critical', performance: 18, status: '预警中', category: '工程总包', signDate: '2026-05-05', expireDate: '2029-06-30', payMethod: '年度拨款', paidRatio: 12, riskCount: 5 },
+  { id: 'CT-2026-0870', companyId: 'c14', name: '海上风电安装船建造', amountYi: 8.6, partyB: '招商局重工', riskClause: '设计变更频繁', level: 'medium', performance: 58, status: '履行中', category: '工程总包', signDate: '2026-04-15', expireDate: '2028-04-30', payMethod: '里程碑付款', paidRatio: 52, riskCount: 2 },
+  { id: 'CT-2026-0900', companyId: 'c4', name: '境外营地物资采购', amountYi: 3.2, partyB: '盛通供应链', riskClause: '供应商资质存疑', level: 'high', performance: 30, status: '核查中', category: '物资采购', signDate: '2026-05-18', expireDate: '2027-05-31', payMethod: '预付50%', paidRatio: 50, riskCount: 3 },
 ]
 
 export const PROCUREMENT_PACKAGES = [
@@ -1182,6 +1239,130 @@ export const CONTRACT_NLP_STEPS = {
 }
 
 // 供应商画像数据
+// 合同风险项数据（合同ID → 风险项列表）
+export const CONTRACT_RISK_ITEMS = {
+  'HT-202605002': [
+    { id: 'HT-2026002', name: '采购合同价格异动预警', level: 'medium', alertTime: '2026-05-17 10:15', subjects: ['本单位XX物资采购部门', '供应商XX建材有限公司'], relatedIndex: '合同编号：HT-202605002；采购计划编号：CG-202605002', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026003', name: '招标程序缺失预警', level: 'high', alertTime: '2026-05-17 10:16', subjects: ['本单位采购管理部', '经办人XXX'], relatedIndex: '合同编号：HT-202605002；询价记录：XJ-202605002', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026004', name: '超进度付款风险预警', level: 'high', alertTime: '2026-05-18 09:00', subjects: ['本单位财务部门', '供应商江苏钢材联盟'], relatedIndex: '合同编号：HT-202605002；付款凭证：PZ-202605003', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026005', name: '发票金额差异提示', level: 'watch', alertTime: '2026-05-18 14:30', subjects: ['本单位财务核算部', '开票方XX建材有限公司'], relatedIndex: '发票号：FP-202605003；合同编号：HT-202605002', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-202604015': [
+    { id: 'HT-2026006', name: '履约进度滞后预警', level: 'medium', alertTime: '2026-05-15 11:20', subjects: ['供应商苏州机电科技', '本单位工程管理部'], relatedIndex: '合同编号：HT-202604015；施工计划编号：SC-202604015', status: '整改中', statusKey: 'fixing' },
+    { id: 'HT-2026007', name: '供应商资质复核提示', level: 'watch', alertTime: '2026-05-16 09:00', subjects: ['供应商苏州机电科技', '本单位采购管理部'], relatedIndex: '合同编号：HT-202604015；资质证书：ZZ-202501023', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-202603008': [],
+  'HT-2026-0120': [
+    { id: 'HT-2026010', name: '智能变电站延期风险', level: 'high', alertTime: '2026-05-14 08:30', subjects: ['本单位工程管理部', '供应商国电南瑞科技'], relatedIndex: '合同编号：HT-2026-0120；项目编号：BD-2026-018', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026011', name: '设备到货延迟预警', level: 'medium', alertTime: '2026-05-16 14:00', subjects: ['本单位物资部', '供应商国电南瑞科技'], relatedIndex: '合同编号：HT-2026-0120；物流单号：WL-202605003', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026012', name: '违约金条款触发风险', level: 'watch', alertTime: '2026-05-18 11:00', subjects: ['本单位法务部', '供应商国电南瑞科技'], relatedIndex: '合同编号：HT-2026-0120；违约金条款第5条', status: '关注中', statusKey: 'pending' },
+  ],
+  'HT-2026-0155': [
+    { id: 'HT-2026015', name: '海上风电安装天气延误', level: 'medium', alertTime: '2026-05-13 16:00', subjects: ['本单位项目部', '供应商海洋工程局'], relatedIndex: '合同编号：HT-2026-0155；气象记录编号：QX-202605003', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026016', name: '免责条款被滥用风险', level: 'watch', alertTime: '2026-05-17 09:00', subjects: ['本单位法务部', '供应商海洋工程局'], relatedIndex: '合同编号：HT-2026-0155；免责条款第8条', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0220': [
+    { id: 'HT-2026020', name: '煤炭价格波动风险', level: 'medium', alertTime: '2026-05-12 10:00', subjects: ['本单位采购部', '供应商东北煤炭集团'], relatedIndex: '合同编号：HT-2026-0220；价格指数编号：MT-202605001', status: '核查中', statusKey: 'checking' },
+  ],
+  'HT-2026-0250': [
+    { id: 'HT-2026025', name: '数据安全合规风险', level: 'watch', alertTime: '2026-05-16 08:00', subjects: ['本单位信息安全部', '供应商华为数字能源'], relatedIndex: '合同编号：HT-2026-0250；数据安全条款第12条', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0300': [
+    { id: 'HT-2026030', name: '汇率波动导致成本超支', level: 'high', alertTime: '2026-05-14 11:30', subjects: ['本单位财务部', '供应商德国精机集团'], relatedIndex: '合同编号：HT-2026-0300；汇率锁定条款缺失', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026031', name: '进口设备交付延期', level: 'medium', alertTime: '2026-05-17 15:00', subjects: ['本单位物资部', '供应商德国精机集团'], relatedIndex: '合同编号：HT-2026-0300；国际物流单号：GJ-202605008', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0330': [
+    { id: 'HT-2026033', name: '海洋平台建造延期风险', level: 'critical', alertTime: '2026-05-10 09:00', subjects: ['本单位项目部', '供应商中海油服工程'], relatedIndex: '合同编号：HT-2026-0330；项目编号：PT-2026-012', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026034', name: '材料成本超预算预警', level: 'high', alertTime: '2026-05-15 10:00', subjects: ['本单位成本部', '供应商中海油服工程'], relatedIndex: '合同编号：HT-2026-0330；预算编号：YS-2026-005', status: '整改中', statusKey: 'fixing' },
+    { id: 'HT-2026035', name: '安全合规检查未通过', level: 'high', alertTime: '2026-05-18 16:00', subjects: ['本单位安环部', '供应商中海油服工程'], relatedIndex: '合同编号：HT-2026-0330；安全检查编号：AQ-202605012', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026036', name: '劳务分包资质存疑', level: 'watch', alertTime: '2026-05-19 08:30', subjects: ['本单位人资部', '分包商XX劳务公司'], relatedIndex: '合同编号：HT-2026-0330；劳务分包编号：LW-202605003', status: '关注中', statusKey: 'pending' },
+  ],
+  'HT-2026-0312': [
+    { id: 'HT-2026040', name: '全额预付资金风险', level: 'critical', alertTime: '2026-05-11 08:00', subjects: ['本单位财务部', '供应商宏基土木集团'], relatedIndex: '合同编号：CT-2026-0312；付款凭证：PZ-202603012', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026041', name: '质保金缺失风险', level: 'high', alertTime: '2026-05-11 08:05', subjects: ['本单位法务部', '供应商宏基土木集团'], relatedIndex: '合同编号：CT-2026-0312；质保条款缺失', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026042', name: '无法务审核风险', level: 'high', alertTime: '2026-05-12 09:00', subjects: ['本单位法务部', '经办人XXX'], relatedIndex: '合同编号：CT-2026-0312；审批记录缺失', status: '整改中', statusKey: 'fixing' },
+    { id: 'HT-2026043', name: '超付款进度预警', level: 'medium', alertTime: '2026-05-15 14:00', subjects: ['本单位财务部', '供应商宏基土木集团'], relatedIndex: '合同编号：CT-2026-0312；付款进度100% vs 交付60%', status: '核查中', statusKey: 'checking' },
+  ],
+  'HT-2026-0450': [
+    { id: 'HT-2026045', name: '地质风险导致成本超支', level: 'high', alertTime: '2026-05-13 10:00', subjects: ['本单位工程部', '供应商中铁大桥局'], relatedIndex: '合同编号：HT-2026-0450；地质报告编号：DZ-202605001', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026046', name: '工期延误风险', level: 'medium', alertTime: '2026-05-17 09:30', subjects: ['本单位项目部', '供应商中铁大桥局'], relatedIndex: '合同编号：HT-2026-0450；进度报告编号：JD-202605003', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026047', name: '材料价格波动影响', level: 'watch', alertTime: '2026-05-19 11:00', subjects: ['本单位成本部', '供应商中铁大桥局'], relatedIndex: '合同编号：HT-2026-0450；材料调价条款', status: '关注中', statusKey: 'pending' },
+  ],
+  'HT-2026-0551': [
+    { id: 'HT-2026050', name: '现场签证超预算预警', level: 'high', alertTime: '2026-05-14 08:00', subjects: ['本单位造价部', '供应商城建路桥集团'], relatedIndex: '合同编号：HT-2026-0551；签证累计金额超阈值', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026051', name: '产值确认偏快风险', level: 'medium', alertTime: '2026-05-16 13:00', subjects: ['本单位监理部', '供应商城建路桥集团'], relatedIndex: '合同编号：HT-2026-0551；月度产值报告', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026052', name: '劳务分包结算异常', level: 'watch', alertTime: '2026-05-18 10:00', subjects: ['本单位人资部', '分包商XX劳务公司'], relatedIndex: '合同编号：HT-2026-0551；劳务结算编号：LW-202605008', status: '关注中', statusKey: 'pending' },
+  ],
+  'HT-2026-0600': [
+    { id: 'HT-2026060', name: '融资租赁提前解约风险', level: 'high', alertTime: '2026-05-16 09:00', subjects: ['本单位财务部', '供应商中联重科融资租赁'], relatedIndex: '合同编号：HT-2026-0600；提前解约条款', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026061', name: '设备残值评估偏差', level: 'watch', alertTime: '2026-05-18 14:00', subjects: ['本单位资产部', '评估机构XX资产评估'], relatedIndex: '合同编号：HT-2026-0600；评估报告编号：PG-202605002', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0660': [
+    { id: 'HT-2026066', name: 'GP过度决策风险', level: 'high', alertTime: '2026-05-17 10:00', subjects: ['本单位投资部', '普通合伙人中信产业基金'], relatedIndex: '合同编号：HT-2026-0660；合伙协议第15条', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026067', name: '关联交易未披露', level: 'high', alertTime: '2026-05-18 08:00', subjects: ['本单位合规部', 'GP中信产业基金'], relatedIndex: '合同编号：HT-2026-0660；关联交易披露缺失', status: '整改中', statusKey: 'fixing' },
+    { id: 'HT-2026068', name: '投资者适当性风险', level: 'medium', alertTime: '2026-05-19 15:00', subjects: ['本单位风控部', '募集机构'], relatedIndex: '合同编号：HT-2026-0660；适当性管理文件', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0690': [
+    { id: 'HT-2026069', name: '底层资产穿透不足风险', level: 'high', alertTime: '2026-05-15 11:00', subjects: ['本单位风控部', '受托人中信信托'], relatedIndex: '合同编号：HT-2026-0690；资产清单编号：ZC-202604018', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026070', name: '信托受益权估值异常', level: 'medium', alertTime: '2026-05-18 09:30', subjects: ['本单位财务部', '评估机构'], relatedIndex: '合同编号：HT-2026-0690；估值报告编号：GZ-202605003', status: '待核查', statusKey: 'pending' },
+  ],
+  'HT-2026-0840': [
+    { id: 'HT-2026084', name: '社会稳定风险评估缺失', level: 'critical', alertTime: '2026-05-10 08:00', subjects: ['本单位项目部', '地方移民开发公司'], relatedIndex: '合同编号：HT-2026-0840；社会稳定评估缺失', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026085', name: '移民安置费用超预算', level: 'critical', alertTime: '2026-05-12 10:00', subjects: ['本单位财务部', '地方移民开发公司'], relatedIndex: '合同编号：HT-2026-0840；预算编号：YS-2026-012', status: '整改中', statusKey: 'fixing' },
+    { id: 'HT-2026086', name: '工期严重滞后预警', level: 'high', alertTime: '2026-05-15 14:00', subjects: ['本单位工程部', '地方移民开发公司'], relatedIndex: '合同编号：HT-2026-0840；进度报告编号：JD-202605008', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026087', name: '分包管理混乱风险', level: 'high', alertTime: '2026-05-17 09:00', subjects: ['本单位项目部', '各分包单位'], relatedIndex: '合同编号：HT-2026-0840；分包台账', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026088', name: '环保合规检查未通过', level: 'medium', alertTime: '2026-05-19 11:30', subjects: ['本单位安环部', '地方环保局'], relatedIndex: '合同编号：HT-2026-0840；环保检查编号：HB-202605012', status: '整改中', statusKey: 'fixing' },
+  ],
+  'HT-2026-0900': [
+    { id: 'HT-2026090', name: '供应商围标串标嫌疑', level: 'high', alertTime: '2026-05-17 08:00', subjects: ['本单位采购部', '供应商盛通供应链'], relatedIndex: '合同编号：HT-2026-0900；采购编号：CG-2026-0501', status: '核查中', statusKey: 'checking' },
+    { id: 'HT-2026091', name: '境外物资运输延迟', level: 'medium', alertTime: '2026-05-18 10:00', subjects: ['本单位物流部', '承运商XX国际物流'], relatedIndex: '合同编号：HT-2026-0900；物流单号：GJ-202605015', status: '待核查', statusKey: 'pending' },
+    { id: 'HT-2026092', name: '预付款比例过高风险', level: 'high', alertTime: '2026-05-19 09:00', subjects: ['本单位财务部', '供应商盛通供应链'], relatedIndex: '合同编号：HT-2026-0900；预付条款：签约后预付50%', status: '核查中', statusKey: 'checking' },
+  ],
+}
+
+// 价格一致性穿透核查数据
+export const PRICE_PENETRATION_DATA = {
+  supplier: {
+    id: 'HT-202602003', title: '供应商历史合同',
+    subtitle: 'XX建材有限公司 · 历史价格核查',
+    records: [
+      { contractId: 'HT-202605002', date: '2026-04-18', spec: 'HRB400E Φ16mm', qty: '100吨', unitPrice: '5,800元/吨', amount: '58.0万元', status: '执行中', current: true },
+      { contractId: 'HT-202602003', date: '2025-12-10', spec: 'HRB400E Φ16mm', qty: '80吨',  unitPrice: '5,200元/吨', amount: '41.6万元', status: '已完结', current: false },
+      { contractId: 'HT-202601008', date: '2025-08-15', spec: 'HRB400E Φ16mm', qty: '60吨',  unitPrice: '5,150元/吨', amount: '30.9万元', status: '已完结', current: false },
+      { contractId: 'HT-202507021', date: '2025-03-22', spec: 'HRB400E Φ16mm', qty: '50吨',  unitPrice: '5,100元/吨', amount: '25.5万元', status: '已完结', current: false },
+    ],
+    conclusion: '供应商近3次同规格合同单价分别为5,200、5,150、5,100元/吨，呈缓慢上涨趋势（约1%/季度）。本次合同单价5,800元/吨较历史均价（5,150元/吨）偏高12.6%，远超正常涨幅范围，缺乏合理依据。',
+  },
+  inquiry: {
+    id: 'XJ-202605002', title: '采购询价记录',
+    subtitle: '钢材采购询价单 · 同期市场价格核查',
+    records: [
+      { supplier: 'XX建材有限公司', price: '5,800元/吨', delivery: '7天',  qualification: 'B级', selected: true,  remark: '本次中选' },
+      { supplier: '华东金属材料有限公司', price: '5,750元/吨', delivery: '10天', qualification: 'B级', selected: false, remark: '' },
+    ],
+    marketRef: '5,500元/吨（第三方平台 SJ-20260517001）',
+    conclusion: '本次询价仅邀请2家供应商参与，未进行公开竞争性招标；所有报价均高于同期市场公允价格（5,500元/吨）。按制度规定，单笔采购超500万须公开招标，本次操作违规。',
+  },
+  invoice: {
+    id: 'FP-202605003', title: '财务发票详情',
+    subtitle: '增值税专用发票 · 与合同价格一致性核查',
+    items: [
+      { field: '发票号码', value: 'FP-202605003' },
+      { field: '开票日期', value: '2026-04-25' },
+      { field: '销售方', value: 'XX建材有限公司' },
+      { field: '购买方', value: '某某建设集团有限公司' },
+      { field: '货物名称', value: 'Φ16mm 螺纹钢 HRB400E' },
+      { field: '数量', value: '100 吨' },
+      { field: '不含税单价', value: '5,133.63 元/吨' },
+      { field: '税率', value: '13%' },
+      { field: '含税单价', value: '5,800 元/吨 ✓ 与合同一致' },
+      { field: '价税合计', value: '¥580,000.00' },
+    ],
+    diff: '✓ 发票含税单价（5,800元/吨）与合同约定单价（5,800元/吨）完全一致，未发现发票价格虚高问题。',
+    conclusion: '价格异动发生在合同签订阶段，而非开票环节。问题根源在于招标议价过程，建议重点核查采购经办人的议价行为。',
+  },
+}
+
 export const SUPPLIER_PROFILE = {
   '宏基土木集团': {
     name: '宏基土木集团',
