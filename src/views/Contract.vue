@@ -149,12 +149,12 @@
                     <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLevelLabel2[item.level] }}</span>
                     <span class="ric-status" :class="`rics-${item.statusKey}`">{{ item.status }}</span>
                     <span class="ric-time">⏱ {{ item.alertTime }}</span>
-                    <button v-if="!item.analyzed" class="ric-ai-btn" @click.stop="analyzeRiskItem(item)">
+                    <button class="ric-ai-btn" @click.stop="openRisk(item.id)">
                       <span class="ai-btn-icon">✨</span>
                       <span class="ai-btn-text">AI 分析</span>
                       <span class="ai-btn-glow"></span>
                     </button>
-                    <button v-else class="ric-report-btn" @click.stop="openRisk(item.id)">
+                    <button v-if="item.analyzed" class="ric-report-btn" @click.stop="viewRiskReport(item.id)">
                       <span>📄</span>
                       <span>查看报告</span>
                     </button>
@@ -314,111 +314,244 @@
                 <div class="rdr-header-left">
                   <h2>风险事项详情报告</h2>
                   <p>合同管理域 · {{ activeRisk.name }} · AI智能体自动生成报告</p>
+                  <p><a href="http://192.168.16.206:8098/process_detail?flow_id=10005&title=%E5%90%88%E5%90%8C%E7%A9%BF%E9%80%8F%E5%8E%9F" target="_blank">点击查看运行日志</a></p>
                 </div>
               </div>
               <div class="rdr-scroll">
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">一</span>风险预警事项</div>
-                  <p class="rdr-para">{{ activeRisk.detailDescription || 'AI风险监测系统对该合同进行动态扫描，发现异常风险项，触发预警。涉及主体：' + activeRisk.subjects.join('、') + '，需进一步穿透核查确认风险成因。' }}</p>
-                </div>
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">二</span>风险定义</div>
-                  <div class="rdr-def-box"><strong>采购合同价格异动</strong>：指采购类合同（物资/服务/工程）的标的单价，与该供应商历史合作单价、同期同类型标的市场公允价格、同期其他供应商合作单价相比，异动幅度超过<strong>±10%（自定义阈值）</strong>，且无合理说明（如原材料涨价、规格升级）的情况，可能存在围标串标、经办人串通、价格虚报等风险。</div>
-                </div>
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">三</span>计算逻辑</div>
-                  <ol class="rdr-list">
-                    <li><strong>筛选条件：</strong>采购类合同，标的为可量化物资（钢材、水泥等）或标准化服务；</li>
-                    <li><strong>比对数据：</strong>① 该供应商近12个月同类标的历史合同单价；② 同期同类型标的市场公允价格；③ 同期其他供应商同类标的合同单价；</li>
-                    <li><strong>异动计算：</strong>（本次合同单价 − 比对单价）/ 比对单价 × 100%；</li>
-                    <li><strong>预警触发：</strong>任一比对维度异动幅度 ＞ ±10%，且无合理说明文档，触发预警。</li>
-                  </ol>
-                  <div class="price-compare price-compare-2col">
-                    <div class="pc-item warn">
-                      <span class="pc-label">本次合同单价</span>
-                      <span class="pc-val">5800 元/吨</span>
-                      <span class="pc-tag rp-high">偏高 +11.5%</span>
-                    </div>
-                    <div class="pc-item">
-                      <span class="pc-label">市场公允价格</span>
-                      <span class="pc-val">5500 元/吨</span>
-                      <span class="pc-tag rp-watch">偏高 +5.5%</span>
-                    </div>
-                    <div class="pc-item">
-                      <span class="pc-label">供应商历史均价</span>
-                      <span class="pc-val">5200 元/吨</span>
-                      <span class="pc-tag rp-normal">基准价</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">四</span>原因分析（结合穿透数据）</div>
-                  <div class="evidence-cards">
-                    <div class="ev-card ev-contract"><div class="ev-meta"><span class="ev-num">01</span><span class="ev-badge">合同端</span></div><p class="ev-text">合同 <button class="inline-link" @click="openContractDetail(activeRisk.contractRef)" :title="'点击查看原合同 ' + activeRisk.contractRef">{{ activeRisk.contractRef }} ›</button> 约定钢材规格 Φ16mm 螺纹钢，单价 <strong>5800 元/吨</strong>，合同正文未标注价格偏高说明，签订人为 XXX（采购经办人）。</p></div>
-                    <div class="ev-card ev-history"><div class="ev-meta"><span class="ev-num">02</span><span class="ev-badge">历史数据</span></div><p class="ev-text">供应商近12个月同类采购合同 <button class="inline-link" @click="openPenetration('supplier')">HT-202602003</button> 单价 <strong>5200 元/吨</strong>，规格一致，同期无明显市场波动，本次涨幅达 <strong class="ev-highlight">11.5%</strong>，触发异动阈值。</p></div>
-                    <div class="ev-card ev-proc"><div class="ev-meta"><span class="ev-num">03</span><span class="ev-badge">采购端</span></div><p class="ev-text">询价记录 <button class="inline-link proc-link" @click="openPenetration('inquiry')">XJ-202605002</button> 仅询价 <strong>2 家</strong>供应商（5800 / 5750 元/吨），未进行公开招标，询价范围过窄，缺乏充分竞争。</p></div>
-                    <div class="ev-card ev-market"><div class="ev-meta"><span class="ev-num">04</span><span class="ev-badge">市场数据</span></div><p class="ev-text">第三方价格平台 <button class="inline-link" @click="showToast('市场价格数据来源：第三方钢材价格平台 SJ-20260517001', 'info')">SJ-20260517001</button> 显示同期公允价 <strong>5500 元/吨</strong>，本次合同单价偏高市场价 <strong class="ev-highlight">5.45%</strong>。</p></div>
-                    <div class="ev-card ev-finance"><div class="ev-meta"><span class="ev-num">05</span><span class="ev-badge">财务端</span></div><p class="ev-text">发票 <button class="inline-link" @click="openPenetration('invoice')">FP-202605003</button> 标注单价 5800 元/吨与合同一致，但未附价格异动说明及市场价格佐证资料，凭证链路存在缺口。</p></div>
-                  </div>
-                  <div class="rdr-conclusion-box">综上，该合同价格异动无明确合理说明，询价流程不规范，可能存在采购经办人与供应商串通、未充分比价导致价格偏高的风险。</div>
-                </div>
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">五</span>关联数据穿透链接</div>
-                  <div class="pene-link-groups">
-                    <div class="plg-group">
-                      <div class="plg-label">合同域</div>
-                      <div class="plg-tags">
-                        <button type="button" class="plg-tag" @click="openContractDetail(activeRisk.contractRef)"><span class="plg-id">{{ activeRisk.contractRef }}</span><span class="plg-name">本次合同详情 ›</span></button>
-                        <button type="button" class="plg-tag pene-active" @click="openPenetration('supplier')"><span class="plg-id">HT-202602003</span><span class="plg-name">供应商历史合同 → 查看历史价格</span></button>
-                        <button type="button" class="plg-tag" @click="showToast('已加载合同审批记录 SP-' + activeRisk.contractRef.slice(3), 'info')"><span class="plg-id">SP-{{ activeRisk.contractRef.slice(3) }}</span><span class="plg-name">合同审批记录</span></button>
+                <!-- ============ 完整报告内容 ============ -->
+                <div class="report-container">
+                  
+                  <!-- 报告头部信息 -->
+                  <div class="report-header-card">
+                    <div class="rhc-title">【风险事项详情报告】</div>
+                    <div class="rhc-info-grid">
+                      <div class="rhc-info">
+                        <span class="rhc-label">风险ID</span>
+                        <span class="rhc-value mono">{{ activeRisk.id }}</span>
+                      </div>
+                      <div class="rhc-info">
+                        <span class="rhc-label">风险名称</span>
+                        <span class="rhc-value">{{ activeRisk.name }}</span>
+                      </div>
+                      <div class="rhc-info">
+                        <span class="rhc-label">风险等级</span>
+                        <span class="rhc-value risk-badge" :class="activeRisk.level">{{ activeRisk.riskItem.risk_level || '中风险' }}</span>
+                      </div>
+                      <div class="rhc-info">
+                        <span class="rhc-label">预警时间</span>
+                        <span class="rhc-value">{{ activeRisk.alertTime }}</span>
+                      </div>
+                      <div class="rhc-info">
+                        <span class="rhc-label">预警来源</span>
+                        <span class="rhc-value">{{ activeRisk.source }}</span>
+                      </div>
+                      <div class="rhc-info">
+                        <span class="rhc-label">涉及主体</span>
+                        <span class="rhc-value">{{ activeRisk.riskItem.involved_subject || '本单位物资采购部门' }}</span>
                       </div>
                     </div>
-                    <div class="plg-group plg-proc">
-                      <div class="plg-label">采购域 <span class="plg-nav-hint">↗ 点击穿透核查</span></div>
-                      <div class="plg-tags">
-                        <button type="button" class="plg-tag proc-tag" @click="navigateToProcurement"><span class="plg-id">{{ activeRisk.procurementRef }}</span><span class="plg-name">采购计划详情</span></button>
-                        <button type="button" class="plg-tag proc-tag pene-active" @click="openPenetration('inquiry')"><span class="plg-id">XJ-{{ activeRisk.contractRef.slice(3) }}</span><span class="plg-name">采购询价记录 → 核查同期市场价格</span></button>
-                        <button type="button" class="plg-tag proc-tag" @click="navigateToProcurement"><span class="plg-id">BJ-{{ activeRisk.contractRef.slice(3) }}</span><span class="plg-name">供应商报价记录</span></button>
+                  </div>
+                  
+                  <!-- 一、风险预警事项 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">一</span>
+                      <span class="section-title">风险预警事项</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="warning-details">
+                        <div v-html="formatSectionContent(reportSectionOne)"></div>
                       </div>
                     </div>
-                    <div class="plg-group">
-                      <div class="plg-label">财务域</div>
-                      <div class="plg-tags">
-                        <button type="button" class="plg-tag fin-tag pene-active" @click="openPenetration('invoice')"><span class="plg-id">FP-{{ activeRisk.contractRef.slice(3) }}</span><span class="plg-name">发票号 → 确认发票价格与合同价格一致性</span></button>
-                        <button type="button" class="plg-tag fin-tag" @click="showToast('已加载会计凭证 PZ-' + activeRisk.contractRef.slice(3), 'info')"><span class="plg-id">PZ-{{ activeRisk.contractRef.slice(3) }}</span><span class="plg-name">会计凭证详情</span></button>
+                  </div>
+                  
+                  <!-- 二、风险定义 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">二</span>
+                      <span class="section-title">风险定义</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="definition-box">
+                        <div v-html="formatSectionContent(reportSectionTwo)"></div>
                       </div>
                     </div>
-                    <div class="plg-group"><div class="plg-label">外部数据</div><div class="plg-tags"><button type="button" class="plg-tag ext-tag" @click="showToast('已加载第三方市场价格数据 SJ-20260517001', 'info')"><span class="plg-id">SJ-20260517001</span><span class="plg-name">同期市场价格</span></button></div></div>
                   </div>
-                </div>
-                <div class="rdr-section">
-                  <div class="rdr-section-title"><span class="rsn-num">六</span>整改建议</div>
-                  <ol class="rdr-list">
-                    <li>由采购部门牵头，核查本次价格异动原因，要求供应商提供价格上涨说明（如原材料采购凭证）；</li>
-                    <li>若价格异动为合理（如原材料涨价），补充价格说明及佐证资料，上传系统，解除预警；若为不合理异动，协商供应商调整单价，或重新组织询价/招标；</li>
-                    <li>完善采购询价流程，要求同类物资询价供应商不少于3家，必要时进行公开招标；</li>
-                    <li>核查采购经办人（XXX）的履职情况，确认是否存在与供应商串通行为；</li>
-                    <li>建立供应商价格动态监测机制，定期比对历史价格与市场价格，提前预警价格异常。</li>
-                  </ol>
-                </div>
-                <div class="rdr-section last-section">
-                  <div class="rdr-section-title"><span class="rsn-num">七</span>处理进度跟踪</div>
-                  <div class="proc-track">
-                    <div v-for="(step, si) in activeRisk.statusFlow" :key="step" class="pt-step" :class="{ done: si < activeRisk.currentStatusIdx, current: si === activeRisk.currentStatusIdx }">
-                      <div class="pt-dot"></div>
-                      <div class="pt-body"><strong>{{ step }}</strong><span v-if="si === activeRisk.currentStatusIdx" class="pt-current-badge">当前状态</span></div>
+                  
+                  <!-- 三、计算逻辑 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">三</span>
+                      <span class="section-title">计算逻辑</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="calc-box">
+                        <div v-html="formatSectionContent(reportSectionThree)"></div>
+                      </div>
                     </div>
                   </div>
-                  <div class="pt-meta-grid">
-                    <div class="ptm-item"><span>处理状态</span><strong>{{ activeRisk.status }}</strong></div>
-                    <div class="ptm-item"><span>责任人</span><strong>{{ activeRisk.responsible }}</strong></div>
-                    <div class="ptm-item"><span>整改期限</span><strong class="deadline">{{ activeRisk.deadline }}</strong></div>
+                  
+                  <!-- 四、原因分析 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">四</span>
+                      <span class="section-title">原因分析</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="analysis-box">
+                        <div v-html="formatSectionContent(reportSectionFour)"></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- 五、关联数据穿透链接 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">五</span>
+                      <span class="section-title">关联数据穿透链接</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="link-box">
+                        <div class="link-group">
+                          <div class="link-group-title">合同域</div>
+                          <div class="link-items">
+                            <button class="link-item" @click="openContractDetail(activeRisk.contractRef)">
+                              <span class="link-icon">📄</span>
+                              <span class="link-text">本次合同</span>
+                              <span class="link-id">{{ activeRisk.contractRef }}</span>
+                            </button>
+                            <button class="link-item" @click="showToast('查看历史合同详情', 'info')">
+                              <span class="link-icon">📋</span>
+                              <span class="link-text">历史合同</span>
+                              <span class="link-id">{{ activeRisk.riskItem.history_contract_id || 'HT-202602003' }}</span>
+                            </button>
+                            <button class="link-item" @click="showToast('查看合同审批单', 'info')">
+                              <span class="link-icon">✅</span>
+                              <span class="link-text">合同审批单</span>
+                              <span class="link-id">SP-{{ activeRisk.contractRef.slice(3) }}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="link-group">
+                          <div class="link-group-title">采购域</div>
+                          <div class="link-items">
+                            <button class="link-item" @click="navigateToProcurement">
+                              <span class="link-icon">🛒</span>
+                              <span class="link-text">采购计划</span>
+                              <span class="link-id">{{ activeRisk.procurementRef }}</span>
+                            </button>
+                            <button class="link-item" @click="openPenetration('inquiry')">
+                              <span class="link-icon">🔍</span>
+                              <span class="link-text">询价记录</span>
+                              <span class="link-id">XJ-{{ activeRisk.contractRef.slice(3) }}</span>
+                            </button>
+                            <button class="link-item" @click="showToast('查看报价单', 'info')">
+                              <span class="link-icon">📝</span>
+                              <span class="link-text">报价单</span>
+                              <span class="link-id">BJ-{{ activeRisk.contractRef.slice(3) }}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="link-group">
+                          <div class="link-group-title">财务域</div>
+                          <div class="link-items">
+                            <button class="link-item" @click="openPenetration('invoice')">
+                              <span class="link-icon">🧾</span>
+                              <span class="link-text">发票</span>
+                              <span class="link-id">FP-{{ activeRisk.contractRef.slice(3) }}</span>
+                            </button>
+                            <button class="link-item" @click="showToast('查看会计凭证', 'info')">
+                              <span class="link-icon">📊</span>
+                              <span class="link-text">会计凭证</span>
+                              <span class="link-id">PZ-{{ activeRisk.contractRef.slice(3) }}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="link-group">
+                          <div class="link-group-title">外部数据</div>
+                          <div class="link-items">
+                            <button class="link-item" @click="showToast('查看市场价格数据', 'info')">
+                              <span class="link-icon">📈</span>
+                              <span class="link-text">市场公允价</span>
+                              <span class="link-id">SJ-20260517001</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- 六、整改建议 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">六</span>
+                      <span class="section-title">整改建议</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="suggestion-box">
+                        <div v-html="formatSectionContent(reportSectionSix)"></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- 七、处理进度跟踪 -->
+                  <div class="report-section status-section">
+                    <div class="section-header">
+                      <span class="section-number">七</span>
+                      <span class="section-title">处理进度跟踪</span>
+                    </div>
+                    <div class="section-content">
+                      <div class="status-box">
+                        <div class="status-item">
+                          <span class="status-label">处理状态</span>
+                          <span class="status-value" :class="activeRisk.status.toLowerCase().replace(/\s/g, '-')">{{ activeRisk.status }}</span>
+                        </div>
+                        <div class="status-item">
+                          <span class="status-label">责任人</span>
+                          <span class="status-value">{{ activeRisk.responsible }}</span>
+                        </div>
+                        <div class="status-item">
+                          <span class="status-label">整改期限</span>
+                          <span class="status-value deadline">{{ activeRisk.deadline }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- 关联数据明细表 -->
+                  <div class="report-section">
+                    <div class="section-header">
+                      <span class="section-number">附</span>
+                      <span class="section-title">关联数据明细表</span>
+                    </div>
+                    <div class="section-content">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th>类别</th>
+                            <th>对象</th>
+                            <th>编号</th>
+                            <th>关键数据</th>
+                            <th>风险说明</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(row, index) in activeRisk.tableRows" :key="index">
+                            <td><span class="category-badge">{{ row.类别 }}</span></td>
+                            <td>{{ row.对象 }}</td>
+                            <td class="mono">{{ row.编号 }}</td>
+                            <td>{{ row.关键数据 }}</td>
+                            <td><span class="risk-note">{{ row.风险说明 }}</span></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
+                
               </div>
             </div>
           </div>
-        </div>
 
         <!-- ══ 穿透详情面板 ══ -->
         <transition name="pene-slide">
@@ -523,6 +656,7 @@
           </div>
         </transition>
       </div>
+    </div> 
     </template>
 
     <!-- ══════════ 合同详情页 ══════════ -->
@@ -740,6 +874,7 @@ import * as echarts from 'echarts'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import EChart from '@/components/EChart.vue'
 import { CONTRACT_RISK_ITEMS, PRICE_PENETRATION_DATA, COMPANIES, SECTORS } from '@/mock/index.js'
+import axios from 'axios'
 
 const emit = defineEmits(['navigate'])
 
@@ -756,10 +891,97 @@ function showToast(text, type = 'info') {
   toastTimer = window.setTimeout(() => { toastVisible.value = false }, 2800)
 }
 
+// ============ 格式化报告内容 ============
+// 将接口返回的报告文本转换为 HTML 格式
+function formatReport(text) {
+  if (!text) return '<p>暂无报告内容</p>'
+  
+  let html = text
+  // 替换换行符为 <br>
+  html = html.replace(/\n/g, '<br>')
+  // 替换多个连续换行
+  html = html.replace(/<br><br>/g, '</p><p>')
+  // 替换加粗格式 **内容**
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  // 替换列表项
+  html = html.replace(/^(\d+)\.\s/gm, '<li>')
+  // 添加段落标签
+  html = `<p>${html}</p>`
+  
+  return html
+}
+
 function navigateToProcurement() {
   showToast('正在跳转至采购穿透页…', 'info')
   setTimeout(() => emit('navigate', 'procurement'), 800)
 }
+
+// ============ 格式化完整报告内容 ============
+const formatFullReport = (content) => {
+  if (!content) return '<p class="empty-report">暂无报告内容</p>'
+  
+  // 替换标题格式
+  let html = content
+    .replace(/【(.+?)】/g, '<h3 class="report-subtitle">【$1】</h3>')
+    .replace(/(\d+)、(.+?)(?=\n\n|$)/g, '<h4 class="report-chapter">$1、$2</h4>')
+    .replace(/^(\d+)\.\s(.+)$/gm, '<p class="report-paragraph"><span class="para-number">$1.</span> $2</p>')
+    .replace(/\n\n/g, '</p><p class="report-paragraph">')
+    .replace(/\n/g, '<br>')
+  
+  // 添加段落标签
+  if (!html.startsWith('<h') && !html.startsWith('<p')) {
+    html = '<p class="report-paragraph">' + html + '</p>'
+  }
+  
+  return html
+}
+
+// ============ 格式化章节内容 ============
+const formatSectionContent = (content) => {
+  if (!content) return '<p class="empty-content">暂无内容</p>'
+  
+  let html = content
+    .replace(/^(\d+)\.\s(.+)$/gm, '<div class="section-item"><span class="item-number">$1.</span><span class="item-content">$2</span></div>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+  
+  if (!html.startsWith('<') && !html.startsWith('<div') && !html.startsWith('<p')) {
+    html = '<p>' + html + '</p>'
+  }
+  
+  return html
+}
+
+// ============ 提取报告章节内容 ============
+const reportSectionOne = computed(() => {
+  const report = apiRiskData.value?.report || activeRisk.detailDescription || ''
+  const match = report.match(/一、风险预警事项[\s\S]*?(?=二、|$)/)
+  return match ? match[0].replace(/^一、风险预警事项\s*/, '').trim() : ''
+})
+
+const reportSectionTwo = computed(() => {
+  const report = apiRiskData.value?.report || activeRisk.detailDescription || ''
+  const match = report.match(/二、风险定义[\s\S]*?(?=三、|$)/)
+  return match ? match[0].replace(/^二、风险定义\s*/, '').trim() : ''
+})
+
+const reportSectionThree = computed(() => {
+  const report = apiRiskData.value?.report || activeRisk.detailDescription || ''
+  const match = report.match(/三、计算逻辑[\s\S]*?(?=四、|$)/)
+  return match ? match[0].replace(/^三、计算逻辑\s*/, '').trim() : ''
+})
+
+const reportSectionFour = computed(() => {
+  const report = apiRiskData.value?.report || activeRisk.detailDescription || ''
+  const match = report.match(/四、原因分析[\s\S]*?(?=五、|$)/)
+  return match ? match[0].replace(/^四、原因分析\s*/, '').trim() : ''
+})
+
+const reportSectionSix = computed(() => {
+  const report = apiRiskData.value?.report || activeRisk.detailDescription || ''
+  const match = report.match(/六、整改建议[\s\S]*?(?=七、|$)/)
+  return match ? match[0].replace(/^六、整改建议\s*/, '').trim() : ''
+})
 
 function getCompanyName(id) { const c = COMPANIES.find(x => x.id === id); return c ? c.name : '—' }
 function getSectorName(id) { const c = COMPANIES.find(x => x.id === id); if (!c) return '—'; const s = SECTORS.find(x => x.id === c.sectorId); return s ? s.name : '—' }
@@ -986,49 +1208,422 @@ function jumpToStage(idx) { activeStageIdx.value = idx }
 
 // Risk detail view — 动态生成所有风险项的报告数据
 const selectedRiskId = ref('')
+const apiRiskData = ref(null) // 存储接口返回的风险数据
+const riskDataCache = ref({}) // 缓存各个风险项的数据，key为riskId
 const activeRisk = computed(() => {
   if (!selectedRiskId.value) return null
-  // 在所有合同的风险项中查找匹配项
-  for (const [contractId, items] of Object.entries(CONTRACT_RISK_ITEMS)) {
-    const found = items.find(r => r.id === selectedRiskId.value)
-    if (found) {
-      const contract = contracts.find(c => c.id === contractId)
-      const levelLabel = { high: '高风险', medium: '中风险', watch: '低风险', normal: '正常', critical: '重大风险' }
-      const statusFlowMap = { pending: ['待核查', '核查中', '整改中', '已闭环'], checking: ['待核查', '核查中', '整改中', '已闭环'], fixing: ['待核查', '核查中', '整改中', '已闭环'] }
-      const statusIdxMap = { pending: 0, checking: 1, fixing: 2 }
-      // 生成具体化的风险描述
-      const isPriceRisk = found.name.includes('价格')
-      const supplierName = (found.subjects[1] || '供应商').replace(/^供应商/, '')
-      const detailDesc = isPriceRisk
-        ? `2026年05月16日，本单位与${supplierName}签订钢材采购合同（合同编号：${contractId}），约定钢材采购单价为5800元/吨，采购数量100吨，合同总金额58万元。系统监测发现，该单价与该供应商历史合作单价（5200元/吨）相比，异动幅度达11.5%，超过±10%的预警阈值，且高于同期同类型钢材市场公允价格（5500元/吨），触发中风险预警。`
-        : `AI风险监测系统对合同 ${contractId} 进行动态扫描，发现风险项：${found.name}。经系统多维度交叉比对，该合同在关键风险指标上存在异常偏离，触发${levelLabel[found.level] || found.level}。涉及主体：${found.subjects.join('、')}，需进一步穿透核查确认风险成因。`
-      // 对 HT-2026002 (钢材价格异动) 使用文档明确的元数据
-      const isCanonicalSteel = found.id === 'HT-2026002'
-      return {
-        id: found.id,
-        name: isCanonicalSteel ? '采购合同价格异动预警（钢材采购价格偏高）' : found.name,
-        subName: found.name,
-        level: found.level,
-        alertTime: found.alertTime,
-        source: '系统自动监测（合同价格与历史价格、市场价格比对）',
-        subjects: found.subjects,
-        contractRef: contractId,
-        procurementRef: `CG-${contractId.slice(3)}`,
-        status: found.status,
-        statusFlow: statusFlowMap[found.statusKey] || ['待核查', '核查中', '整改中', '已闭环'],
-        currentStatusIdx: statusIdxMap[found.statusKey] ?? 1,
-        responsible: isCanonicalSteel ? 'XXX（采购部门）、XXX（监管部门）' : `${getCompanyName(contract?.companyId || '')}（采购部门）、集团监管部门`,
-        deadline: isCanonicalSteel ? '2026-05-24' : '2026-05-31',
-        contract: contract,
-        riskItem: found,
-        detailDescription: detailDesc,
-      }
+  
+  // ============ 解析后端接口返回的数据 ============
+  // 后端返回的字段映射：
+  // risk_code/risk_id -> id
+  // risk_name -> name
+  // risk_level -> level（需要转换为英文：高风险->high, 中风险->medium, 低风险->watch）
+  // warning_time -> alertTime
+  // contract_id -> contractRef
+  // report -> detailDescription（完整报告内容）
+  // table_rows -> 表格数据（存储在 riskItem 中供后续使用）
+  // ================================================
+  
+  // 先从缓存中获取对应风险项的数据
+  const cachedData = riskDataCache.value[selectedRiskId.value]
+  // 如果缓存中有数据就用缓存，否则用全局的 apiRiskData
+  const data = cachedData || apiRiskData.value
+  
+  if (data) {
+    const levelMap = { '高风险': 'high', '中风险': 'medium', '低风险': 'watch', '重大风险': 'critical', '正常': 'normal' }
+    
+    console.log('=== activeRisk 计算属性 ===', 'selectedRiskId:', selectedRiskId.value, 'data:', data)
+    
+    return {
+      // 基础信息
+      id: data.risk_code || data.risk_id || data.id || selectedRiskId.value,
+      name: data.risk_name || data.name || '未知风险事项',
+      subName: data.risk_name || data.name || '',
+      level: levelMap[data.risk_level] || data.level || 'medium',
+      alertTime: data.warning_time || data.alertTime || '',
+      source: data.warning_source || data.source || '系统自动监测（合同价格与历史价格、市场价格比对）',
+      subjects: data.subjects || ['本单位采购部门', data.supplier_name || '供应商'],
+      
+      // 合同相关
+      contractRef: data.contract_id || data.contractRef || '',
+      procurementRef: data.procurement_id || data.procurementRef || '',
+      
+      // 状态信息
+      status: data.process_status || data.status || '核查中',
+      statusFlow: data.statusFlow || ['待核查', '核查中', '整改中', '已闭环'],
+      currentStatusIdx: data.currentStatusIdx ?? 1,
+      responsible: data.responsible_person || data.responsible || '物资采购部/审计风控部',
+      deadline: data.deadline || '2026-05-24',
+      
+      // 报告内容
+      contract: data.contract || null,
+      riskItem: data, // 保存完整数据，供其他地方使用
+      detailDescription: data.report || data.detailDescription || '暂无详细描述',
+      
+      // 新增：支持表格数据和其他字段
+      tableRows: data.table_rows || data['整理报告_1.table_rows'] || [],
+      context: data.context || {},
+      evidence: data.evidence || {}
     }
   }
-  return { id: selectedRiskId.value, name: '未知风险事项', subName: '', level: 'medium', alertTime: '', source: '', subjects: [], contractRef: '', procurementRef: '', status: '核查中', statusFlow: ['待核查', '核查中', '整改中', '已闭环'], currentStatusIdx: 1, responsible: '', deadline: '', detailDescription: '' }
+  
+  // ============ 解析原因分析数据 ============
+  const analysisItems = computed(() => {
+    if (!apiRiskData.value?.report) return []
+    
+    const report = apiRiskData.value.report
+    
+    // 尝试多种可能的标题格式
+    const analysisMatch = report.match(/四、原因分析[\s\S]*?(?=五、|六、|七、|$)/)
+    const analysisPart = analysisMatch ? analysisMatch[0].replace(/^四、原因分析\s*/, '').trim() : ''
+    
+    console.log('原因分析部分:', analysisPart)
+    
+    if (!analysisPart) return []
+    
+    // 提取原因分析项
+    const items = []
+    const lines = analysisPart.split('\n').filter(line => line.trim())
+    
+    let currentItem = null
+    for (const line of lines) {
+      const match = line.match(/^(\d+)\.\s*(.+)/)
+      if (match) {
+        if (currentItem) {
+          items.push(currentItem)
+        }
+        const parts = match[2].split('：')
+        currentItem = {
+          title: parts[0]?.trim() || '',
+          desc: parts[1]?.trim() || match[2].trim()
+        }
+      } else if (currentItem && line.trim()) {
+        currentItem.desc += ' ' + line.trim()
+      }
+    }
+    
+    if (currentItem) {
+      items.push(currentItem)
+    }
+    
+    console.log('解析的原因分析项:', items)
+    
+    return items.length > 0 ? items : [
+      { title: '合同端', desc: '合同条款未明确要求附加价格论证材料，审批流程缺失价格异动专项说明' },
+      { title: '历史数据', desc: '同品种历史合同单价稳定在5200元/吨，本次涨幅显著偏离常规波动范围' },
+      { title: '采购端', desc: '询价仅涵盖2家供应商（低于规定的≥3家），中标单价高于其他供应商报价' },
+      { title: '市场数据', desc: '同期市场公允价5500元/吨，采购单价超市场价5.45%' },
+      { title: '财务端', desc: '入账凭证未附价格佐证资料，发票未标注价格变动依据' }
+    ]
+  })
+  
+  // ============ 解析整改建议数据 ============
+  const suggestionItems = computed(() => {
+    if (!apiRiskData.value?.report) return []
+    
+    const report = apiRiskData.value.report
+    
+    // 尝试多种可能的标题格式
+    const suggestionMatch = report.match(/六、整改建议[\s\S]*?(?=七、|$)/)
+    const suggestionPart = suggestionMatch ? suggestionMatch[0].replace(/^六、整改建议\s*/, '').trim() : ''
+    
+    console.log('整改建议部分:', suggestionPart)
+    
+    if (!suggestionPart) return []
+    
+    // 提取整改建议项
+    const items = []
+    const lines = suggestionPart.split('\n').filter(line => line.trim())
+    
+    for (const line of lines) {
+      const match = line.match(/^(\d+)\.\s*(.+)/)
+      if (match) {
+        items.push(match[2].trim())
+      } else if (line.trim()) {
+        items.push(line.trim())
+      }
+    }
+    
+    console.log('解析的整改建议项:', items)
+    
+    return items.length > 0 ? items : [
+      '补充价格异动书面说明，含市场行情分析及调价理由证明材料',
+      '对超市场价10%以上采购重启竞争性询价流程（≥3家有效报价）',
+      '修订合同模板强制添加价格论证附件栏，完善审批节点风控校验规则',
+      '开展同类物料历史交易价格回溯分析，建立价格波动预警模型动态阈值机制'
+    ]
+  })
+  
+
+  // ============ 本地 Mock 数据已注释 ============
+  // 如果接口成功，会使用上面的接口数据渲染
+  // 如果接口失败，页面会显示下方的默认值（无数据状态）
+  // ==============================================
+  // // 在所有合同的风险项中查找匹配项
+  // for (const [contractId, items] of Object.entries(CONTRACT_RISK_ITEMS)) {
+  //   const found = items.find(r => r.id === selectedRiskId.value)
+  //   if (found) {
+  //     const contract = contracts.find(c => c.id === contractId)
+  //     const levelLabel = { high: '高风险', medium: '中风险', watch: '低风险', normal: '正常', critical: '重大风险' }
+  //     const statusFlowMap = { pending: ['待核查', '核查中', '整改中', '已闭环'], checking: ['待核查', '核查中', '整改中', '已闭环'], fixing: ['待核查', '核查中', '整改中', '已闭环'] }
+  //     const statusIdxMap = { pending: 0, checking: 1, fixing: 2 }
+  //     // 生成具体化的风险描述
+  //     const isPriceRisk = found.name.includes('价格')
+  //     const supplierName = (found.subjects[1] || '供应商').replace(/^供应商/, '')
+  //     const detailDesc = isPriceRisk
+  //       ? `2026年05月16日，本单位与${supplierName}签订钢材采购合同（合同编号：${contractId}），约定钢材采购单价为5800元/吨，采购数量100吨，合同总金额58万元。系统监测发现，该单价与该供应商历史合作单价（5200元/吨）相比，异动幅度达11.5%，超过±10%的预警阈值，且高于同期同类型钢材市场公允价格（5500元/吨），触发中风险预警。`
+  //       : `AI风险监测系统对合同 ${contractId} 进行动态扫描，发现风险项：${found.name}。经系统多维度交叉比对，该合同在关键风险指标上存在异常偏离，触发${levelLabel[found.level] || found.level}。涉及主体：${found.subjects.join('、')}，需进一步穿透核查确认风险成因。`
+  //     // 对 HT-2026002 (钢材价格异动) 使用文档明确的元数据
+  //     const isCanonicalSteel = found.id === 'HT-2026002'
+  //     return {
+  //       id: found.id,
+  //       name: isCanonicalSteel ? '采购合同价格异动预警（钢材采购价格偏高）' : found.name,
+  //       subName: found.name,
+  //       level: found.level,
+  //       alertTime: found.alertTime,
+  //       source: '系统自动监测（合同价格与历史价格、市场价格比对）',
+  //       subjects: found.subjects,
+  //       contractRef: contractId,
+  //       procurementRef: `CG-${contractId.slice(3)}`,
+  //       status: found.status,
+  //       statusFlow: statusFlowMap[found.statusKey] || ['待核查', '核查中', '整改中', '已闭环'],
+  //       currentStatusIdx: statusIdxMap[found.statusKey] ?? 1,
+  //       responsible: isCanonicalSteel ? 'XXX（采购部门）、XXX（监管部门）' : `${getCompanyName(contract?.companyId || '')}（采购部门）、集团监管部门`,
+  //       deadline: isCanonicalSteel ? '2026-05-24' : '2026-05-31',
+  //       contract: contract,
+  //       riskItem: found,
+  //       detailDescription: detailDesc,
+  //     }
+  //   }
+  // }
+  return { id: selectedRiskId.value, name: '接口未返回数据', subName: '', level: 'medium', alertTime: '', source: '', subjects: [], contractRef: '', procurementRef: '', status: '核查中', statusFlow: ['待核查', '核查中', '整改中', '已闭环'], currentStatusIdx: 1, responsible: '', deadline: '', detailDescription: '接口调用后未返回数据，请检查控制台错误信息' }
 })
 
-function openRisk(id) {
+// ── 接口调用：流程实例流式运行 ──
+async function callFlowInstanceStreamRun(riskId, action) {
+  const url = '/api/jobs/open_plat/flow_instance/stream_run'
+  
+  // ============ 后端要求的请求参数格式 ============
+  // POST /api/jobs/open_plat/flow_instance/stream_run
+  // 请求体：
+  // {
+  //     "flow_id": 10005,
+  //     "version": null,
+  //     "input_data": {
+  //         "风险事项编号": "HT-2026002",
+  //         "合同id": ""
+  //     },
+  //     "run_mode": "normal",
+  //     "learn_trace_enable": true
+  // }
+  // ================================================
+  
+  const payload = {
+    flow_id: 10005,
+    flow_title: "合同穿透原",
+    version: null,
+    input_data: {
+      "风险事项编号": riskId,
+      "合同id": activeContractId.value || ""
+    },
+    run_mode: "normal",
+    learn_trace_enable: true
+  }
+
+  // ============ 请求头配置 ============
+  // Accept: text/event-stream
+  // Cache-Control: no-cache
+  // Authorization: external xxx
+  // Content-Type: application/json
+  // ===================================
+  
+  const response = await axios.post(url, payload, {
+    headers: {
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Authorization': 'external eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0bm4iOiJkcnAiLCJ1c2VyX25hbWUiOiJkZXYiLCJwYXNzd29yZCI6IlFaRGV2LjUwNiIsInVzZXJfa2V5IjoxMDJ9.0_xloniXOlNVJ-F2FsSdrEcb3tkrRDyya-sXU_eYAJs',
+      'Content-Type': 'application/json'
+    }
+  })
+  
+  // ============ 解析 SSE 流式响应 ============
+  // 后端返回的是 SSE 格式，包含多个 data: 块
+  // 格式类似：
+  // data: {"type": "step", "status": "running", ...}
+  // data: {"type": "result", "status": "completed", "message": {...}}
+  // ===========================================
+  
+  const responseText = response.data
+  
+  // 分割所有 data: 块
+  const dataBlocks = responseText.split(/\ndata:\s*/).filter(block => block.trim())
+  
+  console.log('SSE 数据块数量:', dataBlocks.length)
+  
+  // 查找最后一个 type 为 result 的数据块
+  let finalResult = null
+  for (let i = dataBlocks.length - 1; i >= 0; i--) {
+    try {
+      const block = JSON.parse(dataBlocks[i])
+      if (block.type === 'result') {
+        finalResult = block
+        break
+      }
+    } catch (e) {
+      console.log('解析数据块失败:', dataBlocks[i].substring(0, 100))
+    }
+  }
+  
+  if (finalResult) {
+    console.log('找到最终结果:', finalResult)
+    return finalResult
+  }
+  
+  // 如果没有找到 result，返回最后一个有效的数据块
+  if (dataBlocks.length > 0) {
+    try {
+      return JSON.parse(dataBlocks[dataBlocks.length - 1])
+    } catch (e) {
+      console.log('返回原始响应')
+      return { message: responseText }
+    }
+  }
+  
+  return response.data
+}
+
+// ============ 查看报告（直接显示已缓存的数据，不调用接口） ============
+function viewRiskReport(id) {
+  console.log('=== viewRiskReport 查看报告 ===', 'riskId:', id)
+  
+  // 从缓存中获取数据
+  const cachedData = riskDataCache.value[id]
+  if (cachedData) {
+    console.log('从缓存中获取数据:', cachedData)
+    apiRiskData.value = cachedData
+  }
+  
+  // 直接设置 selectedRiskId 并切换视图模式
+  selectedRiskId.value = id
+  pushViewHistory('risk-detail')
+}
+
+async function openRisk(id) {
+  console.log('=== openRisk 开始 ===', 'riskId:', id)
+  
+  const apiData = await callFlowInstanceStreamRun(id, 'view')
+  console.log('接口返回数据:', apiData)
+  
+  // ============ 解析后端返回的数据结构 ============
+  // 后端返回的 message 是一个长字符串，包含报告内容
+  // 需要从中提取 risk_code, risk_name, report 等关键字段
+  // ===============================================
+  
+  // 提取 message 中的报告数据
+  if (apiData && apiData.message) {
+    console.log('存在 message 字段')
+    console.log('message 类型:', typeof apiData.message)
+    console.log('message 内容:', apiData.message)
+    
+    let reportJson = null
+    
+    // 情况 1: message 是对象，直接提取
+    if (typeof apiData.message === 'object') {
+      reportJson = apiData.message['整理报告_1.report_json']
+      console.log('message 是对象，提取 report_json:', reportJson)
+    }
+    
+    // 情况 2: message 是字符串，尝试解析
+    if (!reportJson && typeof apiData.message === 'string') {
+      try {
+        console.log('message 是字符串，尝试解析 JSON...')
+        // 尝试从字符串中提取 JSON 部分
+        const jsonMatch = apiData.message.match(/\{[\s\S]*"risk_code"[\s\S]*\}/)
+        if (jsonMatch) {
+          console.log('找到 JSON 片段:', jsonMatch[0].substring(0, 200))
+          const parsed = JSON.parse(jsonMatch[0])
+          console.log('解析成功:', parsed)
+          reportJson = parsed
+        } else {
+          console.log('未找到标准 JSON 格式，尝试手动提取关键字段')
+          // 手动提取关键字段
+          const riskCodeMatch = apiData.message.match(/风险 ID[：:]\s*([A-Z0-9-]+)/)
+          const riskNameMatch = apiData.message.match(/风险事项 [：:]\s*([^\n]+)/)
+          const riskLevelMatch = apiData.message.match(/风险等级[：:]\s*([高中低][风险])/)
+          const reportMatch = apiData.message.match(/【风险事项详情报告】([\s\S]*?)(?=【|$)/)
+          
+          if (riskCodeMatch || riskNameMatch) {
+            reportJson = {
+              risk_code: riskCodeMatch ? riskCodeMatch[1] : id,
+              risk_name: riskNameMatch ? riskNameMatch[1].trim() : '风险事项',
+              risk_level: riskLevelMatch ? riskLevelMatch[1] : '中风险',
+              report: apiData.message, // 使用完整字符串作为报告内容
+              detailDescription: apiData.message
+            }
+            console.log('手动提取成功:', reportJson)
+          }
+        }
+      } catch (e) {
+        console.error('解析 message 字符串失败:', e)
+      }
+    }
+    
+    if (reportJson) {
+      console.log('提取的报告数据:', reportJson)
+      
+      // 将数据存入缓存
+      const riskKey = reportJson.risk_code || reportJson.risk_id || id
+      riskDataCache.value[riskKey] = reportJson
+      
+      // 将完整的 report_json 数据保存到 apiRiskData
+      apiRiskData.value = reportJson
+      selectedRiskId.value = riskKey
+      console.log('设置 apiRiskData:', apiRiskData.value)
+      console.log('设置 selectedRiskId:', selectedRiskId.value)
+      
+      // 更新已分析状态
+      analyzedRiskIds.value.add(id)
+      analyzedRiskIds.value = new Set(analyzedRiskIds.value)
+      
+      pushViewHistory('risk-detail')
+      return
+    } else {
+      // 如果没有 report_json，尝试直接使用 message
+      console.log('没有找到 report_json，使用 message 作为备选')
+      const fallbackData = {
+        risk_code: id,
+        risk_name: '风险事项',
+        risk_level: '中风险',
+        report: typeof apiData.message === 'string' ? apiData.message : JSON.stringify(apiData.message),
+        detailDescription: typeof apiData.message === 'string' ? apiData.message : JSON.stringify(apiData.message)
+      }
+      // 将数据存入缓存
+      riskDataCache.value[id] = fallbackData
+      
+      apiRiskData.value = fallbackData
+      selectedRiskId.value = id
+      
+      // 更新已分析状态
+      analyzedRiskIds.value.add(id)
+      analyzedRiskIds.value = new Set(analyzedRiskIds.value)
+      
+      pushViewHistory('risk-detail')
+      return
+    }
+  }
+  
+  // 如果解析失败，使用原有逻辑
+  console.log('解析失败，使用原有逻辑:', apiData)
+  const finalData = (apiData && apiData.data) ? apiData.data : apiData
+  if (finalData) {
+    // 将数据存入缓存
+    riskDataCache.value[id] = finalData
+    apiRiskData.value = finalData
+    
+    // 更新已分析状态
+    analyzedRiskIds.value.add(id)
+    analyzedRiskIds.value = new Set(analyzedRiskIds.value)
+  }
   selectedRiskId.value = id
   pushViewHistory('risk-detail')
 }
@@ -1133,9 +1728,9 @@ const aiContractStepDefs = [
   { text: '生成 AI 合规审查意见报告…', detail: '报告已生成 · 含风险评估、整改建议、监控方案' },
 ]
 
-function analyzeRiskItem(item) {
+async function analyzeRiskItem(item) {
+  await callFlowInstanceStreamRun(item.id, 'analyze')
   runAgentModal(aiStepDefs, item.id, () => {
-    // Agent 完成后：记忆已分析 + 自动导航到风险详情报告
     analyzedRiskIds.value.add(item.id)
     analyzedRiskIds.value = new Set(analyzedRiskIds.value)
     setTimeout(() => { aiAgentModal.value = false; openRisk(item.id) }, 600)
@@ -1423,7 +2018,7 @@ const stageChartOption = computed(() => {
 .ri-medium { border-left-color:#f97316; background:linear-gradient(90deg, #fff8f1 0%, #fff 60%); }
 .ri-watch { border-left-color:#eab308; background:linear-gradient(90deg, #fefce8 0%, #fff 60%); }
 
-.ric-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ric-head { display:flex; align-items:center; gap:8px; }
 .ric-id-link { font-size:12px; font-weight:700; color:#2563eb; font-family:'JetBrains Mono', monospace; background:none; border:none; cursor:pointer; padding:0; text-align:left; text-decoration:underline; text-underline-offset:2px; flex-shrink:0; }
 .ric-id-link:hover { color:#1d4ed8; }
 .ric-name { font-size:13px; font-weight:700; color:#0f172a; line-height:1.35; }
@@ -1634,6 +2229,575 @@ const stageChartOption = computed(() => {
 .plg-tag.pene-active { border-color:#7c3aed; background:#f5f3ff; }
 .plg-id { font-size:11px; font-weight:700; color:#2563eb; font-family:'JetBrains Mono', monospace; }
 .plg-name { font-size:10px; color:#64748b; }
+
+/* ============ 完整报告样式 ============ */
+.report-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 报告头部卡片 */
+.report-header-card {
+  background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+  border-radius: 16px;
+  padding: 24px;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(30, 58, 138, 0.3);
+}
+
+.rhc-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 20px;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.rhc-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.rhc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rhc-label {
+  font-size: 11px;
+  color: #93c5fd;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rhc-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rhc-value.mono {
+  font-family: 'JetBrains Mono', monospace;
+  color: #fbbf24;
+}
+
+.rhc-value.risk-badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.rhc-value.risk-badge.high {
+  background: #dc2626;
+}
+
+.rhc-value.risk-badge.medium {
+  background: #d97706;
+}
+
+.rhc-value.risk-badge.low {
+  background: #22c55e;
+}
+
+/* 完整报告内容 */
+.full-report-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  line-height: 1.8;
+}
+
+.full-report-content h3.report-subtitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #2563eb;
+}
+
+.full-report-content h4.report-chapter {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin: 20px 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.full-report-content h4.report-chapter::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: #2563eb;
+  border-radius: 2px;
+}
+
+.full-report-content p.report-paragraph {
+  font-size: 14px;
+  color: #334155;
+  margin: 0 0 12px 0;
+  padding-left: 12px;
+  text-align: justify;
+}
+
+.full-report-content .para-number {
+  font-weight: 700;
+  color: #2563eb;
+  margin-right: 6px;
+}
+
+.full-report-content .empty-report {
+  text-align: center;
+  color: #94a3b8;
+  padding: 40px;
+}
+
+/* 数据表格 */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.data-table thead {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+}
+
+.data-table th {
+  padding: 14px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-align: left;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.data-table td {
+  padding: 12px;
+  font-size: 13px;
+  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.category-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-note {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.data-table .mono {
+  font-family: 'JetBrains Mono', monospace;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+/* ============ 旧的结构化报告样式（已替换） ============ */
+
+.report-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eff6ff;
+}
+
+.section-number {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.section-content {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #334155;
+}
+
+.section-content p {
+  margin: 0 0 10px 0;
+}
+
+.section-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 风险预警事项 */
+.warning-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.warning-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.warning-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.warning-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.warning-value.risk-level {
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.warning-value.risk-level.high {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.warning-value.risk-level.medium {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.warning-value.risk-level.watch {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.warning-desc p {
+  margin: 0;
+  padding: 12px;
+  background: #fff5f5;
+  border-left: 4px solid #ef4444;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* 计算逻辑 */
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.calc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.calc-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.calc-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.calc-value.highlight {
+  color: #dc2626;
+}
+
+.calc-value.risk {
+  color: #dc2626;
+  animation: pulse 2s infinite;
+}
+
+.calc-value.warning {
+  color: #d97706;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.calc-desc {
+  margin: 0;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+/* 原因分析 */
+.analysis-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysis-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #fffbeb;
+  border-radius: 10px;
+  border: 1px solid #fde68a;
+}
+
+.analysis-num {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.analysis-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.analysis-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.analysis-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #78350f;
+}
+
+/* 关联数据穿透链接 */
+.link-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.link-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  padding-left: 8px;
+  border-left: 3px solid #2563eb;
+}
+
+.link-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.link-item {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.16s;
+}
+
+.link-item:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.link-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.link-name {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* 整改建议 */
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border-radius: 10px;
+  border-left: 4px solid #2563eb;
+}
+
+.suggestion-num {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.suggestion-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #1e40af;
+}
+
+/* 处理进度跟踪 */
+.status-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: #bbf7d0;
+}
+
+.status-section .section-header {
+  border-bottom-color: #bbf7d0;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #d1fae5;
+  text-align: center;
+}
+
+.status-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.status-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.status-value.deadline {
+  color: #dc2626;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.status-value.he-cha-zhong {
+  color: #f59e0b;
+}
+
+.status-value.zheng-gai-zhong {
+  color: #2563eb;
+}
+
+.status-value.dai-he-cha {
+  color: #64748b;
+}
+
+.status-value.yi-bi-huan {
+  color: #059669;
+}
 .plg-tag.proc-tag .plg-id { color:#7c3aed; }
 .plg-tag.fin-tag .plg-id { color:#ca8a04; }
 
@@ -1818,4 +2982,257 @@ const stageChartOption = computed(() => {
 .agent-fade-enter-active { transition:opacity .25s; }
 .agent-fade-leave-active { transition:opacity .2s; }
 .agent-fade-enter-from, .agent-fade-leave-to { opacity:0; }
+
+/* ============ 章节内容样式 ============ */
+.section-item {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border-left: 3px solid #2563eb;
+}
+
+.section-item .item-number {
+  font-weight: 700;
+  color: #2563eb;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.section-item .item-content {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.empty-content {
+  text-align: center;
+  color: #94a3b8;
+  padding: 20px;
+  font-style: italic;
+}
+
+/* ============ 风险预警事项样式 ============ */
+.warning-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.warning-details p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+.warning-details .section-item {
+  background: #fff5f5;
+  border-left-color: #ef4444;
+}
+
+.warning-details .section-item .item-number {
+  color: #ef4444;
+}
+
+/* ============ 风险定义样式 ============ */
+.definition-box {
+  padding: 14px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%);
+  border-radius: 12px;
+  border: 1px solid #e0e7ff;
+}
+
+.definition-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+/* ============ 计算逻辑样式 ============ */
+.calc-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calc-box .section-item {
+  background: #f0fdf4;
+  border-left-color: #10b981;
+}
+
+.calc-box .section-item .item-number {
+  color: #10b981;
+}
+
+.calc-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+/* ============ 原因分析样式 ============ */
+.analysis-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysis-box .section-item {
+  background: #fffbeb;
+  border-left-color: #d97706;
+}
+
+.analysis-box .section-item .item-number {
+  color: #d97706;
+}
+
+.analysis-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+/* ============ 穿透链接样式 ============ */
+.link-box {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .link-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.link-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.link-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.link-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.link-item:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  transform: translateX(4px);
+}
+
+.link-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.link-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  flex: 1;
+}
+
+.link-id {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #2563eb;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ============ 整改建议样式 ============ */
+.suggestion-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-box .section-item {
+  background: #f0fdf4;
+  border-left-color: #059669;
+}
+
+.suggestion-box .section-item .item-number {
+  color: #059669;
+}
+
+.suggestion-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+/* ============ 处理状态样式 ============ */
+.status-box {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .status-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.status-box .status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #d1fae5;
+  text-align: center;
+}
+
+.status-box .status-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.status-box .status-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.status-box .status-value.deadline {
+  color: #dc2626;
+  font-family: 'JetBrains Mono', monospace;
+}
 </style>

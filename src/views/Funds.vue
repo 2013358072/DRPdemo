@@ -1,6 +1,8 @@
 <template>
   <div class="white-scene">
-    <div class="screen">
+    <!-- ══════════ 资金穿透主视图 ══════════ -->
+    <template v-if="viewMode !== 'risk-detail'">
+      <div class="screen">
       <!-- ============ A 区 ============ -->
       <div class="row-a">
         <!-- A1 八维雷达 + 境外资金可视看板 -->
@@ -370,9 +372,16 @@
                   <span class="risk-tag" :class="r.level">{{ r.no }}</span>
                   <span class="risk-level-badge" :class="r.level">{{ r.levelLabel }}</span>
                   <span class="risk-status" :class="r.statusCode">{{ r.status }}</span>
-                  <span class="risk-time">{{ formatTime(r.warningTime) }}</span>
-                  <span class="risk-ai-btn">AI 分析</span>
-                  <span class="risk-report-btn">查看报告</span>
+                  <span class="risk-time">⏱ {{ formatTime(r.warningTime) }}</span>
+                  <button class="risk-ai-btn" @click.stop="openRisk(r.id)">
+                    <span class="ai-btn-icon">✨</span>
+                    <span class="ai-btn-text">AI 分析</span>
+                    <span class="ai-btn-glow"></span>
+                  </button>
+                  <button v-if="analyzedRiskIds.has(r.id)" class="risk-report-btn" @click.stop="viewRiskReport(r.id)">
+                    <span>📄</span>
+                    <span>查看报告</span>
+                  </button>
                 </div>
                 <div class="risk-title">{{ r.name }}</div>
                 <div class="risk-body">
@@ -431,94 +440,338 @@
         </aside>
       </div>
     </div>
+    </template>
 
-    <!-- ============ B3 ZJ-2026001 右抽屉（4 端闭环穿透） ============ -->
-    <transition name="drawer">
-      <div v-if="activeRisk" class="drawer-mask" @click.self="activeRisk = null">
-        <aside class="holo-drawer">
-          <div class="drawer-head">
-            <div>
-              <div class="muted small-text">{{ activeRisk.no }} · {{ activeRisk.warningTime }}</div>
-              <h3>{{ activeRisk.name }}</h3>
-              <div class="drawer-meta">
-                <span>主体：{{ activeRisk.entity }}</span>
-                <span v-if="activeRisk.amount">金额：<b class="glow-red">¥{{ activeRisk.amount }}{{ activeRisk.amountUnit }}</b></span>
+    <!-- ══════════ 风险事项详情报告视图 ══════════ -->
+    <template v-if="viewMode === 'risk-detail' && activeRisk">
+      <div class="rd-view">
+        <div class="cd-topbar rd-topbar">
+          <div class="cd-topbar-left">
+            <button type="button" class="rdr-back-btn" @click="goBack">{{ backLabel }}</button>
+            <span class="cd-id">{{ activeRisk.no }}</span>
+            <span class="risk-pill" :class="`rp-${activeRisk.level}`">{{ riskLevelLabel[activeRisk.level] }}</span>
+          </div>
+          <div class="cd-topbar-right">
+            <span class="cd-status-pill" :class="`cdsp-${activeRisk.statusCode}`">{{ activeRisk.status }}</span>
+            <span>生成时间：{{ activeRisk.warningTime }}</span>
+          </div>
+        </div>
+        <div class="rd-content">
+          <aside class="rd-sidebar">
+            <!-- Hero 卡片：视觉重心 -->
+            <div class="card rd-hero-card" :class="`rdh-${activeRisk.level}`">
+              <div class="rdh-badge">
+                <span class="rdh-badge-icon">{{ riskIconMap[activeRisk.level] }}</span>
+                <span class="rdh-badge-text">{{ riskLevelLabel[activeRisk.level] }}</span>
+              </div>
+              <div class="rdh-id">{{ activeRisk.no }}</div>
+              <h2 class="rdh-name">{{ activeRisk.name }}</h2>
+              <div class="rdh-status-bar">
+                <span class="rdh-status-pill" :class="`rics-${activeRisk.statusCode}`">{{ activeRisk.status }}</span>
+                <span class="rdh-time">⏱ {{ activeRisk.warningTime }}</span>
               </div>
             </div>
-            <div class="drawer-tags">
-              <span class="pill" :class="activeRisk.level">{{ activeRisk.levelLabel }}</span>
-              <span class="pill" :class="activeRisk.statusCode">{{ activeRisk.status }}</span>
-              <button class="close" @click="activeRisk = null">×</button>
-            </div>
-          </div>
 
-          <div class="drawer-body">
-            <!-- 4 端闭环穿透风琴 -->
-            <div class="acc-list" v-if="activeRisk.endpoints">
-              <div
-                v-for="ep in activeRisk.endpoints"
-                :key="ep.code"
-                class="acc-item"
-                :class="{ open: openEndpoint === ep.code }"
-                @click="openEndpoint = openEndpoint === ep.code ? '' : ep.code"
-              >
-                <div class="acc-head">
-                  <span class="acc-icon">{{ ep.icon }}</span>
-                  <strong>{{ ep.title }}</strong>
-                  <span class="acc-tag" :class="ep.tone">{{ ep.tag }}</span>
-                  <i class="acc-caret">▾</i>
+            <!-- 关键信息卡 -->
+            <div class="card rd-key-card">
+              <div class="rdk-title">关键信息</div>
+              <div class="rdk-row rdk-row-stack">
+                <span class="rdk-lbl">👥 涉及主体</span>
+                <div class="rdk-subjects">
+                  <strong>{{ activeRisk.entity }}</strong>
                 </div>
-                <transition name="blind">
-                  <div v-if="openEndpoint === ep.code" class="acc-body">
-                    <p class="acc-line" v-for="(l, i) in ep.lines" :key="i" v-html="l"></p>
+              </div>
+              <div v-if="activeRisk.amount" class="rdk-row">
+                <span class="rdk-lbl">💰 金额</span>
+                <strong class="rdk-val">¥{{ activeRisk.amount }}{{ activeRisk.amountUnit }}</strong>
+              </div>
+              <div class="rdk-row rdk-row-stack">
+                <span class="rdk-lbl">🛰 预警来源</span>
+                <strong class="rdk-val-text">系统自动监测</strong>
+              </div>
+            </div>
+
+            <!-- 处理进度卡 -->
+            <div class="card rd-status-card">
+              <div class="rds-title">处理进度</div>
+              <div class="status-flow">
+                <div class="sf-step" :class="{ done: true, current: activeRisk.status === '待核查' }">
+                  <div class="sf-dot"></div>
+                  <span>待核查</span>
+                  <div class="sf-line"></div>
+                </div>
+                <div class="sf-step" :class="{ done: activeRisk.status !== '待核查', current: activeRisk.status === '核查中' }">
+                  <div class="sf-dot"></div>
+                  <span>核查中</span>
+                  <div class="sf-line"></div>
+                </div>
+                <div class="sf-step" :class="{ done: activeRisk.status === '整改中' || activeRisk.status === '已闭环', current: activeRisk.status === '整改中' }">
+                  <div class="sf-dot"></div>
+                  <span>整改中</span>
+                  <div class="sf-line"></div>
+                </div>
+                <div class="sf-step" :class="{ done: activeRisk.status === '已闭环', current: activeRisk.status === '已闭环' }">
+                  <div class="sf-dot"></div>
+                  <span>已闭环</span>
+                </div>
+              </div>
+              <div class="rds-meta">
+                <div><span>责任人</span><strong>{{ activeRisk.handler }}</strong></div>
+                <div><span>整改期限</span><strong class="deadline">{{ activeRisk.deadline }}</strong></div>
+              </div>
+            </div>
+
+            <!-- 操作 -->
+            <div class="card rd-actions-card">
+              <div class="rda-title">核查操作</div>
+              <div class="rda-grid">
+                <button type="button" class="rda-btn primary" @click="showToast('核查工单已派发', 'info')">派发工单</button>
+                <button type="button" class="rda-btn danger" @click="showToast('风险升级预警已推送', 'warn')">升级预警</button>
+                <button type="button" class="rda-btn" @click="showToast('已补充材料，待审核', 'info')">补充材料</button>
+                <button type="button" class="rda-btn" @click="showToast('已提交解除预警申请', 'info')">解除预警</button>
+              </div>
+            </div>
+          </aside>
+          <div class="rd-main">
+            <div class="card rd-report">
+              <div class="rdr-header">
+                <div class="rdr-header-left">
+                  <h2>风险事项详情报告</h2>
+                  <p>资金管理域 · {{ activeRisk.name }} · AI智能体自动生成报告</p>
+                  <p><a href="http://192.168.16.206:8098/process_detail?flow_id=10005&title=%E5%90%88%E5%90%8C%E7%A9%BF%E9%80%8F%E5%8E%9F" target="_blank">点击查看运行日志</a></p>
+                </div>
+              </div>
+              <div class="rdr-scroll">
+                <!-- ============ 完整报告内容 ============ -->
+                <div class="report-container">
+                    
+                    <!-- 报告头部信息 -->
+                    <div class="report-header-card">
+                      <div class="rhc-title">【风险事项详情报告】</div>
+                      <div class="rhc-info-grid">
+                        <div class="rhc-info">
+                          <span class="rhc-label">风险ID</span>
+                          <span class="rhc-value mono">{{ activeRisk.no }}</span>
+                        </div>
+                        <div class="rhc-info">
+                          <span class="rhc-label">风险名称</span>
+                          <span class="rhc-value">{{ activeRisk.name }}</span>
+                        </div>
+                        <div class="rhc-info">
+                          <span class="rhc-label">风险等级</span>
+                          <span class="rhc-value risk-badge" :class="activeRisk.level">{{ riskLevelLabel[activeRisk.level] }}</span>
+                        </div>
+                        <div class="rhc-info">
+                          <span class="rhc-label">预警时间</span>
+                          <span class="rhc-value">{{ activeRisk.warningTime }}</span>
+                        </div>
+                        <div class="rhc-info">
+                          <span class="rhc-label">预警来源</span>
+                          <span class="rhc-value">系统自动监测</span>
+                        </div>
+                        <div class="rhc-info">
+                          <span class="rhc-label">涉及主体</span>
+                          <span class="rhc-value">{{ activeRisk.entity }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 一、风险预警事项 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">一</span>
+                        <span class="section-title">风险预警事项</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="warning-details">
+                          <div v-html="formatSectionContent(reportSectionOne)"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 二、风险定义 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">二</span>
+                        <span class="section-title">风险定义</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="definition-box">
+                          <div v-html="formatSectionContent(reportSectionTwo)"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 三、计算逻辑 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">三</span>
+                        <span class="section-title">计算逻辑</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="calc-box">
+                          <div v-html="formatSectionContent(reportSectionThree)"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 四、原因分析 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">四</span>
+                        <span class="section-title">原因分析</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="analysis-box">
+                          <div v-html="formatSectionContent(reportSectionFour)"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 五、关联数据穿透链接 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">五</span>
+                        <span class="section-title">关联数据穿透链接</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="link-box">
+                          <div class="link-group">
+                            <div class="link-group-title">资金域</div>
+                            <div class="link-items">
+                              <button class="link-item" @click="showToast('查看银行流水', 'info')">
+                                <span class="link-icon">💳</span>
+                                <span class="link-text">银行流水</span>
+                                <span class="link-id">LS-{{ activeRisk.no.slice(3) }}</span>
+                              </button>
+                              <button class="link-item" @click="showToast('查看付款申请', 'info')">
+                                <span class="link-icon">📋</span>
+                                <span class="link-text">付款申请单</span>
+                                <span class="link-id">SK-{{ activeRisk.no.slice(3) }}</span>
+                              </button>
+                            </div>
+                          </div>
+                          <div class="link-group">
+                            <div class="link-group-title">财务域</div>
+                            <div class="link-items">
+                              <button class="link-item" @click="showToast('查看发票', 'info')">
+                                <span class="link-icon">🧾</span>
+                                <span class="link-text">发票</span>
+                                <span class="link-id">FP-{{ activeRisk.no.slice(3) }}</span>
+                              </button>
+                              <button class="link-item" @click="showToast('查看会计凭证', 'info')">
+                                <span class="link-icon">📊</span>
+                                <span class="link-text">会计凭证</span>
+                                <span class="link-id">PZ-{{ activeRisk.no.slice(3) }}</span>
+                              </button>
+                            </div>
+                          </div>
+                          <div class="link-group">
+                            <div class="link-group-title">合同域</div>
+                            <div class="link-items">
+                              <button class="link-item" @click="showToast('查看关联合同', 'info')">
+                                <span class="link-icon">📄</span>
+                                <span class="link-text">关联合同</span>
+                                <span class="link-id">HT-{{ activeRisk.no.slice(3) }}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 六、整改建议 -->
+                    <div class="report-section">
+                      <div class="section-header">
+                        <span class="section-number">六</span>
+                        <span class="section-title">整改建议</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="suggestion-box">
+                          <div v-html="formatSectionContent(reportSectionSix)"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 七、处理进度跟踪 -->
+                    <div class="report-section status-section">
+                      <div class="section-header">
+                        <span class="section-number">七</span>
+                        <span class="section-title">处理进度跟踪</span>
+                      </div>
+                      <div class="section-content">
+                        <div class="status-box">
+                          <div class="status-item">
+                            <span class="status-label">处理状态</span>
+                            <span class="status-value" :class="activeRisk.status.toLowerCase().replace(/\s/g, '-')">{{ activeRisk.status }}</span>
+                          </div>
+                          <div class="status-item">
+                            <span class="status-label">责任人</span>
+                            <span class="status-value">{{ activeRisk.handler }}</span>
+                          </div>
+                          <div class="status-item">
+                            <span class="status-label">整改期限</span>
+                            <span class="status-value deadline">{{ activeRisk.deadline }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </transition>
               </div>
-            </div>
-
-            <!-- 联动穿透链 -->
-            <div v-if="activeRisk.penetrationLinks" class="drawer-block">
-              <div class="block-head">9 条联动穿透链</div>
-              <div class="penetration-grid">
-                <span v-for="(l, i) in activeRisk.penetrationLinks" :key="i" class="pen-link">
-                  <i class="pen-dot" :class="penDomainColor(l.domain)"></i>
-                  <em>{{ l.domain }}</em>{{ l.data }}
-                </span>
-              </div>
-            </div>
-
-            <!-- AI 整改建议 -->
-            <div v-if="activeRisk.rectifications" class="drawer-block ai">
-              <div class="block-head">AI 就地整改建议（5 条）</div>
-              <ol class="cause-list">
-                <li v-for="(r, i) in activeRisk.rectifications" :key="i">{{ r }}</li>
-              </ol>
-            </div>
-
-            <div v-if="!activeRisk.endpoints" class="drawer-block">
-              <p>{{ activeRisk.summary || '该风险暂无完整明细，可前往业务系统查看。' }}</p>
-              <div class="muted small-text">责任人 {{ activeRisk.handler }} · 整改期限 {{ activeRisk.deadline }}</div>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
-    </transition>
+    </template>
+
+    <!-- Toast 提示 -->
+    <Teleport to="body">
+      <div v-if="toastVisible" class="toast-overlay">
+        <div class="toast" :class="toastType">
+          <span class="toast-icon">{{ toastType === 'warn' ? '⚠️' : 'ℹ️' }}</span>
+          <span class="toast-text">{{ toastText }}</span>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import EChart from '../components/EChart.vue'
+import axios from 'axios'
 
 defineEmits(['navigate'])
 
 // ===== 交互状态 =====
 const selectedAreaId = ref('')
 const period = ref('30d')
-const activeRisk = ref(null)
 const activeRiskId = ref('R-ZJ-001')
-const openEndpoint = ref('fund')
+const analyzedRiskIds = ref(new Set())
+const riskDataCache = ref({})
+const apiRiskData = ref(null)
+const selectedRiskId = ref('')
 const activeBank = ref(0)
+const viewMode = ref('penetration')
+const viewHistory = ref([])
+const toastVisible = ref(false)
+const toastText = ref('')
+const toastType = ref('info')
+
+// 风险等级标签映射
+const riskLevelLabel = {
+  red: '高风险',
+  orange: '中风险',
+  yellow: '低风险'
+}
+
+// 风险图标映射
+const riskIconMap = {
+  red: '⚠️',
+  orange: '⚡',
+  yellow: 'ℹ️'
+}
 
 // ----- C1 老板穿透：资金链路 + 责任链路 -----
 const fundOpen = ref('approve')
@@ -1498,17 +1751,232 @@ const networkOption = computed(() => {
 })
 
 // ===== helpers =====
-function showRiskDetail(r) {
-  activeRiskId.value = r.id
-  activeRisk.value = r
-  openEndpoint.value = 'fund'
-  orbitChain.value = r.no === 'ZJ-2026001'
-}
 function rankClass(rank) {
   if (rank <= 3) return 'top'
   if (rank <= 6) return 'mid'
   return 'low'
 }
+
+// ── 接口调用：流程实例流式运行 ──
+async function callFlowInstanceStreamRun(riskId, action) {
+  const url = '/api/jobs/open_plat/flow_instance/stream_run'
+  
+  const payload = {
+    flow_id: 10005,
+    flow_title: "合同穿透原",
+    version: null,
+    input_data: {
+      "风险事项编号": riskId,
+      "合同id": ""
+    },
+    run_mode: "normal",
+    learn_trace_enable: true
+  }
+
+  const response = await axios.post(url, payload, {
+    headers: {
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Authorization': 'external eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0bm4iOiJkcnAiLCJ1c2VyX25hbWUiOiJkZXYiLCJwYXNzd29yZCI6IlFaRGV2LjUwNiIsInVzZXJfa2V5IjoxMDJ9.0_xloniXOlNVJ-F2FsSdrEcb3tkrRDyya-sXU_eYAJs',
+      'Content-Type': 'application/json'
+    }
+  })
+
+  const responseText = response.data
+  const dataBlocks = responseText.split(/\ndata:\s*/).filter(block => block.trim())
+  
+  let finalResult = null
+  for (let i = dataBlocks.length - 1; i >= 0; i--) {
+    try {
+      const block = JSON.parse(dataBlocks[i])
+      if (block.type === 'result') {
+        finalResult = block
+        break
+      }
+    } catch (e) {
+      console.log('解析数据块失败:', dataBlocks[i].substring(0, 100))
+    }
+  }
+  
+  if (finalResult) {
+    return finalResult
+  }
+  
+  if (dataBlocks.length > 0) {
+    try {
+      return JSON.parse(dataBlocks[dataBlocks.length - 1])
+    } catch (e) {
+      return { message: responseText }
+    }
+  }
+  
+  return response.data
+}
+
+// AI 分析风险
+async function openRisk(id) {
+  console.log('=== openRisk 开始 ===', 'riskId:', id)
+  
+  const apiData = await callFlowInstanceStreamRun(id, 'view')
+  
+  if (apiData && apiData.message) {
+    let reportJson = null
+    
+    if (typeof apiData.message === 'object') {
+      reportJson = apiData.message['整理报告_1.report_json']
+    }
+    
+    if (!reportJson && typeof apiData.message === 'string') {
+      try {
+        const jsonMatch = apiData.message.match(/\{[\s\S]*"risk_code"[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          reportJson = parsed
+        } else {
+          const riskCodeMatch = apiData.message.match(/风险 ID[：:]\s*([A-Z0-9-]+)/)
+          const riskNameMatch = apiData.message.match(/风险事项 [：:]\s*([^\n]+)/)
+          const riskLevelMatch = apiData.message.match(/风险等级[：:]\s*([高中低][风险])/)
+          
+          if (riskCodeMatch || riskNameMatch) {
+            reportJson = {
+              risk_code: riskCodeMatch ? riskCodeMatch[1] : id,
+              risk_name: riskNameMatch ? riskNameMatch[1].trim() : '风险事项',
+              risk_level: riskLevelMatch ? riskLevelMatch[1] : '中风险',
+              report: apiData.message,
+              detailDescription: apiData.message
+            }
+          }
+        }
+      } catch (e) {
+        console.error('解析 message 字符串失败:', e)
+      }
+    }
+    
+    if (reportJson) {
+      const riskKey = reportJson.risk_code || reportJson.risk_id || id
+      riskDataCache.value[riskKey] = reportJson
+      apiRiskData.value = reportJson
+      selectedRiskId.value = riskKey
+      
+      analyzedRiskIds.value.add(id)
+      analyzedRiskIds.value = new Set(analyzedRiskIds.value)
+      
+      pushViewHistory('risk-detail')
+      return
+    } else {
+      const fallbackData = {
+        risk_code: id,
+        risk_name: '风险事项',
+        risk_level: '中风险',
+        report: typeof apiData.message === 'string' ? apiData.message : JSON.stringify(apiData.message),
+        detailDescription: typeof apiData.message === 'string' ? apiData.message : JSON.stringify(apiData.message)
+      }
+      riskDataCache.value[id] = fallbackData
+      apiRiskData.value = fallbackData
+      selectedRiskId.value = id
+      
+      analyzedRiskIds.value.add(id)
+      analyzedRiskIds.value = new Set(analyzedRiskIds.value)
+      
+      pushViewHistory('risk-detail')
+      return
+    }
+  }
+  
+  selectedRiskId.value = id
+  pushViewHistory('risk-detail')
+}
+
+// 查看报告
+function viewRiskReport(id) {
+  const cachedData = riskDataCache.value[id]
+  if (cachedData) {
+    apiRiskData.value = cachedData
+  }
+  
+  selectedRiskId.value = id
+  pushViewHistory('risk-detail')
+}
+
+// 视图历史管理
+function pushViewHistory(targetMode) {
+  if (viewMode.value !== targetMode) viewHistory.value.push(viewMode.value)
+  viewMode.value = targetMode
+}
+function goBack() {
+  if (viewHistory.value.length > 0) {
+    viewMode.value = viewHistory.value.pop()
+  } else {
+    viewMode.value = 'penetration'
+  }
+}
+const backLabel = computed(() => {
+  const prev = viewHistory.value[viewHistory.value.length - 1]
+  if (prev === 'risk-detail') return '← 返回风险报告'
+  return '← 返回资金穿透'
+})
+
+// Toast 提示
+function showToast(text, type = 'info') {
+  toastText.value = text
+  toastType.value = type
+  toastVisible.value = true
+  setTimeout(() => {
+    toastVisible.value = false
+  }, 3000)
+}
+
+// 获取当前选中的风险数据
+const activeRisk = computed(() => {
+  return riskList.find(r => r.id === selectedRiskId.value) || null
+})
+
+// ============ 格式化章节内容 ============
+const formatSectionContent = (content) => {
+  if (!content) return '<p class="empty-content">暂无内容</p>'
+  
+  let html = content
+    .replace(/^(\d+)\.\s(.+)$/gm, '<div class="section-item"><span class="item-number">$1.</span><span class="item-content">$2</span></div>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+  
+  if (!html.startsWith('<') && !html.startsWith('<div') && !html.startsWith('<p')) {
+    html = '<p>' + html + '</p>'
+  }
+  
+  return html
+}
+
+// ============ 提取报告章节内容 ============
+const reportSectionOne = computed(() => {
+  const report = apiRiskData.value?.report || apiRiskData.value?.detailDescription || ''
+  const match = report.match(/一、风险预警事项[\s\S]*?(?=二、|$)/)
+  return match ? match[0].replace(/^一、风险预警事项\s*/, '').trim() : ''
+})
+
+const reportSectionTwo = computed(() => {
+  const report = apiRiskData.value?.report || apiRiskData.value?.detailDescription || ''
+  const match = report.match(/二、风险定义[\s\S]*?(?=三、|$)/)
+  return match ? match[0].replace(/^二、风险定义\s*/, '').trim() : ''
+})
+
+const reportSectionThree = computed(() => {
+  const report = apiRiskData.value?.report || apiRiskData.value?.detailDescription || ''
+  const match = report.match(/三、计算逻辑[\s\S]*?(?=四、|$)/)
+  return match ? match[0].replace(/^三、计算逻辑\s*/, '').trim() : ''
+})
+
+const reportSectionFour = computed(() => {
+  const report = apiRiskData.value?.report || apiRiskData.value?.detailDescription || ''
+  const match = report.match(/四、原因分析[\s\S]*?(?=五、|$)/)
+  return match ? match[0].replace(/^四、原因分析\s*/, '').trim() : ''
+})
+
+const reportSectionSix = computed(() => {
+  const report = apiRiskData.value?.report || apiRiskData.value?.detailDescription || ''
+  const match = report.match(/六、整改建议[\s\S]*?(?=七、|$)/)
+  return match ? match[0].replace(/^六、整改建议\s*/, '').trim() : ''
+})
 function ukeyLabel(s) {
   return s === 'online' ? 'Online' : s === 'offline' ? 'Offline' : 'Abnormal'
 }
@@ -2106,25 +2574,70 @@ function penDomainColor(domain) {
 }
 
 .risk-ai-btn {
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  position: relative;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  transition: .2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.risk-ai-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+}
+.risk-ai-btn .ai-btn-icon {
+  font-size: 12px;
+}
+.ai-btn-icon {
+  font-size: 16px;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+.ai-btn-text {
+  position: relative;
+  z-index: 1;
+}
+.ai-btn-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  animation: ai-glow 2s ease-in-out infinite;
+}
+@keyframes ai-glow {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
 }
 
 .risk-report-btn {
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: #f1f5f9;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: #fff;
   color: #64748b;
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   border: 1px solid #e2e8f0;
-  flex: 0 0 auto;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.risk-report-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .risk-title {
@@ -2487,4 +3000,285 @@ function penDomainColor(domain) {
 .blind-enter-active, .blind-leave-active { transition: max-height .25s ease, opacity .2s ease; overflow: hidden; }
 .blind-enter-from, .blind-leave-to { max-height: 0; opacity: 0; }
 .blind-enter-to, .blind-leave-from { max-height: 400px; opacity: 1; }
+
+/* ══════════ 风险详情报告视图样式 ══════════ */
+.rd-view { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding:10px 16px 12px; position:relative; }
+.rd-topbar { flex-shrink:0; }
+.rd-content { flex:1; min-height:0; display:grid; grid-template-columns:280px minmax(0, 1fr); gap:10px; }
+.rd-sidebar { display:flex; flex-direction:column; gap:8px; min-height:0; overflow-y:auto; }
+
+/* === Hero 卡：视觉重心 === */
+.rd-hero-card { padding:14px 16px; display:flex; flex-direction:column; gap:8px; position:relative; overflow:hidden; border:none; }
+.rd-hero-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:5px; }
+.rdh-red { background:linear-gradient(135deg, #fef2f2 0%, #ffffff 80%); border:1px solid #fecaca; }
+.rdh-red::before { background:#ef4444; }
+.rdh-orange { background:linear-gradient(135deg, #fff7ed 0%, #ffffff 80%); border:1px solid #fed7aa; }
+.rdh-orange::before { background:#f97316; }
+.rdh-yellow { background:linear-gradient(135deg, #fefce8 0%, #ffffff 80%); border:1px solid #fde68a; }
+.rdh-yellow::before { background:#eab308; }
+
+.rdh-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; align-self:flex-start; background:rgba(255,255,255,0.7); border:1px solid rgba(0,0,0,0.05); }
+.rdh-badge-icon { font-size:14px; }
+.rdh-badge-text { font-size:12px; font-weight:800; }
+.rdh-red .rdh-badge-text { color:#dc2626; }
+.rdh-orange .rdh-badge-text { color:#c2410c; }
+.rdh-yellow .rdh-badge-text { color:#a16207; }
+
+.rdh-id { font-size:11px; font-weight:700; color:#475569; font-family:'JetBrains Mono', monospace; letter-spacing:0.04em; }
+.rdh-name { margin:0; font-size:18px; font-weight:800; color:#0f172a; line-height:1.3; }
+.rdh-status-bar { display:flex; align-items:center; gap:8px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.08); }
+.rdh-status-pill { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+.rdh-time { font-size:11px; color:#64748b; margin-left:auto; }
+
+/* === 关键信息卡 === */
+.rd-key-card { padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+.rdk-title { font-size:11px; font-weight:800; color:#0f172a; padding-bottom:6px; border-bottom:1px solid #f1f5f9; margin-bottom:4px; }
+.rdk-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 4px; border-radius:6px; transition:.14s; }
+.rdk-row.rdk-row-stack { flex-direction:column; align-items:flex-start; gap:3px; }
+.rdk-lbl { font-size:11px; color:#64748b; font-weight:600; white-space:nowrap; }
+.rdk-val { font-size:12px; font-weight:700; color:#0f172a; font-family:'JetBrains Mono', monospace; }
+.rdk-val-text { font-size:11px; color:#475569; font-weight:500; line-height:1.5; }
+.rdk-subjects { display:flex; flex-direction:column; gap:2px; width:100%; }
+.rdk-subjects strong { font-size:11px; color:#334155; font-weight:600; }
+
+/* === 处理进度卡 === */
+.rd-status-card { padding:12px; display:flex; flex-direction:column; gap:8px; }
+.rds-title { font-size:12px; font-weight:800; color:#0f172a; }
+.status-flow { display:flex; flex-direction:column; gap:0; }
+.sf-step { display:flex; align-items:flex-start; gap:8px; position:relative; padding-bottom:12px; }
+.sf-step:last-child { padding-bottom:0; }
+.sf-dot { width:10px; height:10px; border-radius:50%; border:2px solid #e2e8f0; background:#f8fafc; flex-shrink:0; margin-top:2px; z-index:1; }
+.sf-step.done .sf-dot { background:#22c55e; border-color:#22c55e; }
+.sf-step.current .sf-dot { background:#2563eb; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.18); }
+.sf-step span { font-size:12px; color:#64748b; font-weight:600; }
+.sf-step.done span { color:#16a34a; }
+.sf-step.current span { color:#1d4ed8; font-weight:800; }
+.sf-line { position:absolute; left:4px; top:14px; width:1px; height:calc(100% - 12px); background:#e2e8f0; z-index:0; }
+.sf-step.done .sf-line { background:#22c55e; }
+.rds-meta { display:flex; flex-direction:column; gap:5px; border-top:1px solid #f1f5f9; padding-top:8px; }
+.rds-meta > div { display:flex; flex-direction:column; gap:1px; }
+.rds-meta span { font-size:10px; color:#94a3b8; }
+.rds-meta strong { font-size:12px; color:#334155; }
+.deadline { color:#ef4444 !important; }
+
+/* === 操作卡 === */
+.rd-actions-card { padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.rda-title { font-size:11px; font-weight:800; color:#0f172a; padding-bottom:6px; border-bottom:1px solid #f1f5f9; }
+.rda-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.rda-btn { height:30px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid #e2e8f0; background:#f8fafc; color:#334155; transition:.14s; }
+.rda-btn:hover { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+.rda-btn.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+.rda-btn.primary:hover { background:#1d4ed8; }
+.rda-btn.danger { background:#fef2f2; border-color:#fecaca; color:#ef4444; }
+.rda-btn.danger:hover { background:#ef4444; color:#fff; }
+
+/* === 主内容区域 === */
+.rd-main { min-height:0; }
+.rd-report { height:100%; display:grid; grid-template-rows:auto minmax(0, 1fr); }
+.rdr-header { padding:14px 20px 12px; border-bottom:1px solid #e2e8f0; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.rdr-header h2 { margin:0 0 4px; font-size:16px; font-weight:800; color:#0f172a; }
+.rdr-header p { margin:0; font-size:12px; color:#64748b; }
+.rdr-back-btn { height:30px; padding:0 12px; border-radius:8px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:700; cursor:pointer; transition:.16s; }
+.rdr-back-btn:hover { border-color:#93c5fd; background:#dbeafe; }
+.rdr-scroll { overflow-y:auto; padding:14px 20px; }
+
+/* === 报告内容样式 === */
+.report-container { display:flex; flex-direction:column; gap:20px; }
+
+/* 报告头部卡片 */
+.report-header-card {
+  background:linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+  border-radius:16px;
+  padding:24px;
+  color:#fff;
+  box-shadow:0 8px 32px rgba(30,58,138,0.3);
+}
+.rhc-title { font-size:20px; font-weight:800; margin-bottom:20px; text-align:center; letter-spacing:2px; }
+.rhc-info-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; }
+.rhc-info { display:flex; flex-direction:column; gap:4px; }
+.rhc-label { font-size:11px; color:#93c5fd; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.rhc-value { font-size:14px; font-weight:600; }
+.rhc-value.mono { font-family:'JetBrains Mono', monospace; color:#fbbf24; }
+.rhc-value.risk-badge { display:inline-flex; padding:4px 12px; border-radius:999px; font-size:12px; }
+.rhc-value.risk-badge.red { background:#dc2626; }
+.rhc-value.risk-badge.orange { background:#d97706; }
+.rhc-value.risk-badge.yellow { background:#22c55e; }
+
+/* 报告章节 */
+.report-section { margin-bottom:18px; }
+.section-header { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#0f172a; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #eff6ff; }
+.section-number { display:inline-flex; width:22px; height:22px; border-radius:50%; background:#2563eb; color:#fff; font-size:12px; font-weight:800; align-items:center; justify-content:center; flex-shrink:0; }
+.section-title { font-size:14px; }
+.section-content { padding:12px 16px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0; }
+
+/* 各章节内容样式 */
+.warning-details p, .definition-box p, .calc-box p, .analysis-box p { margin:0; font-size:13px; line-height:1.8; color:#334155; }
+.warning-details, .definition-box, .calc-box, .analysis-box { display:flex; flex-direction:column; gap:10px; }
+.analysis-box ol, .suggestion-box ol { margin:0; padding-left:20px; display:flex; flex-direction:column; gap:8px; }
+.analysis-box li, .suggestion-box li { font-size:13px; line-height:1.75; color:#334155; }
+
+/* 链接盒子 */
+.link-box { display:flex; flex-direction:column; gap:12px; }
+.link-group { display:flex; flex-direction:column; gap:6px; }
+.link-group-title { font-size:12px; font-weight:700; color:#0f172a; padding-bottom:4px; }
+.link-items { display:flex; flex-wrap:wrap; gap:6px; }
+.link-item { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; background:#fff; cursor:pointer; transition:.14s; }
+.link-item:hover { border-color:#93c5fd; background:#eff6ff; }
+.link-icon { font-size:14px; }
+.link-text { font-size:12px; color:#334155; font-weight:600; }
+.link-id { font-size:11px; color:#64748b; font-family:'JetBrains Mono', monospace; }
+
+/* 进度盒子 */
+.progress-box { display:flex; flex-direction:column; gap:8px; }
+.progress-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px dashed #e2e8f0; }
+.progress-item:last-child { border-bottom:none; }
+.progress-status { font-size:12px; color:#64748b; }
+.progress-value { font-size:12px; font-weight:700; color:#0f172a; }
+
+/* Toast 提示 */
+.toast-overlay { position:fixed; top:20px; right:20px; z-index:1000; }
+.toast { display:flex; align-items:center; gap:8px; padding:12px 16px; border-radius:10px; background:#fff; box-shadow:0 4px 20px rgba(0,0,0,0.15); border:1px solid #e2e8f0; animation:toast-in 0.3s ease; }
+@keyframes toast-in { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+.toast-icon { font-size:16px; }
+.toast-text { font-size:13px; color:#334155; font-weight:600; }
+.toast.info { border-color:#bfdbfe; background:#eff6ff; }
+.toast.info .toast-icon { color:#2563eb; }
+.toast.warn { border-color:#fecaca; background:#fef2f2; }
+.toast.warn .toast-icon { color:#ef4444; }
+
+/* 风险标签样式 */
+.risk-pill { font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; }
+.rp-red { background:#fef2f2; color:#dc2626; }
+.rp-orange { background:#fff7ed; color:#c2410c; }
+.rp-yellow { background:#fefce8; color:#a16207; }
+
+/* 状态标签样式 */
+.cd-status-pill { font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; }
+.cdsp-pending { background:#fefce8; color:#a16207; }
+.cdsp-processing { background:#eff6ff; color:#1d4ed8; }
+.cdsp-rectifying { background:#fff7ed; color:#c2410c; }
+.cdsp-closed { background:#f0fdf4; color:#15803d; }
+
+.rics-pending { background:#fefce8; color:#a16207; }
+.rics-processing { background:#eff6ff; color:#1d4ed8; }
+.rics-rectifying { background:#fff7ed; color:#c2410c; }
+.rics-closed { background:#f0fdf4; color:#15803d; }
+
+/* ============ 章节内容样式 ============ */
+.section-item {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 10px;
+  border-left: 4px solid #2563eb;
+}
+
+.section-item .item-number {
+  font-weight: 700;
+  color: #2563eb;
+  font-size: 13px;
+}
+
+.section-item .item-content {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.empty-content {
+  text-align: center;
+  color: #94a3b8;
+  padding: 20px;
+}
+
+/* 各章节特殊样式 */
+.warning-details .section-item {
+  background: #fff5f5;
+  border-left-color: #ef4444;
+}
+.warning-details .section-item .item-number {
+  color: #ef4444;
+}
+
+.calc-box .section-item {
+  background: #f0fdf4;
+  border-left-color: #10b981;
+}
+.calc-box .section-item .item-number {
+  color: #10b981;
+}
+
+.analysis-box .section-item {
+  background: #fffbeb;
+  border-left-color: #d97706;
+}
+.analysis-box .section-item .item-number {
+  color: #d97706;
+}
+
+.suggestion-box .section-item {
+  background: #f0fdf4;
+  border-left-color: #059669;
+}
+.suggestion-box .section-item .item-number {
+  color: #059669;
+}
+
+/* ============ 处理状态样式 ============ */
+.status-box {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .status-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.status-box .status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #d1fae5;
+  text-align: center;
+}
+
+.status-box .status-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.status-box .status-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.status-box .status-value.deadline {
+  color: #ef4444;
+}
+
+.status-box .status-value.待核查 {
+  color: #a16207;
+}
+
+.status-box .status-value.核查中 {
+  color: #1d4ed8;
+}
+
+.status-box .status-value.整改中 {
+  color: #c2410c;
+}
+
+.status-box .status-value.已闭环 {
+  color: #15803d;
+}
+
 </style>

@@ -1118,7 +1118,13 @@ onUnmounted(() => {
 }
 
 /* 第一行：风险等级标签 + 领域名 + 待办数 */
-.area-row-1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.area-row-1 { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  min-width: 0; 
+  width: 100%;
+}
 .area-level-tag {
   font-size: 9px;
   font-weight: 700;
@@ -1136,8 +1142,11 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 800;
   color: #0f172a;
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 0;
+  flex-grow: 0;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed;
+  white-space: nowrap;
 }
 
 .area-alerts {
@@ -1149,7 +1158,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid;
   flex-shrink: 0;
-  margin-right: 14px;
+  margin-left: auto;
 }
 .area-alerts.green { border-color: #bbf7d0; color: #15803d; }
 .area-alerts.yellow { border-color: #fde68a; color: #a16207; }
