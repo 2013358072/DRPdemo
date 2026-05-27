@@ -97,26 +97,26 @@ import Investment from './views/Investment.vue'
 import Funds from './views/Funds.vue'
 import Contract from './views/Contract.vue'
 import Procurement from './views/Procurement.vue'
+import Finance from './views/Finance.vue'
 import AIAgent from './views/AIAgent.vue'
 
 const sceneMap = {
   dashboard: Dashboard,
   invest: Investment,
-  finance: Funds,
-  equity: Contract,
-  overseas: Procurement,
+  funds: Funds,
+  contract: Contract,
+  procurement: Procurement,
+  finance: Finance,
   ai: AIAgent
 }
 const sceneAliasMap = {
   dashboard: 'dashboard',
   investment: 'invest',
   invest: 'invest',
-  funds: 'finance',
+  funds: 'funds',
+  contract: 'contract',
+  procurement: 'procurement',
   finance: 'finance',
-  contract: 'equity',
-  equity: 'equity',
-  procurement: 'overseas',
-  overseas: 'overseas',
   ai: 'ai',
 }
 

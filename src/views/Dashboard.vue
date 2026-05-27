@@ -263,6 +263,7 @@ const areaNavigateMap = {
   funds: 'funds',
   contract: 'contract',
   procurement: 'procurement',
+  finance: 'finance',
 }
 const rank = { group: 0, subsidiary: 1, associate: 2 }
 

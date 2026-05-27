@@ -292,7 +292,7 @@
                 </div>
               </div>
               <div class="rds-meta">
-                <div><span>责任人</span><strong>{{ activeRisk.responsible }}</strong></div>
+                <div><span>责任人</span><strong>{{ extractNames(activeRisk.responsible) }}</strong></div>
                 <div><span>整改期限</span><strong class="deadline">{{ activeRisk.deadline }}</strong></div>
               </div>
             </div>
@@ -508,7 +508,7 @@
                         </div>
                         <div class="status-item">
                           <span class="status-label">责任人</span>
-                          <span class="status-value">{{ activeRisk.responsible }}</span>
+                          <span class="status-value">{{ extractNames(activeRisk.responsible) }}</span>
                         </div>
                         <div class="status-item">
                           <span class="status-label">整改期限</span>
@@ -890,6 +890,12 @@ function showToast(text, type = 'info') {
   window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => { toastVisible.value = false }, 2800)
 }
+// 提取责任人姓名（去掉部门前缀）
+function extractNames(fullStr) {
+  if (!fullStr) return fullStr || ''
+  const parts = fullStr.split('，')
+  return parts.length > 1 ? parts[1] : fullStr
+}
 
 // ============ 格式化报告内容 ============
 // 将接口返回的报告文本转换为 HTML 格式
@@ -941,6 +947,11 @@ const formatSectionContent = (content) => {
   if (!content) return '<p class="empty-content">暂无内容</p>'
   
   let html = content
+    // 移除 markdown 粗体标记 **...**
+    .replace(/\*\*/g, '')
+    // 移除 markdown 无序列表标记（行首的 * 或 -）
+    .replace(/^\s*[\*\-]\s+/gm, '')
+    // 将数字编号的列表项转换为 HTML 元素
     .replace(/^(\d+)\.\s(.+)$/gm, '<div class="section-item"><span class="item-number">$1.</span><span class="item-content">$2</span></div>')
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>')
@@ -1213,29 +1224,30 @@ const riskDataCache = ref({}) // 缓存各个风险项的数据，key为riskId
 const activeRisk = computed(() => {
   if (!selectedRiskId.value) return null
   
-  // ============ 解析后端接口返回的数据 ============
-  // 后端返回的字段映射：
-  // risk_code/risk_id -> id
-  // risk_name -> name
-  // risk_level -> level（需要转换为英文：高风险->high, 中风险->medium, 低风险->watch）
-  // warning_time -> alertTime
-  // contract_id -> contractRef
-  // report -> detailDescription（完整报告内容）
-  // table_rows -> 表格数据（存储在 riskItem 中供后续使用）
-  // ================================================
-  
   // 先从缓存中获取对应风险项的数据
   const cachedData = riskDataCache.value[selectedRiskId.value]
-  // 如果缓存中有数据就用缓存，否则用全局的 apiRiskData
   const data = cachedData || apiRiskData.value
-  
+
+  if (!data) {
+    const found = Object.values(riskDataCache.value).find(d => d.risk_code === selectedRiskId.value || d.risk_id === selectedRiskId.value)
+    if (found) data = found
+  }
+
   if (data) {
     const levelMap = { '高风险': 'high', '中风险': 'medium', '低风险': 'watch', '重大风险': 'critical', '正常': 'normal' }
     
-    console.log('=== activeRisk 计算属性 ===', 'selectedRiskId:', selectedRiskId.value, 'data:', data)
-    
+    function parseProgressFromReport(reportText) {
+      if (!reportText) return { responsible: '暂无', deadline: '暂无' }
+      const responsibleMatch = reportText.match(/\*\*责任人：\*\*\s*([^\n]+)/)
+      const deadlineMatch = reportText.match(/\*\*整改期限：\*\*\s*([^\n]+)/)
+      return {
+        responsible: responsibleMatch ? responsibleMatch[1].trim() : '暂无',
+        deadline: deadlineMatch ? deadlineMatch[1].trim() : '暂无'
+      }
+    }
+    const progressFromReport = parseProgressFromReport(data.report)
+
     return {
-      // 基础信息
       id: data.risk_code || data.risk_id || data.id || selectedRiskId.value,
       name: data.risk_name || data.name || '未知风险事项',
       subName: data.risk_name || data.name || '',
@@ -1243,30 +1255,23 @@ const activeRisk = computed(() => {
       alertTime: data.warning_time || data.alertTime || '',
       source: data.warning_source || data.source || '系统自动监测（合同价格与历史价格、市场价格比对）',
       subjects: data.subjects || ['本单位采购部门', data.supplier_name || '供应商'],
-      
-      // 合同相关
       contractRef: data.contract_id || data.contractRef || '',
       procurementRef: data.procurement_id || data.procurementRef || '',
-      
-      // 状态信息
       status: data.process_status || data.status || '核查中',
       statusFlow: data.statusFlow || ['待核查', '核查中', '整改中', '已闭环'],
       currentStatusIdx: data.currentStatusIdx ?? 1,
-      responsible: data.responsible_person || data.responsible || '物资采购部/审计风控部',
-      deadline: data.deadline || '2026-05-24',
-      
-      // 报告内容
+      responsible: data.work_order?.handler_user || data.handler_user || data.responsible_person || data.responsible || progressFromReport.responsible,
+      deadline: data.work_order?.deadline || data.deadline || progressFromReport.deadline,
       contract: data.contract || null,
-      riskItem: data, // 保存完整数据，供其他地方使用
+      riskItem: data,
       detailDescription: data.report || data.detailDescription || '暂无详细描述',
-      
-      // 新增：支持表格数据和其他字段
       tableRows: data.table_rows || data['整理报告_1.table_rows'] || [],
       context: data.context || {},
       evidence: data.evidence || {}
     }
   }
-  
+})
+
   // ============ 解析原因分析数据 ============
   const analysisItems = computed(() => {
     if (!apiRiskData.value?.report) return []
@@ -1392,12 +1397,12 @@ const activeRisk = computed(() => {
   //       deadline: isCanonicalSteel ? '2026-05-24' : '2026-05-31',
   //       contract: contract,
   //       riskItem: found,
-  //       detailDescription: detailDesc,
-  //     }
-  //   }
-  // }
-  return { id: selectedRiskId.value, name: '接口未返回数据', subName: '', level: 'medium', alertTime: '', source: '', subjects: [], contractRef: '', procurementRef: '', status: '核查中', statusFlow: ['待核查', '核查中', '整改中', '已闭环'], currentStatusIdx: 1, responsible: '', deadline: '', detailDescription: '接口调用后未返回数据，请检查控制台错误信息' }
-})
+//       detailDescription: detailDesc,
+//     }
+//   }
+// }
+// return { id: selectedRiskId.value, name: '接口未返回数据', subName: '', level: 'medium', alertTime: '', source: '', subjects: [], contractRef: '', procurementRef: '', status: '核查中', statusFlow: ['待核查', '核查中', '整改中', '已闭环'], currentStatusIdx: 1, responsible: '', deadline: '', detailDescription: '接口调用后未返回数据，请检查控制台错误信息' }
+//)
 
 // ── 接口调用：流程实例流式运行 ──
 async function callFlowInstanceStreamRun(riskId, action) {
@@ -1495,16 +1500,25 @@ async function callFlowInstanceStreamRun(riskId, action) {
 // ============ 查看报告（直接显示已缓存的数据，不调用接口） ============
 function viewRiskReport(id) {
   console.log('=== viewRiskReport 查看报告 ===', 'riskId:', id)
-  
+
   // 从缓存中获取数据
   const cachedData = riskDataCache.value[id]
   if (cachedData) {
     console.log('从缓存中获取数据:', cachedData)
     apiRiskData.value = cachedData
+    selectedRiskId.value = id
+  } else {
+    // 尝试用 risk_code 作为键来查找
+    const byRiskCode = Object.values(riskDataCache.value).find(d => d.risk_code === id || d.risk_id === id)
+    if (byRiskCode) {
+      console.log('从缓存中通过risk_code获取数据:', byRiskCode)
+      apiRiskData.value = byRiskCode
+      selectedRiskId.value = byRiskCode.risk_code || byRiskCode.risk_id || id
+    } else {
+      selectedRiskId.value = id
+    }
   }
-  
-  // 直接设置 selectedRiskId 并切换视图模式
-  selectedRiskId.value = id
+
   pushViewHistory('risk-detail')
 }
 
@@ -1691,9 +1705,11 @@ const filteredContracts = computed(() => {
 // Risk items from mock data
 // 已分析过的风险ID集合（会话期间持久化，不会因切换合同丢失）
 // 默认每个合同前 2 条风险项已预分析，省得用户每次都等动画
-const analyzedRiskIds = ref(new Set(
-  Object.values(CONTRACT_RISK_ITEMS).flatMap(items => items.slice(0, 2).map(r => r.id))
-))
+// 注释掉固定前2个的限制，改为空集合，让用户手动触发AI分析
+const analyzedRiskIds = ref(new Set())
+// const analyzedRiskIds = ref(new Set(
+//   Object.values(CONTRACT_RISK_ITEMS).flatMap(items => items.slice(0, 2).map(r => r.id))
+// ))
 const activeRiskItems = computed(() => {
   const items = CONTRACT_RISK_ITEMS[activeContractId.value] ?? []
   return items.map(item => ({ ...item, analyzed: analyzedRiskIds.value.has(item.id) }))
