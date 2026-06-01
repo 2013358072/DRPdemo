@@ -2,18 +2,6 @@
   <div class="prc-scene">
     <div v-if="viewMode === 'penetration'" class="prc-screen">
 
-      <!-- ===== 全局筛选栏 ===== -->
-      <section class="filter-bar">
-        <span class="fb-label">数据范围</span>
-        <button v-for="p in periods" :key="p.id"
-                :class="['fb-btn', { active: timePeriod === p.id }]"
-                @click="timePeriod = p.id">{{ p.label }}</button>
-        <span class="fb-sep"></span>
-        <span class="fb-summary">
-          采购总额 <strong>¥{{ pd.amount }}亿</strong>　｜　风险 <strong :style="{color:'#DC2626'}">{{ pd.riskTotal }}</strong> 条　｜　合规率 <strong :style="{color:'#059669'}">{{ pd.compliance }}%</strong>
-        </span>
-      </section>
-
       <!-- ========== 左列 1.5 : 3 : 2 ========== -->
       <div class="col col-left">
         <!-- A1 雷达 60% + 74号文看板 40% -->
@@ -58,7 +46,11 @@
             <div class="b1-kpi-item"><span class="b1-kpi-n">低风险</span><span class="b1-kpi-v" style="color:#2563EB">{{ pd.riskLow }}</span></div>
             <div class="b1-kpi-item"><span class="b1-kpi-n">合计</span><span class="b1-kpi-v" style="color:#0F172A">{{ pd.riskTotal }}</span></div>
           </div>
-          <EChart class="b1-chart" :option="riskBarOption" />
+          <div v-if="activeRiskDomain" class="b1-link-tip">
+            <span>已联动网络图 · <b>{{ activeRiskDomain }}</b></span>
+            <button class="b1-link-clear" @click="clearRiskDomain">✕ 取消</button>
+          </div>
+          <EChart class="b1-chart" :option="riskBarOption" @chart-click="onRiskDomainClick" />
         </section>
 
         <!-- C1 两类穿透概览（总分折叠形式）-->
@@ -800,14 +792,60 @@
       <div v-if="toastVisible" class="prc-toast">{{ toastText }}</div>
     </transition>
 
+    <!-- ══════════ AI 智能体分析步骤弹窗 ══════════ -->
+    <transition name="agent-fade">
+      <div v-if="aiAgentModal" class="ai-agent-overlay" @click.self="closeAgentModal">
+        <div class="ai-agent-modal">
+          <div class="ai-agent-header">
+            <div class="ai-agent-brain">
+              <span class="ai-brain-core">🧠</span>
+              <span class="ai-brain-pulse"></span>
+            </div>
+            <div class="ai-agent-title">
+              <strong>AI 智能体 · 风险穿透分析</strong>
+              <span>DRP Agent 正在执行多步推理…</span>
+            </div>
+          </div>
+          <div class="ai-agent-body">
+            <div v-for="(step, i) in aiAgentSteps" :key="i" class="ai-step" :class="`step-${step.status}`">
+              <div class="ai-step-indicator">
+                <span v-if="step.status === 'pending'" class="ai-step-dot"></span>
+                <span v-else-if="step.status === 'running'" class="ai-step-spin"></span>
+                <span v-else class="ai-step-check">✓</span>
+              </div>
+              <div class="ai-step-content">
+                <span class="ai-step-text">{{ step.text }}</span>
+                <span v-if="step.detail && step.status === 'done'" class="ai-step-detail">{{ step.detail }}</span>
+              </div>
+              <span v-if="step.status === 'running'" class="ai-step-time">{{ aiElapsed }}s</span>
+            </div>
+          </div>
+          <div v-if="aiAgentComplete" class="ai-agent-footer">
+            <template v-if="aiReportReady">
+              <div class="ai-agent-result">
+                <span class="ai-result-icon">✓</span>
+                <span>分析完成，已生成风险报告</span>
+              </div>
+              <button class="ai-agent-btn" @click="goToRiskReport">查看分析报告 →</button>
+            </template>
+            <div v-else class="ai-agent-result" style="color:#7c3aed">
+              <span class="ai-step-spin"></span>
+              <span>正在生成报告数据，请稍候…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
 import EChart from '../components/EChart.vue'
 
+const props = defineProps({ period: { type: String, default: 'half' } })
 const emit = defineEmits(['navigate'])
 function goToDashboard(){ emit('navigate', 'dashboard'); if (typeof window !== 'undefined') window.location.hash = '#/dashboard' }
 
@@ -816,9 +854,94 @@ const drawerOpen     = ref(false)
 const drawerRisk     = ref(null)
 const accordionOpen  = ref(new Set(['proc']))
 const riskFilter     = ref('all')
-const timePeriod     = ref('all')
+const timePeriod     = computed(() => props.period)
+
+// ── B1 十大风险域 ↔ B2 主体穿透网络 联动高亮 ──
+const activeRiskDomain = ref('')
+// 每个风险域涉及的网络主体节点（点击该域 → 中部网络高亮这些主体）
+const riskDomainNodes = {
+  '围标串标':   ['XX建设公司','XX建设一公司','XX车间维修工程','XX贸易公司','XX供应链项目'],
+  '关联输送':   ['XX贸易公司','XX供应链管理','XX仓储物流项目','XX供应链项目'],
+  '单一来源滥用':['XX安装公司','XX设备采购项目'],
+  '异常低价':   ['XX材料公司','XX管道项目'],
+  '资质挂靠':   ['XX建设一公司','XX环保公司','XX排污项目'],
+  '履约不符':   ['XX建设公司','XX安装公司','XX设备采购项目'],
+  '融资性贸易': ['XX贸易公司','XX供应链项目'],
+  '空转走单':   ['XX物流公司','XX仓储建设项目','XX贸易公司'],
+  '应招未招':   ['XX监管公司','XX安防改造项目'],
+  '化整为零':   ['XX科技公司','XX信息系统项目'],
+}
+function onRiskDomainClick(params) {
+  const label = params?.name || params?.data?.label || ''
+  if (!label || !(label in riskDomainNodes)) return
+  activeRiskDomain.value = activeRiskDomain.value === label ? '' : label
+}
+function clearRiskDomain() { activeRiskDomain.value = '' }
 
 // ── AI 风险识别检测报告 ────────────────────────────────────────────────────
+// ── AI 智能体弹窗 ────────────────────────────────────────────────────────
+const aiAgentModal     = ref(false)
+const aiAgentSteps     = ref([])
+const aiAgentComplete  = ref(false)
+const aiElapsed        = ref(0)
+const aiAgentPendingRisk = ref(null)
+const aiReportReady    = ref(false)   // 报告数据是否已拉取就绪（决定「查看分析报告」按钮何时可点）
+let aiDeferNav     = false            // 预取期间为 true：只取数、不跳转；待用户点「查看分析报告」再跳
+let aiTimer        = null
+let aiElapsedTimer = null
+
+const procStepDefs = [
+  { text: '启动采购风险分析引擎…',         detail: 'DRP Agent v4.7 · 采购穿透模型已加载' },
+  { text: '提取采购订单与合同数据…',       detail: '识别采购记录 8 份 · 结构化字段 28 个' },
+  { text: '调用围标串标模式识别模型…',     detail: '命中风险规则库 150+ 条 · 匹配中' },
+  { text: '穿透关联供应商与招投标记录…',   detail: '已关联 3 条供应商链路 · 2 条价格链路' },
+  { text: '比对市场价格与历史中标数据…',   detail: '检索近 12 个月同类采购 · 异常偏差识别' },
+  { text: '运行采购合规规则交叉验证…',     detail: '资质 · 价格 · 关联关系三维度交叉核验' },
+  { text: '生成 AI 采购风险分析报告…',     detail: '报告已生成 · 包含 7 个章节' },
+]
+
+function runAgentModal(steps, onComplete) {
+  aiAgentComplete.value = false
+  aiAgentSteps.value = steps.map((s, i) => ({ ...s, status: i === 0 ? 'running' : 'pending' }))
+  aiElapsed.value = 0
+  aiAgentModal.value = true
+  aiElapsedTimer = setInterval(() => { aiElapsed.value++ }, 1000)
+  let stepIdx = 1
+  aiTimer = setInterval(() => {
+    if (stepIdx < steps.length) {
+      aiAgentSteps.value[stepIdx - 1].status = 'done'
+      aiAgentSteps.value[stepIdx].status = 'running'
+      stepIdx++
+    } else {
+      clearInterval(aiTimer)
+      clearInterval(aiElapsedTimer)
+      aiAgentSteps.value[aiAgentSteps.value.length - 1].status = 'done'
+      aiAgentComplete.value = true
+      if (onComplete) onComplete()
+    }
+  }, 1700)
+}
+
+// 点击遮罩关闭弹窗（不跳转）
+function closeAgentModal() {
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+}
+
+function goToRiskReport() {
+  // 报告数据已在加载期间预取就绪；此刻（用户点击）才真正跳转到报告页
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+  pushViewHistory('risk-detail')
+}
+
+onBeforeUnmount(() => {
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+})
+
 const analyzedReportIds = ref(new Set())
 const riskDataCache = ref({})
 const apiRiskData   = ref(null)
@@ -1109,10 +1232,11 @@ const reportSectionSix = computed(() => {
 
 // ── 全局时间筛选 ────────────────────────────────────────────────────────
 const periods = [
-  { id:'all', label:'全部' },{ id:'month', label:'近1月' },
-  { id:'quarter', label:'近3月' },{ id:'half', label:'近半年' },
+  { id:'month', label:'近1月' },
+  { id:'quarter', label:'近3月' },
+  { id:'half', label:'近半年' },
 ]
-const periodLabel = computed(() => periods.find(p => p.id === timePeriod.value)?.label || '全部')
+const periodLabel = computed(() => periods.find(p => p.id === timePeriod.value)?.label || '近半年')
 
 const periodDataMap = {
   all:     { amount:'5,680', applyAmount:'4,250', contractAmount:'3,820', contractCount:856,
@@ -1205,18 +1329,46 @@ const displayMetrics = computed(() => pd.value.metrics)
 const traffic74Display = computed(() => pd.value.traffic)
 
 // ── 十大风险域 ──────────────────────────────────────────────────────────
-const riskMatrix = [
-  { id:'RM1',  label:'应招未招',     total:0,  d7:0, d30:0,  health:'safe' },
-  { id:'RM2',  label:'化整为零',     total:0,  d7:0, d30:0,  health:'safe' },
-  { id:'RM3',  label:'围标串标',     total:16, d7:5, d30:11, health:'danger' },
-  { id:'RM4',  label:'关联输送',     total:18, d7:7, d30:11, health:'danger' },
-  { id:'RM5',  label:'单一来源滥用', total:11, d7:3, d30:8,  health:'warn' },
-  { id:'RM6',  label:'异常低价',     total:10, d7:4, d30:6,  health:'warn' },
-  { id:'RM7',  label:'资质挂靠',     total:8,  d7:2, d30:6,  health:'warn' },
-  { id:'RM8',  label:'履约不符',     total:14, d7:5, d30:9,  health:'danger' },
-  { id:'RM9',  label:'融资性贸易',   total:10, d7:3, d30:7,  health:'warn' },
-  { id:'RM10', label:'空转走单',     total:6,  d7:1, d30:5,  health:'warn' },
-]
+const riskMatrixByPeriod = {
+  half: [
+    { id:'RM1',  label:'应招未招',     total:0,  d7:0, d30:0,  health:'safe' },
+    { id:'RM2',  label:'化整为零',     total:0,  d7:0, d30:0,  health:'safe' },
+    { id:'RM3',  label:'围标串标',     total:16, d7:5, d30:11, health:'danger' },
+    { id:'RM4',  label:'关联输送',     total:18, d7:7, d30:11, health:'danger' },
+    { id:'RM5',  label:'单一来源滥用', total:11, d7:3, d30:8,  health:'warn' },
+    { id:'RM6',  label:'异常低价',     total:10, d7:4, d30:6,  health:'warn' },
+    { id:'RM7',  label:'资质挂靠',     total:8,  d7:2, d30:6,  health:'warn' },
+    { id:'RM8',  label:'履约不符',     total:14, d7:5, d30:9,  health:'danger' },
+    { id:'RM9',  label:'融资性贸易',   total:10, d7:3, d30:7,  health:'warn' },
+    { id:'RM10', label:'空转走单',     total:6,  d7:1, d30:5,  health:'warn' },
+  ],
+  quarter: [
+    { id:'RM1',  label:'应招未招',     total:0, d7:0, d30:0, health:'safe' },
+    { id:'RM2',  label:'化整为零',     total:0, d7:0, d30:0, health:'safe' },
+    { id:'RM3',  label:'围标串标',     total:9, d7:3, d30:6, health:'danger' },
+    { id:'RM4',  label:'关联输送',     total:10,d7:4, d30:6, health:'danger' },
+    { id:'RM5',  label:'单一来源滥用', total:6, d7:2, d30:4, health:'warn' },
+    { id:'RM6',  label:'异常低价',     total:5, d7:2, d30:3, health:'warn' },
+    { id:'RM7',  label:'资质挂靠',     total:4, d7:1, d30:3, health:'warn' },
+    { id:'RM8',  label:'履约不符',     total:8, d7:3, d30:5, health:'danger' },
+    { id:'RM9',  label:'融资性贸易',   total:5, d7:1, d30:4, health:'warn' },
+    { id:'RM10', label:'空转走单',     total:3, d7:0, d30:3, health:'warn' },
+  ],
+  month: [
+    { id:'RM1',  label:'应招未招',     total:0, d7:0, d30:0, health:'safe' },
+    { id:'RM2',  label:'化整为零',     total:0, d7:0, d30:0, health:'safe' },
+    { id:'RM3',  label:'围标串标',     total:5, d7:5, d30:0, health:'danger' },
+    { id:'RM4',  label:'关联输送',     total:7, d7:7, d30:0, health:'danger' },
+    { id:'RM5',  label:'单一来源滥用', total:3, d7:3, d30:0, health:'warn' },
+    { id:'RM6',  label:'异常低价',     total:4, d7:4, d30:0, health:'warn' },
+    { id:'RM7',  label:'资质挂靠',     total:2, d7:2, d30:0, health:'warn' },
+    { id:'RM8',  label:'履约不符',     total:5, d7:5, d30:0, health:'danger' },
+    { id:'RM9',  label:'融资性贸易',   total:3, d7:3, d30:0, health:'warn' },
+    { id:'RM10', label:'空转走单',     total:1, d7:1, d30:0, health:'warn' },
+  ],
+}
+riskMatrixByPeriod.all = riskMatrixByPeriod.half
+const riskMatrix = computed(() => riskMatrixByPeriod[timePeriod.value] || riskMatrixByPeriod.half)
 
 const supplierRanking = [
   { rank:1, name:'XX建设工程有限公司',   amount:285.6, riskCount:5, health:72, trend:-1, white:true,  category:'土建工程' },
@@ -1344,10 +1496,22 @@ const approvalAnomalies = [
 
 const heatmapCategories = ['土建工程','安装工程','设备采购','材料采购','服务采购','IT采购','咨询服务','其他']
 const heatmapMethods    = ['公开招标','竞争性谈判','单一来源','询价采购','框架协议','直接采购','委托代理','其他']
-const heatmapBaseValues = [
-  [85,12,8,15,20,5,3,2],[72,18,5,22,15,8,4,6],[45,25,15,35,28,12,8,5],[38,22,18,45,32,15,5,8],
-  [25,18,12,28,42,22,15,10],[18,15,8,12,25,35,18,5],[12,10,5,8,15,8,28,6],[5,8,3,6,10,4,3,12],
-]
+const heatmapValsByPeriod = {
+  half: [
+    [85,12,8,15,20,5,3,2],[72,18,5,22,15,8,4,6],[45,25,15,35,28,12,8,5],[38,22,18,45,32,15,5,8],
+    [25,18,12,28,42,22,15,10],[18,15,8,12,25,35,18,5],[12,10,5,8,15,8,28,6],[5,8,3,6,10,4,3,12],
+  ],
+  quarter: [
+    [47,7,4,8,11,3,2,1],[40,10,3,12,8,4,2,3],[25,14,8,19,15,7,4,3],[21,12,10,25,18,8,3,4],
+    [14,10,7,15,23,12,8,6],[10,8,4,7,14,19,10,3],[7,6,3,4,8,4,15,3],[3,4,2,3,6,2,2,7],
+  ],
+  month: [
+    [19,3,2,3,4,1,1,0],[16,4,1,5,3,2,1,1],[10,6,3,8,6,3,2,1],[8,5,4,10,7,3,1,2],
+    [6,4,3,6,9,5,3,2],[4,3,2,3,6,8,4,1],[3,2,1,2,3,2,6,1],[1,2,1,1,2,1,1,3],
+  ],
+}
+heatmapValsByPeriod.all = heatmapValsByPeriod.half
+const heatmapBaseValues = computed(() => heatmapValsByPeriod[timePeriod.value] || heatmapValsByPeriod.half)
 
 // ── Computed ───────────────────────────────────────────────────────────────
 const highRiskCount = computed(() => riskList.filter(r => r.level === 'red').length)
@@ -1358,10 +1522,10 @@ const penetModalTitle = computed(() => {
   return ''
 })
 const filteredRiskMatrix = computed(() => {
-  if (riskFilter.value === 'danger') return riskMatrix.filter(r => r.health === 'danger')
-  if (riskFilter.value === 'warn')   return riskMatrix.filter(r => r.health === 'warn')
-  if (riskFilter.value === 'safe')   return riskMatrix.filter(r => r.health === 'safe')
-  return riskMatrix
+  if (riskFilter.value === 'danger') return riskMatrix.value.filter(r => r.health === 'danger')
+  if (riskFilter.value === 'warn')   return riskMatrix.value.filter(r => r.health === 'warn')
+  if (riskFilter.value === 'safe')   return riskMatrix.value.filter(r => r.health === 'safe')
+  return riskMatrix.value
 })
 
 const radarOption = computed(() => ({
@@ -1428,18 +1592,7 @@ const darkTrendOption = computed(() => {
 })
 
 // B2 网络：22节点 21边，上下各2分支·左右各3分支，CG-2026001高亮
-const darkNetworkOption = computed(() => ({
-  animation:false, backgroundColor:'transparent',
-  tooltip:{trigger:'item',backgroundColor:'rgba(255,255,255,0.97)',borderColor:'#E2E8F0',textStyle:{color:'#334155',fontSize:11},extraCssText:'box-shadow:0 4px 20px rgba(15,23,42,0.1)',
-    formatter:({data})=>data?.name?`<b>${data.name}</b><br/>层级：${data.tier||'-'}<br/>采购金额：${data.amount||'-'} 亿<br/>风险：${data.riskLabel||'-'}`:''
-  },
-  series:[{
-    type:'graph',layout:'none',roam:false,draggable:false,
-    edgeSymbol:['none','arrow'],edgeSymbolSize:[0,5],
-    lineStyle:{color:'#CBD5E1',width:1.1,curveness:0.12},
-    label:{show:true,position:'right',fontSize:8,color:'#475569',fontWeight:600,distance:3},
-    emphasis:{focus:'adjacency',lineStyle:{width:2.5}},
-    data:[
+const netNodes = [
       /* 集团中心 */
       {name:'XX集团',x:260,y:135,symbolSize:48,tier:'集团',amount:5680,riskLabel:'中',
         itemStyle:{color:'#F97316',shadowColor:'rgba(249,115,22,0.5)',shadowBlur:14},label:{position:'inside',fontSize:9,color:'#FFF'}},
@@ -1470,8 +1623,8 @@ const darkNetworkOption = computed(() => ({
       {name:'XX设备采购项目',x:510,y:135,symbolSize:14,tier:'项目',amount:160,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{fontSize:7}},
       {name:'XX供应链管理',x:395,y:190,symbolSize:22,tier:'二级',amount:360,riskLabel:'中',itemStyle:{color:'#F59E0B'}},
       {name:'XX仓储物流项目',x:490,y:240,symbolSize:14,tier:'项目',amount:110,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'bottom',fontSize:7}},
-    ],
-    links:[
+]
+const netLinks = [
       /* 集团→上方 */
       {source:'XX集团',target:'XX科技公司',lineStyle:{width:1.4,color:'#3B82F6'}},
       {source:'XX集团',target:'XX监管公司',lineStyle:{width:1.2,color:'#10B981'}},
@@ -1501,12 +1654,40 @@ const darkNetworkOption = computed(() => ({
       {source:'XX建设一公司',target:'XX车间维修工程',lineStyle:{width:2.8,color:'#DC2626',opacity:1}},
       {source:'XX安装公司',target:'XX设备采购项目'},
       {source:'XX供应链管理',target:'XX仓储物流项目'},
-    ],
-  }],
-}))
+]
+// 联动高亮：选中风险域时，高亮该域涉及主体、淡化其余
+const darkNetworkOption = computed(() => {
+  const hi = activeRiskDomain.value
+    ? new Set([...(riskDomainNodes[activeRiskDomain.value] || []), 'XX集团'])
+    : null
+  const data = netNodes.map(n => {
+    if (!hi) return n
+    if (hi.has(n.name)) return { ...n, itemStyle:{ ...(n.itemStyle||{}), borderColor:'#2563EB', borderWidth:3, shadowColor:'rgba(37,99,235,0.55)', shadowBlur:18, opacity:1 }, label:{ ...(n.label||{}), opacity:1 } }
+    return { ...n, itemStyle:{ ...(n.itemStyle||{}), opacity:0.1 }, label:{ ...(n.label||{}), opacity:0.1 } }
+  })
+  const links = netLinks.map(l => {
+    if (!hi) return l
+    const on = hi.has(l.source) && hi.has(l.target)
+    return { ...l, lineStyle:{ ...(l.lineStyle||{}), opacity: on ? 0.95 : 0.05, width: on ? 2.6 : (l.lineStyle?.width || 1) } }
+  })
+  return {
+    animation:false, backgroundColor:'transparent',
+    tooltip:{trigger:'item',backgroundColor:'rgba(255,255,255,0.97)',borderColor:'#E2E8F0',textStyle:{color:'#334155',fontSize:11},extraCssText:'box-shadow:0 4px 20px rgba(15,23,42,0.1)',
+      formatter:({data})=>data?.name?`<b>${data.name}</b><br/>层级：${data.tier||'-'}<br/>采购金额：${data.amount||'-'} 亿<br/>风险：${data.riskLabel||'-'}`:''
+    },
+    series:[{
+      type:'graph',layout:'none',roam:false,draggable:false,
+      edgeSymbol:['none','arrow'],edgeSymbolSize:[0,5],
+      lineStyle:{color:'#CBD5E1',width:1.1,curveness:0.12},
+      label:{show:true,position:'right',fontSize:8,color:'#475569',fontWeight:600,distance:3},
+      emphasis:{focus:'adjacency',lineStyle:{width:2.5}},
+      data, links,
+    }],
+  }
+})
 
 const heatmapOption = computed(() => {
-  const data=[];heatmapBaseValues.forEach((row,ci)=>{row.forEach((v,mi)=>{data.push([mi,ci,v])})})
+  const data=[];heatmapBaseValues.value.forEach((row,ci)=>{row.forEach((v,mi)=>{data.push([mi,ci,v])})})
   return {
     animation:false,backgroundColor:'transparent',
     tooltip:{position:'top',backgroundColor:'rgba(255,255,255,0.97)',borderColor:'#E2E8F0',textStyle:{color:'#334155',fontSize:11},
@@ -1528,8 +1709,22 @@ function openDrawer(r){ drawerRisk.value=r; drawerOpen.value=true; accordionOpen
 function toggleAcc(id){ const s=new Set(accordionOpen.value); s.has(id)?s.delete(id):s.add(id); accordionOpen.value=s }
 function formatTime(s){ if(!s) return ''; const m=s.match(/(\d{2}:\d{2})/); return m ? m[1] : s.slice(-5) }
 
-// ── AI 检测报告：点击 AI 分析 → 切换到 risk-detail 视图 ───────────────
-async function openReport(r) {
+// ── AI 检测报告：先显示弹窗动画，完成后执行真实逻辑 ─────────────────────
+function openReport(r) {
+  // 已分析过：直接看报告，不再弹加载窗
+  if (analyzedReportIds.value.has(r.no)) { viewReport(r.no); return }
+  aiAgentPendingRisk.value = r
+  aiReportReady.value = false
+  // 弹窗动画与报告数据「预取」并发：预取期间 aiDeferNav=true 只取数不跳转；就绪后出现「查看分析报告」
+  runAgentModal(procStepDefs, null)
+  aiDeferNav = true
+  _openReportReal(r)
+    .then(() => { aiReportReady.value = true })
+    .catch(() => { aiReportReady.value = true })
+    .finally(() => { aiDeferNav = false })
+}
+
+async function _openReportReal(r) {
   drawerOpen.value = false
   const id = r.no // 使用 CG-2026001 格式的编号
   
@@ -1579,7 +1774,7 @@ async function openReport(r) {
       analyzedReportIds.value.add(id)
       analyzedReportIds.value = new Set(analyzedReportIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     } else {
       const fallbackData = {
@@ -1596,13 +1791,13 @@ async function openReport(r) {
       analyzedReportIds.value.add(id)
       analyzedReportIds.value = new Set(analyzedReportIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     }
   }
   
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // 查看报告（直接使用缓存）
@@ -1613,7 +1808,7 @@ function viewReport(id) {
   }
   
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 function progressIndex(r){ return progressSteps.findIndex(s=>s.code===r.statusCode) }
@@ -1690,10 +1885,9 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .prc-screen {
   height:100%; display:grid;
   grid-template-columns: 1fr 2.5fr 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
   gap:6px; padding:6px; box-sizing:border-box;
 }
-.filter-bar { grid-column: 1 / -1; }
 
 .col {
   display:flex; flex-direction:column; gap:6px; min-height:0;
@@ -1792,7 +1986,13 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .b1-kpi-item { flex:1; background:#F8FAFC; border:1px solid #E8EDF5; border-radius:6px;
   padding:3px 5px; display:flex; flex-direction:column; align-items:center; gap:0; }
 .b1-kpi-n { font-size:8px; color:#94A3B8; } .b1-kpi-v { font-size:15px; font-weight:800; line-height:1.1; }
-.b1-chart { flex:1; min-height:0; }
+.b1-chart { flex:1; min-height:0; cursor:pointer; }
+.b1-link-tip { display:flex; align-items:center; justify-content:space-between; gap:6px;
+  margin-bottom:4px; padding:3px 8px; border-radius:6px; flex-shrink:0;
+  background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; font-size:10px; }
+.b1-link-tip b { font-weight:800; }
+.b1-link-clear { border:none; background:transparent; color:#64748B; font-size:10px; cursor:pointer; padding:0 2px; }
+.b1-link-clear:hover { color:#DC2626; }
 
 /* ── B2 网络图 ──────────────────────────────────────────────────────────── */
 .b2-panel { padding-top:7px; padding-bottom:6px; }
@@ -1915,8 +2115,8 @@ async function callFlowInstanceStreamRun(riskId, action) {
 }
 .risk-title-row .risk-title { flex: 1; min-width: 0; }
 .risk-actions-row {
-  display: flex; align-items: center; gap: 8px;
-  justify-content: flex-end; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  justify-content: center; flex-shrink: 0;
 }
 .risk-handler { color: #475569; }
 .risk-deadline {
@@ -2540,4 +2740,38 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .status-box .status-label { font-size: 12px; color: #64748b; font-weight: 600; }
 .status-box .status-value { font-size: 15px; font-weight: 800; color: #059669; }
 .status-box .status-value.deadline { color: #dc2626; font-family: 'JetBrains Mono', monospace; }
+
+/* ══════════ AI 智能体分析弹窗 ══════════ */
+.ai-agent-overlay { position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; }
+.ai-agent-modal { width:560px; max-height:80vh; background:#0b1120; border:1px solid rgba(99,102,241,0.35); border-radius:18px; padding:28px; display:flex; flex-direction:column; gap:20px; box-shadow:0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.12); }
+.ai-agent-header { display:flex; align-items:center; gap:14px; }
+.ai-agent-brain { position:relative; width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-brain-core { font-size:24px; position:relative; z-index:1; }
+.ai-brain-pulse { position:absolute; inset:-4px; border-radius:50%; border:2px solid rgba(99,102,241,0.5); animation:brain-pulse 1.5s ease-in-out infinite; }
+@keyframes brain-pulse { 0%,100% { transform:scale(1); opacity:0.6; } 50% { transform:scale(1.15); opacity:1; } }
+.ai-agent-title { display:flex; flex-direction:column; gap:3px; }
+.ai-agent-title strong { font-size:17px; color:#e2e8f0; letter-spacing:0.02em; }
+.ai-agent-title span { font-size:12px; color:#64748b; }
+.ai-agent-body { display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
+.ai-step { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; transition:.3s; }
+.ai-step.step-running { background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); }
+.ai-step.step-done { background:rgba(16,185,129,0.06); }
+.ai-step.step-done .ai-step-text { color:#94a3b8; }
+.ai-step-indicator { width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-step-dot { width:8px; height:8px; border-radius:50%; background:#334155; }
+.ai-step-spin { width:18px; height:18px; border:2px solid rgba(99,102,241,0.3); border-top-color:#818cf8; border-radius:50%; animation:agent-spin .7s linear infinite; }
+.ai-step-check { width:22px; height:22px; border-radius:50%; background:rgba(16,185,129,0.2); color:#10b981; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.ai-step-content { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ai-step-text { font-size:13px; color:#cbd5e1; font-weight:500; }
+.ai-step-detail { font-size:11px; color:#64748b; }
+.ai-step-time { font-size:12px; color:#6366f1; font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+.ai-agent-footer { display:flex; flex-direction:column; gap:12px; border-top:1px solid rgba(99,102,241,0.15); padding-top:16px; }
+.ai-agent-result { display:flex; align-items:center; gap:8px; color:#10b981; font-size:14px; font-weight:600; }
+.ai-result-icon { width:24px; height:24px; border-radius:50%; background:rgba(16,185,129,0.2); display:flex; align-items:center; justify-content:center; font-size:13px; }
+.ai-agent-btn { width:100%; height:44px; border-radius:12px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:.2s; letter-spacing:.04em; }
+.ai-agent-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(99,102,241,0.45); }
+@keyframes agent-spin { to { transform:rotate(360deg); } }
+.agent-fade-enter-active { transition:opacity .25s; }
+.agent-fade-leave-active { transition:opacity .2s; }
+.agent-fade-enter-from, .agent-fade-leave-to { opacity:0; }
 </style>

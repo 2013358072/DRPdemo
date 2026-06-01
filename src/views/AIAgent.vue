@@ -134,8 +134,13 @@
                 <span class="meta-model">@{{ message.model }}</span>
                 <span class="meta-time">{{ message.time }}</span>
               </div>
+              <div v-if="message.role === 'ai' && message.thinking" class="msg-thinking">
+                <button type="button" class="mt-toggle" @click="message._thinkOpen = !message._thinkOpen">💭 思考{{ message._streaming ? '中…' : '完成' }} {{ message._thinkOpen ? '▾' : '▸' }}</button>
+                <div v-if="message._thinkOpen" class="mt-body">{{ message.thinking }}</div>
+              </div>
               <div class="msg-bubble">
-                <p style="white-space: pre-wrap;">{{ message.text }}</p>
+                <div class="msg-text" v-html="renderMsg(message.text)"></div>
+                <span v-if="message._streaming && message.text" class="stream-cursor">▍</span>
                 <div v-if="message.skills?.length" class="msg-tags">
                   <span v-for="skill in message.skills" :key="skill" class="msg-tag">{{ skill }}</span>
                 </div>
@@ -153,6 +158,19 @@
                 </div>
               </div>
             </article>
+
+            <!-- 演示推荐问题 chips：未发起对话前展示，点击直接发送 -->
+            <div v-if="!hasUserMessage" class="recommend-chips">
+              <div class="rc-title">💡 推荐问题 · 点击直接发送</div>
+              <div class="rc-grid">
+                <button
+                  v-for="(c, i) in RECOMMENDED_CHIPS" :key="i"
+                  type="button" class="rc-chip"
+                  :disabled="isSending || streaming"
+                  @click="askChip(c)"
+                ><span class="rc-num">{{ i + 1 }}</span><span class="rc-text">{{ c }}</span></button>
+              </div>
+            </div>
 
             <article v-if="isSending" class="message ai pending">
               <div class="message-meta">
@@ -235,7 +253,7 @@
 
             <div class="input-actions">
               <button type="button" class="btn-reset" @click="resetPanel">重置</button>
-              <button type="button" class="btn-send" :disabled="isSending || !prompt.trim()" @click="sendPrompt">
+              <button type="button" class="btn-send" :disabled="isSending || streaming || !prompt.trim()" @click="sendPrompt">
                 <svg viewBox="0 0 20 20" fill="currentColor" class="send-icon"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
                 发 送
               </button>
@@ -312,7 +330,36 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { matchScript, RECOMMENDED_CHIPS, SCRIPT_PACE } from '../data/agentScript.js'
+
+const emit = defineEmits(['navigate'])
+
+// ── 演示剧本流式播放辅助 ──────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+async function streamInto(msg, key, fullText, charMs) {
+  for (let i = 1; i <= fullText.length; i++) {
+    msg[key] = fullText.slice(0, i)
+    if (i % 6 === 0) scrollHistoryToBottom()
+    await sleep(charMs)
+  }
+  scrollHistoryToBottom()
+}
+// 渲染消息正文:转义后还原 **bold** 与换行（与 GptChatModal 一致）
+function renderMsg(text) {
+  if (!text) return ''
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>')
+}
+const hasUserMessage = computed(() => messages.value.some(m => m.role === 'user'))
+function askChip(text) {
+  if (isSending.value || streaming.value) return
+  prompt.value = text
+  nextTick(() => sendPrompt())
+}
+const streaming = ref(false)
 
 const modelLibrary = [
   { id: 'm1', short: '资金池分析', name: '资金池分析模型', desc: '资金归集与异常支付穿透', domain: 'funds' },
@@ -474,56 +521,13 @@ function skillCalls(skill) {
 
 const messages = ref([
   {
-    id: 'msg-sys',
+    id: 'msg-welcome',
     role: 'ai',
-    model: '合同核验',
+    model: 'DRP Agent',
     time: '10:00',
-    text: '系统已就绪。当前已激活 @合同核验 模型，绑定合同语义比对、企业图谱查询技能。',
-    skills: ['合同语义比对', '企业图谱查询'],
-    steps: ['支持 10 个模型', '支持 Skill 绑定', '支持连续历史'],
-  },
-  {
-    id: 'msg-u1',
-    role: 'user',
-    model: '合同核验',
-    time: '10:03',
-    text: '@合同核验 对"合同归档严重滞后"进行深度穿透核查，单位：江苏储能，风险摘要：AI 识别：江苏储能 4 份增补协议归档延期超 5 个工作日，主合同关联缺失。',
-    skills: ['合同语义比对', '企业图谱查询'],
-  },
-  {
-    id: 'msg-a1',
-    role: 'ai',
-    model: '合同核验',
-    time: '10:03',
-    text: '穿透核查已完成。核查对象：江苏储能科技有限公司，核查日期：今日（2026-05-19）。\n\n检出异常：\n① 增补协议 HT-SE-2024-087、088、091、093 共 4 份，归档分别延期 5、6、7、12 个工作日；\n② 主合同 HT-SE-2024-031（有效期至 2026-12-31）关联归档完整率仅 38%，存在法律敞口风险；\n③ 电子签章记录与 OA 系统归档状态不一致，疑似线下流转未留痕。\n\n建议立即补全 4 份增补协议归档，并在 48 小时内通知合同管理负责人确认归档状态。',
-    skills: ['合同语义比对', '企业图谱查询'],
-    steps: ['责任主体：江苏储能合同管理部', '核查日期：2026-05-19', '风险等级：高风险 · 4 项滞后'],
-    actions: [
-      { id: 'act-view',   label: '查阅合同详情', icon: 'doc',   type: 'view-contract' },
-      { id: 'act-notify', label: '通知当事人',   icon: 'bell',  type: 'notify-party'  },
-    ],
-  },
-  {
-    id: 'msg-u2',
-    role: 'user',
-    model: '合同核验',
-    time: '10:05',
-    text: '江苏储能、今天、查阅合同并通知当事人',
-    skills: ['合同语义比对', '企业图谱查询'],
-  },
-  {
-    id: 'msg-a2',
-    role: 'ai',
-    model: '合同核验',
-    time: '10:05',
-    text: '已针对江苏储能科技有限公司执行以下操作：\n\n① 查阅合同（今日 2026-05-19）：已调取合同台账，定位 4 份增补协议（HT-SE-2024-087/088/091/093），归档延期最长 12 个工作日，主合同 HT-SE-2024-031 关联完整率仅 38%，存在法律敞口风险。\n\n② 通知当事人：督办通知已发送至合同管理负责人（合同管理部），要求 48 小时内完成补档并回传确认结果。\n\n建议后续派发正式整改工单并纳入本月合规台账，由法务合规部协同跟进闭环。',
-    skills: ['合同语义比对', '企业图谱查询'],
-    steps: ['已查阅：4 份滞后增补协议', '已通知：合同管理负责人', '截止：48h 内回传确认'],
-    actions: [
-      { id: 'act-dispatch', label: '派发整改工单', icon: 'check', type: 'dispatch-order' },
-      { id: 'act-ledger',   label: '纳入月度台账', icon: 'doc',   type: 'add-to-ledger' },
-      { id: 'act-close',    label: '标记待闭环',   icon: 'flag',  type: 'mark-pending'  },
-    ],
+    text: '您好，我是 **DRP 智能监管助手**。\n\n本演示场景已预置 8 条推荐问题，**点击下方任一气泡可直接发送**。也可自行输入关键词（如 "围标"、"打开资金"、"生成报告"），我会按场景回答。',
+    skills: ['态势研判', '风险穿透', '驱动跳转', '报告生成'],
+    steps: ['模型:DRP Agent v4.7', '场景:四域穿透', '状态:已就绪'],
   },
 ])
 
@@ -673,21 +677,54 @@ function dispatchRiskEvt(evt) {
   }, 360)
 }
 
-function sendPrompt() {
+async function sendPrompt() {
   const text = prompt.value.trim()
-  if (!text || isSending.value) return
+  if (!text || isSending.value || streaming.value) return
   const currentModel = activeModel.value
   const currentSkills = selectedSkills.value.map((item) => item.name)
-  messages.value.push({ id: `user-${Date.now()}`, role: 'user', model: currentModel.short, time: nowTime(), text, skills: currentSkills })
+
+  // 1. 推入用户消息
+  messages.value.push({
+    id: `user-${Date.now()}`, role: 'user',
+    model: currentModel.short, time: nowTime(),
+    text, skills: currentSkills,
+  })
   prompt.value = ''
-  isSending.value = true
   scrollHistoryToBottom()
-  window.setTimeout(() => {
-    const reply = buildAssistantReply(text)
-    messages.value.push({ id: `ai-${Date.now()}`, role: 'ai', model: currentModel.short, time: nowTime(), text: reply.text, skills: currentSkills, steps: reply.steps })
-    isSending.value = false
-    scrollHistoryToBottom()
-  }, 320)
+
+  // 2. 命中剧本
+  const script = matchScript(text)
+  const pace = { ...SCRIPT_PACE, ...(script.pace || {}) }
+
+  // 3. 推入空 AI 消息（reactive 以便流式更新触发渲染）
+  const aiMsg = reactive({
+    id: `ai-${Date.now()}`, role: 'ai',
+    model: currentModel.short, time: nowTime(),
+    text: '', thinking: '',
+    _thinkOpen: true, _streaming: true,
+    skills: currentSkills, steps: [],
+  })
+  messages.value.push(aiMsg)
+  streaming.value = true
+  scrollHistoryToBottom()
+
+  // 4. Phase 1: 流式播放思考链（若有）
+  if (script.thinking) {
+    await streamInto(aiMsg, 'thinking', script.thinking, pace.thinkMs)
+    aiMsg._thinkOpen = false  // 进入正文时自动收起
+  }
+
+  // 5. Phase 2: 流式播放正文
+  await streamInto(aiMsg, 'text', script.reply.text, pace.charMs)
+  aiMsg.steps = script.reply.steps || []
+  aiMsg._streaming = false
+  streaming.value = false
+
+  // 6. Phase 3: 行动（导航）
+  if (script.action?.type === 'navigate' && script.action.target) {
+    setTimeout(() => emit('navigate', script.action.target), 500)
+  }
+  scrollHistoryToBottom()
 }
 </script>
 
@@ -1062,6 +1099,77 @@ function sendPrompt() {
 .message.ai .msg-bubble { border-top-left-radius: 4px; }
 .message.user .msg-bubble { border-top-right-radius: 4px; }
 .msg-bubble p { margin: 0; }
+.msg-text { word-break: break-word; }
+.msg-text strong { color: var(--c-blue2); font-weight: 700; }
+.message.user .msg-text strong { color: #fff; }
+
+/* 流式光标 */
+.stream-cursor {
+  display: inline-block; margin-left: 2px;
+  color: var(--c-blue); font-weight: 700;
+  animation: stream-blink 0.85s steps(2, end) infinite;
+}
+@keyframes stream-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+/* 思考链折叠块（位于 ai 消息 meta 与 bubble 之间） */
+.msg-thinking {
+  align-self: flex-start;
+  max-width: 88%;
+  margin: 4px 0 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+}
+.mt-toggle {
+  background: none; border: none; padding: 0;
+  font-size: 11px; font-weight: 700; color: var(--c-pur);
+  cursor: pointer;
+}
+.mt-toggle:hover { color: #6d28d9; }
+.mt-body {
+  margin-top: 4px; padding-left: 8px;
+  border-left: 2px solid #ddd6fe;
+  font-size: 11px; color: #6b7280; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* 推荐问题 chips（无对话时显示） */
+.recommend-chips {
+  align-self: stretch;
+  margin: 6px 4px 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%);
+  border: 1px solid #bfdbfe;
+}
+.rc-title {
+  font-size: 11px; font-weight: 700; color: var(--c-blue2);
+  margin-bottom: 8px; letter-spacing: 0.04em;
+}
+.rc-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.rc-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; border-radius: 8px;
+  background: #fff; border: 1px solid #e2e8f0;
+  font-size: 12px; color: var(--c-t1); text-align: left;
+  cursor: pointer; transition: 0.15s;
+}
+.rc-chip:hover:not(:disabled) {
+  border-color: var(--c-blue); background: #eff6ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+}
+.rc-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.rc-num {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--c-blue); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.rc-text { flex: 1; line-height: 1.3; }
 
 .msg-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .msg-tag {

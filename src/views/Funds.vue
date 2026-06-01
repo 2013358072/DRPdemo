@@ -104,15 +104,7 @@
                 <h3>资金风险全景</h3>
                 <p>12 域 · {{ currentTotal }} 条 · 高 {{ currentHigh }} · 中 {{ currentMedium }}</p>
               </div>
-              <div class="filter-pills">
-                <span
-                  v-for="p in periods"
-                  :key="p.key"
-                  class="filter-pill"
-                  :class="{ active: period === p.key }"
-                  @click="period = p.key"
-                >{{ p.label }}</span>
-              </div>
+              <span class="pill cyan">{{ periodLabel }}</span>
             </div>
 
             <div class="b1-stats">
@@ -373,17 +365,21 @@
                   <span class="risk-level-badge" :class="r.level">{{ r.levelLabel }}</span>
                   <span class="risk-status" :class="r.statusCode">{{ r.status }}</span>
                   <span class="risk-time">⏱ {{ formatTime(r.warningTime) }}</span>
-                  <button class="risk-ai-btn" @click.stop="openRisk(r.no)">
-                    <span class="ai-btn-icon">✨</span>
-                    <span class="ai-btn-text">AI 分析</span>
-                    <span class="ai-btn-glow"></span>
-                  </button>
-                  <button v-if="analyzedRiskIds.has(r.no)" class="risk-report-btn" @click.stop="viewRiskReport(r.no)">
-                    <span>📄</span>
-                    <span>查看报告</span>
-                  </button>
                 </div>
-                <div class="risk-title">{{ r.name }}</div>
+                <div class="risk-title-row">
+                  <div class="risk-title">{{ r.name }}</div>
+                  <div class="risk-actions-row">
+                    <button class="risk-ai-btn" @click.stop="openRisk(r.no)">
+                      <span class="ai-btn-icon">✨</span>
+                      <span class="ai-btn-text">AI 分析</span>
+                      <span class="ai-btn-glow"></span>
+                    </button>
+                    <button v-if="analyzedRiskIds.has(r.no)" class="risk-report-btn" @click.stop="viewRiskReport(r.no)">
+                      <span>📄</span>
+                      <span>查看报告</span>
+                    </button>
+                  </div>
+                </div>
                 <div class="risk-body">
                   <div class="risk-entity">
                     <span class="risk-label">涉及主体</span>
@@ -783,20 +779,129 @@
       </div>
     </Teleport>
 
+    <!-- ══════════ AI 智能体分析步骤弹窗 ══════════ -->
+    <transition name="agent-fade">
+      <div v-if="aiAgentModal" class="ai-agent-overlay" @click.self="closeAgentModal">
+        <div class="ai-agent-modal">
+          <div class="ai-agent-header">
+            <div class="ai-agent-brain">
+              <span class="ai-brain-core">🧠</span>
+              <span class="ai-brain-pulse"></span>
+            </div>
+            <div class="ai-agent-title">
+              <strong>AI 智能体 · 风险穿透分析</strong>
+              <span>DRP Agent 正在执行多步推理…</span>
+            </div>
+          </div>
+          <div class="ai-agent-body">
+            <div v-for="(step, i) in aiAgentSteps" :key="i" class="ai-step" :class="`step-${step.status}`">
+              <div class="ai-step-indicator">
+                <span v-if="step.status === 'pending'" class="ai-step-dot"></span>
+                <span v-else-if="step.status === 'running'" class="ai-step-spin"></span>
+                <span v-else class="ai-step-check">✓</span>
+              </div>
+              <div class="ai-step-content">
+                <span class="ai-step-text">{{ step.text }}</span>
+                <span v-if="step.detail && step.status === 'done'" class="ai-step-detail">{{ step.detail }}</span>
+              </div>
+              <span v-if="step.status === 'running'" class="ai-step-time">{{ aiElapsed }}s</span>
+            </div>
+          </div>
+          <div v-if="aiAgentComplete" class="ai-agent-footer">
+            <template v-if="aiReportReady">
+              <div class="ai-agent-result">
+                <span class="ai-result-icon">✓</span>
+                <span>分析完成，已生成风险报告</span>
+              </div>
+              <button class="ai-agent-btn" @click="goToRiskReport">查看分析报告 →</button>
+            </template>
+            <div v-else class="ai-agent-result" style="color:#7c3aed">
+              <span class="ai-step-spin"></span>
+              <span>正在生成报告数据，请稍候…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import EChart from '../components/EChart.vue'
 import axios from 'axios'
 
+const props = defineProps({ period: { type: String, default: '6m' } })
 defineEmits(['navigate'])
 
 // ===== 交互状态 =====
 const selectedAreaId = ref('')
-const period = ref('30d')
+const period = computed(() => props.period || '6m')
 const activeRiskId = ref('R-ZJ-001')
+// ── AI 智能体弹窗 ────────────────────────────────────────────────────────
+const aiAgentModal     = ref(false)
+const aiAgentSteps     = ref([])
+const aiAgentComplete  = ref(false)
+const aiElapsed        = ref(0)
+const aiAgentPendingId = ref('')
+const aiReportReady    = ref(false)   // 报告数据是否已拉取就绪（决定「查看分析报告」按钮何时可点）
+let aiDeferNav     = false            // 预取期间为 true：只取数、不跳转；待用户点「查看分析报告」再跳
+let aiTimer        = null
+let aiElapsedTimer = null
+
+const fundsStepDefs = [
+  { text: '启动资金风险分析引擎…',           detail: 'DRP Agent v4.7 · 资金穿透模型已加载' },
+  { text: '提取银行账户与资金流水…',         detail: '识别账户 85 个 · 结构化流水记录 384 条' },
+  { text: '调用异常资金流向识别模型…',       detail: '命中风险规则库 180+ 条 · 匹配中' },
+  { text: '穿透关联账户归集链路…',           detail: '已关联 6 条账户链路 · 3 条归集路径' },
+  { text: '比对资金归集基准数据…',           detail: '检索近 6 个月同类资金操作 · 偏差分析' },
+  { text: '运行反洗钱与合规规则验证…',       detail: '资金流向 · 收付对象 · 时间模式三维核验' },
+  { text: '生成 AI 资金风险分析报告…',       detail: '报告已生成 · 包含 7 个章节' },
+]
+
+function runAgentModal(steps, onComplete) {
+  aiAgentComplete.value = false
+  aiAgentSteps.value = steps.map((s, i) => ({ ...s, status: i === 0 ? 'running' : 'pending' }))
+  aiElapsed.value = 0
+  aiAgentModal.value = true
+  aiElapsedTimer = setInterval(() => { aiElapsed.value++ }, 1000)
+  let stepIdx = 1
+  aiTimer = setInterval(() => {
+    if (stepIdx < steps.length) {
+      aiAgentSteps.value[stepIdx - 1].status = 'done'
+      aiAgentSteps.value[stepIdx].status = 'running'
+      stepIdx++
+    } else {
+      clearInterval(aiTimer)
+      clearInterval(aiElapsedTimer)
+      aiAgentSteps.value[aiAgentSteps.value.length - 1].status = 'done'
+      aiAgentComplete.value = true
+      if (onComplete) onComplete()
+    }
+  }, 1700)
+}
+
+// 点击遮罩关闭弹窗（不跳转）
+function closeAgentModal() {
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+}
+
+function goToRiskReport() {
+  // 报告数据已在加载期间预取就绪；此刻（用户点击）才真正跳转到报告页
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+  if (aiAgentPendingId.value) pushViewHistory('risk-detail')
+}
+
+onBeforeUnmount(() => {
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+})
+
 const analyzedRiskIds = ref(new Set())
 const riskDataCache = ref({})
 const apiRiskData = ref(null)
@@ -1099,7 +1204,7 @@ const todayWeek = `星期${_weekCn[_now.getDay()]}`
 const radarOption = computed(() => ({
   animation: false,
   backgroundColor: 'transparent',
-  tooltip: { backgroundColor: 'rgba(255,255,255,.97)', borderColor: '#dbeafe', textStyle: { color: '#334155', fontSize: 11 } },
+  tooltip: { appendToBody: true, confine: false, backgroundColor: 'rgba(255,255,255,.97)', borderColor: '#dbeafe', textStyle: { color: '#334155', fontSize: 11 }, extraCssText: 'z-index:9999;box-shadow:0 8px 24px rgba(15,23,42,0.18);' },
   radar: {
     indicator: [
       { name: '集中', max: 100 },
@@ -1130,41 +1235,67 @@ const radarOption = computed(() => ({
   }],
 }))
 
-// ===== A3 四轴趋势 =====
-const trendOption = computed(() => ({
-  animation: false,
-  backgroundColor: 'transparent',
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(250,246,236,0.96)', borderColor: '#C9B98A', textStyle: { color: '#334155', fontSize: 11 } },
-  legend: { top: 0, left: 'center', itemGap: 10, itemWidth: 10, itemHeight: 6, textStyle: { color: '#5C6A82', fontSize: 10 } },
-  grid: { left: 8, right: 8, top: 32, bottom: 4, containLabel: true },
-  xAxis: {
-    type: 'category',
-    data: ['06', '07', '08', '09', '10', '11', '12', '01', '02', '03', '04', '05'],
-    axisLabel: { color: '#5C6A82', fontSize: 10 },
-    axisLine: { lineStyle: { color: '#C9B98A' } },
+// ===== A3 四轴趋势（随数据范围变化） =====
+const fundsTrendMap = {
+  '30d': {
+    xLabels: ['第1周','第2周','第3周','第4周'],
+    balance:  [4220, 4250, 4260, 4280],
+    loan:     [6760, 6770, 6790, 6800],
+    collect:  [93, 94, 93, 94],
+    intercept:[3, 2, 3, 2],
   },
-  yAxis: [
-    { type: 'value', name: '亿', nameTextStyle: { color: '#64748b', fontSize: 10 },
-      axisLabel: { color: '#5C6A82', fontSize: 10 }, splitLine: { lineStyle: { color: '#EEF0F4' } } },
-    { type: 'value', name: '% / 笔', nameTextStyle: { color: '#8A8270', fontSize: 10 },
-      axisLabel: { color: '#5C6A82', fontSize: 10 }, splitLine: { show: false } },
-  ],
-  series: [
-    { name: '资金余额', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
-      lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' },
-      areaStyle: { color: 'rgba(37,99,235,0.14)' },
-      data: [3800, 3850, 3920, 3780, 3980, 4050, 3900, 3950, 4080, 4180, 4250, 4280] },
-    { name: '融资额', type: 'bar', yAxisIndex: 0, barWidth: 6,
-      itemStyle: { color: 'rgba(124,58,237,0.5)' },
-      data: [6200, 6280, 6350, 6400, 6450, 6500, 6550, 6580, 6620, 6680, 6750, 6800] },
-    { name: '归集率', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
-      lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' },
-      data: [88, 89, 90, 88, 91, 92, 90, 91, 92, 93, 94, 94] },
-    { name: '风险拦截', type: 'scatter', yAxisIndex: 1, symbolSize: 9,
-      itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 1 },
-      data: [15, 12, 18, 10, 14, 11, 16, 9, 11, 13, 12, 10] },
-  ],
-}))
+  '3m': {
+    xLabels: ['03月','04月','05月'],
+    balance:  [4180, 4250, 4280],
+    loan:     [6680, 6750, 6800],
+    collect:  [93, 94, 94],
+    intercept:[13, 12, 10],
+  },
+  '6m': {
+    xLabels: ['12月','01月','02月','03月','04月','05月'],
+    balance:  [3900, 3950, 4080, 4180, 4250, 4280],
+    loan:     [6550, 6580, 6620, 6680, 6750, 6800],
+    collect:  [90, 91, 92, 93, 94, 94],
+    intercept:[16, 9, 11, 13, 12, 10],
+  },
+}
+const trendOption = computed(() => {
+  const td = fundsTrendMap[period.value] || fundsTrendMap['6m']
+  return {
+    animation: false,
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', backgroundColor: 'rgba(250,246,236,0.96)', borderColor: '#C9B98A', textStyle: { color: '#334155', fontSize: 11 } },
+    legend: { top: 0, left: 'center', itemGap: 10, itemWidth: 10, itemHeight: 6, textStyle: { color: '#5C6A82', fontSize: 10 } },
+    grid: { left: 8, right: 8, top: 32, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: td.xLabels,
+      axisLabel: { color: '#5C6A82', fontSize: 10 },
+      axisLine: { lineStyle: { color: '#C9B98A' } },
+    },
+    yAxis: [
+      { type: 'value', name: '亿', nameTextStyle: { color: '#64748b', fontSize: 10 },
+        axisLabel: { color: '#5C6A82', fontSize: 10 }, splitLine: { lineStyle: { color: '#EEF0F4' } } },
+      { type: 'value', name: '% / 笔', nameTextStyle: { color: '#8A8270', fontSize: 10 },
+        axisLabel: { color: '#5C6A82', fontSize: 10 }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: '资金余额', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
+        lineStyle: { width: 2, color: '#2563eb' }, itemStyle: { color: '#2563eb' },
+        areaStyle: { color: 'rgba(37,99,235,0.14)' },
+        data: td.balance },
+      { name: '融资额', type: 'bar', yAxisIndex: 0, barWidth: 6,
+        itemStyle: { color: 'rgba(124,58,237,0.5)' },
+        data: td.loan },
+      { name: '归集率', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
+        lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' },
+        data: td.collect },
+      { name: '风险拦截', type: 'scatter', yAxisIndex: 1, symbolSize: 9,
+        itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 1 },
+        data: td.intercept },
+    ],
+  }
+})
 
 // ===== B1 风险域 =====
 const riskAreas = [
@@ -1352,25 +1483,48 @@ const interceptList = [
 const ukeyFiltered = computed(() => (ukeyFilter.value === 'all' ? 6 : ukeyFilter.value === 'offline' ? 3 : 3))
 
 // ===== C2 业务热力图 =====
-// ===== C2 司库矩阵：业务域 × 风险态势（明确数字 + 4 色等级） =====
+// ===== C2 司库矩阵：业务域 × 风险态势（随数据范围变化） =====
 const matrixCols = ['账户', '结算', '融资', '票据', '担保', '外汇', '两金', '挂靠', '境外']
-const matrixRaw = [
-  // 数字 = 该业务子域当月触发的风险项数量
-  { label: '销售收款',  cells: [0, 1, 0, 0, 0, 0, 2, 0, 1] },
-  { label: '采购付款',  cells: [3, 2, 0, 1, 0, 0, 4, 7, 2] },
-  { label: '工资税费',  cells: [1, 1, 0, 0, 0, 0, 1, 0, 0] },
-  { label: '担保保证',  cells: [0, 1, 0, 1,11, 0, 0, 0, 0] },
-  { label: '融资本息',  cells: [2, 1,10, 3, 4, 2, 0, 0, 1] },
-  { label: '票据贴现',  cells: [0, 1, 6,12, 0, 0, 1, 0, 0] },
-  { label: '内部归集',  cells: [5, 3, 0, 0, 0, 1, 4, 1, 2] },
-  { label: '境外结算',  cells: [0, 1, 0, 0, 0, 8, 0, 0,14] },
-]
-// 行视图：转成 {label, cells, sum, tone}
-const matrixRows = matrixRaw.map(r => {
-  const sum = r.cells.reduce((s, n) => s + n, 0)
-  const max = Math.max(...r.cells)
-  const tone = max >= 10 ? 'red' : max >= 6 ? 'orange' : max >= 3 ? 'yellow' : 'green'
-  return { ...r, sum, tone }
+const matrixRawByPeriod = {
+  '6m': [
+    { label: '销售收款',  cells: [0, 1, 0, 0, 0, 0, 2, 0, 1] },
+    { label: '采购付款',  cells: [3, 2, 0, 1, 0, 0, 4, 7, 2] },
+    { label: '工资税费',  cells: [1, 1, 0, 0, 0, 0, 1, 0, 0] },
+    { label: '担保保证',  cells: [0, 1, 0, 1,11, 0, 0, 0, 0] },
+    { label: '融资本息',  cells: [2, 1,10, 3, 4, 2, 0, 0, 1] },
+    { label: '票据贴现',  cells: [0, 1, 6,12, 0, 0, 1, 0, 0] },
+    { label: '内部归集',  cells: [5, 3, 0, 0, 0, 1, 4, 1, 2] },
+    { label: '境外结算',  cells: [0, 1, 0, 0, 0, 8, 0, 0,14] },
+  ],
+  '3m': [
+    { label: '销售收款',  cells: [0, 1, 0, 0, 0, 0, 1, 0, 1] },
+    { label: '采购付款',  cells: [2, 1, 0, 1, 0, 0, 2, 4, 1] },
+    { label: '工资税费',  cells: [1, 0, 0, 0, 0, 0, 1, 0, 0] },
+    { label: '担保保证',  cells: [0, 1, 0, 1, 6, 0, 0, 0, 0] },
+    { label: '融资本息',  cells: [1, 1, 5, 2, 2, 1, 0, 0, 1] },
+    { label: '票据贴现',  cells: [0, 1, 3, 7, 0, 0, 1, 0, 0] },
+    { label: '内部归集',  cells: [3, 2, 0, 0, 0, 1, 2, 1, 1] },
+    { label: '境外结算',  cells: [0, 1, 0, 0, 0, 4, 0, 0, 8] },
+  ],
+  '30d': [
+    { label: '销售收款',  cells: [0, 0, 0, 0, 0, 0, 1, 0, 0] },
+    { label: '采购付款',  cells: [1, 1, 0, 0, 0, 0, 1, 2, 0] },
+    { label: '工资税费',  cells: [0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { label: '担保保证',  cells: [0, 0, 0, 0, 2, 0, 0, 0, 0] },
+    { label: '融资本息',  cells: [0, 0, 2, 1, 1, 0, 0, 0, 0] },
+    { label: '票据贴现',  cells: [0, 0, 1, 3, 0, 0, 0, 0, 0] },
+    { label: '内部归集',  cells: [1, 1, 0, 0, 0, 0, 1, 0, 0] },
+    { label: '境外结算',  cells: [0, 0, 0, 0, 0, 2, 0, 0, 3] },
+  ],
+}
+const matrixRows = computed(() => {
+  const raw = matrixRawByPeriod[period.value] || matrixRawByPeriod['6m']
+  return raw.map(r => {
+    const sum = r.cells.reduce((s, n) => s + n, 0)
+    const max = Math.max(...r.cells)
+    const tone = max >= 10 ? 'red' : max >= 6 ? 'orange' : max >= 3 ? 'yellow' : 'green'
+    return { ...r, sum, tone }
+  })
 })
 function matrixToneOf(v) {
   if (v >= 10) return 'red'
@@ -1382,25 +1536,32 @@ function matrixToneOf(v) {
 
 const heatRows = ['账户', '结算', '融资', '票据', '担保', '外汇', '两金', '挂靠', '境外', '资源']
 const heatCols = ['销售收款', '采购付款', '工资税费', '担保保证金', '融资本息', '票据贴现', '内部归集', '境外结算']
-const heatRawData = [
-  [80, 60, 30, 10, 20, 15, 90, 5],   // 账户
-  [70, 85, 50, 12, 30, 22, 75, 8],   // 结算
-  [20, 30, 15, 25, 92, 60, 18, 22],  // 融资
-  [25, 45, 10, 18, 30, 88, 22, 15],  // 票据
-  [10, 15, 8, 90, 35, 10, 12, 5],    // 担保
-  [15, 20, 12, 10, 25, 15, 18, 78],  // 外汇
-  [40, 55, 60, 15, 18, 12, 65, 10],  // 两金
-  [12, 70, 8, 5, 6, 4, 8, 6],        // 挂靠（异常）
-  [10, 18, 8, 6, 20, 10, 15, 95],    // 境外（异常）
-  [22, 28, 18, 12, 14, 10, 20, 16],  // 资源
+const heatRawBase = [
+  [80, 60, 30, 10, 20, 15, 90,  5],
+  [70, 85, 50, 12, 30, 22, 75,  8],
+  [20, 30, 15, 25, 92, 60, 18, 22],
+  [25, 45, 10, 18, 30, 88, 22, 15],
+  [10, 15,  8, 90, 35, 10, 12,  5],
+  [15, 20, 12, 10, 25, 15, 18, 78],
+  [40, 55, 60, 15, 18, 12, 65, 10],
+  [12, 70,  8,  5,  6,  4,  8,  6],
+  [10, 18,  8,  6, 20, 10, 15, 95],
+  [22, 28, 18, 12, 14, 10, 20, 16],
 ]
+const heatScaleMap = { '30d': 0.18, '3m': 0.50, '6m': 1.0 }
+const heatRawData = computed(() => {
+  const s = heatScaleMap[period.value] || 1.0
+  if (s === 1.0) return heatRawBase
+  return heatRawBase.map(row => row.map(v => Math.max(1, Math.round(v * s))))
+})
 const hotCells = [{ r: 7, c: 1 }, { r: 8, c: 7 }]
 const isHotCell = (r, c) => hotCells.some(h => h.r === r && h.c === c)
 const heatmapOption = computed(() => {
   const data = []
+  const hd = heatRawData.value
   for (let r = 0; r < heatRows.length; r++) {
     for (let c = 0; c < heatCols.length; c++) {
-      data.push([c, r, heatRawData[r][c], isHotCell(r, c)])
+      data.push([c, r, hd[r][c], isHotCell(r, c)])
     }
   }
   return {
@@ -1432,7 +1593,7 @@ const heatmapOption = computed(() => {
 })
 
 // ===== C2 银行 TOP10 =====
-const bankRanking = [
+const bankRankingBase = [
   { rank: 1,  name: '中国工商银行 XX 分行', balance: 1280, inflow: 850, outflow: 720, risk: 0, ukey: 'online' },
   { rank: 2,  name: '中国建设银行 XX 分行', balance: 950,  inflow: 680, outflow: 580, risk: 0, ukey: 'online' },
   { rank: 3,  name: '中国银行 XX 分行',     balance: 680,  inflow: 420, outflow: 380, risk: 1, ukey: 'online' },
@@ -1446,6 +1607,17 @@ const bankRanking = [
   { rank: 9,  name: '中信银行 XX 分行',     balance: 180,  inflow: 120, outflow: 95,  risk: 1, ukey: 'online' },
   { rank: 10, name: '浦发银行 XX 分行',     balance: 85,   inflow: 65,  outflow: 55,  risk: 0, ukey: 'online' },
 ]
+const bankScaleMap = { '30d': 0.16, '3m': 0.50, '6m': 1.0 }
+const bankRanking = computed(() => {
+  const s = bankScaleMap[period.value] || 1.0
+  if (s === 1.0) return bankRankingBase
+  return bankRankingBase.map(b => ({
+    ...b,
+    balance:  Math.round(b.balance * s),
+    inflow:   Math.round(b.inflow  * s),
+    outflow:  Math.round(b.outflow * s),
+  }))
+})
 
 // ===== B3 实时风险 =====
 const formatTime = (timeStr) => {
@@ -1862,8 +2034,22 @@ async function callFlowInstanceStreamRun(riskId, action) {
   return response.data
 }
 
-// AI 分析风险
-async function openRisk(id) {
+// AI 分析风险（先显示弹窗动画，完成后执行真实逻辑）
+function openRisk(id) {
+  // 已分析过：直接看报告，不再弹加载窗
+  if (analyzedRiskIds.value.has(id)) { viewRiskReport(id); return }
+  aiAgentPendingId.value = id
+  aiReportReady.value = false
+  // 弹窗动画与报告数据「预取」并发：预取期间 aiDeferNav=true 只取数不跳转；就绪后出现「查看分析报告」
+  runAgentModal(fundsStepDefs, null)
+  aiDeferNav = true
+  _openRiskReal(id)
+    .then(() => { aiReportReady.value = true })
+    .catch(() => { aiReportReady.value = true })
+    .finally(() => { aiDeferNav = false })
+}
+
+async function _openRiskReal(id) {
   console.log('=== openRisk 开始 ===', 'riskId:', id)
   
   const apiData = await callFlowInstanceStreamRun(id, 'view')
@@ -1910,7 +2096,7 @@ async function openRisk(id) {
       analyzedRiskIds.value.add(id)
       analyzedRiskIds.value = new Set(analyzedRiskIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     } else {
       const fallbackData = {
@@ -1927,13 +2113,13 @@ async function openRisk(id) {
       analyzedRiskIds.value.add(id)
       analyzedRiskIds.value = new Set(analyzedRiskIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     }
   }
   
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // 查看报告
@@ -1944,7 +2130,7 @@ function viewRiskReport(id) {
   }
   
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // 视图历史管理
@@ -2961,6 +3147,15 @@ function penDomainColor(domain) {
   font-size: 12px;
   line-height: 1.4;
 }
+.risk-title-row {
+  display: flex; align-items: center; gap: 8px;
+  justify-content: space-between;
+}
+.risk-title-row .risk-title { flex: 1; min-width: 0; }
+.risk-actions-row {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  justify-content: center; flex-shrink: 0;
+}
 
 .risk-body {
   display: flex;
@@ -3684,4 +3879,38 @@ function penDomainColor(domain) {
   margin-bottom: 18px;
   color: #0f172a;
 }
+
+/* ══════════ AI 智能体分析弹窗 ══════════ */
+.ai-agent-overlay { position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; }
+.ai-agent-modal { width:560px; max-height:80vh; background:#0b1120; border:1px solid rgba(99,102,241,0.35); border-radius:18px; padding:28px; display:flex; flex-direction:column; gap:20px; box-shadow:0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.12); }
+.ai-agent-header { display:flex; align-items:center; gap:14px; }
+.ai-agent-brain { position:relative; width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-brain-core { font-size:24px; position:relative; z-index:1; }
+.ai-brain-pulse { position:absolute; inset:-4px; border-radius:50%; border:2px solid rgba(99,102,241,0.5); animation:brain-pulse 1.5s ease-in-out infinite; }
+@keyframes brain-pulse { 0%,100% { transform:scale(1); opacity:0.6; } 50% { transform:scale(1.15); opacity:1; } }
+.ai-agent-title { display:flex; flex-direction:column; gap:3px; }
+.ai-agent-title strong { font-size:17px; color:#e2e8f0; letter-spacing:0.02em; }
+.ai-agent-title span { font-size:12px; color:#64748b; }
+.ai-agent-body { display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
+.ai-step { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; transition:.3s; }
+.ai-step.step-running { background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); }
+.ai-step.step-done { background:rgba(16,185,129,0.06); }
+.ai-step.step-done .ai-step-text { color:#94a3b8; }
+.ai-step-indicator { width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-step-dot { width:8px; height:8px; border-radius:50%; background:#334155; }
+.ai-step-spin { width:18px; height:18px; border:2px solid rgba(99,102,241,0.3); border-top-color:#818cf8; border-radius:50%; animation:agent-spin .7s linear infinite; }
+.ai-step-check { width:22px; height:22px; border-radius:50%; background:rgba(16,185,129,0.2); color:#10b981; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.ai-step-content { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ai-step-text { font-size:13px; color:#cbd5e1; font-weight:500; }
+.ai-step-detail { font-size:11px; color:#64748b; }
+.ai-step-time { font-size:12px; color:#6366f1; font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+.ai-agent-footer { display:flex; flex-direction:column; gap:12px; border-top:1px solid rgba(99,102,241,0.15); padding-top:16px; }
+.ai-agent-result { display:flex; align-items:center; gap:8px; color:#10b981; font-size:14px; font-weight:600; }
+.ai-result-icon { width:24px; height:24px; border-radius:50%; background:rgba(16,185,129,0.2); display:flex; align-items:center; justify-content:center; font-size:13px; }
+.ai-agent-btn { width:100%; height:44px; border-radius:12px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:.2s; letter-spacing:.04em; }
+.ai-agent-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(99,102,241,0.45); }
+@keyframes agent-spin { to { transform:rotate(360deg); } }
+.agent-fade-enter-active { transition:opacity .25s; }
+.agent-fade-leave-active { transition:opacity .2s; }
+.agent-fade-enter-from, .agent-fade-leave-to { opacity:0; }
 </style>

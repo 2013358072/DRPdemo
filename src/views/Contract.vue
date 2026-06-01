@@ -145,22 +145,26 @@
                 <div v-for="item in activeRiskItems" :key="item.id" class="ri-card" :class="`ri-${item.level}`">
                   <!-- 顶行：ID + 等级 + 状态 + AI按钮 -->
                   <div class="ric-head">
-                    <button class="ric-id-link" @click="openRisk(item.id)">{{ item.id }}</button>
+                    <button class="ric-id-link" @click="aiAnalyze(item.id)">{{ item.id }}</button>
                     <span class="risk-pill" :class="`rp-${item.level}`">{{ riskLevelLabel2[item.level] }}</span>
                     <span class="ric-status" :class="`rics-${item.statusKey}`">{{ item.status }}</span>
                     <span class="ric-time">⏱ {{ item.alertTime }}</span>
-                    <button class="ric-ai-btn" @click.stop="openRisk(item.id)">
-                      <span class="ai-btn-icon">✨</span>
-                      <span class="ai-btn-text">AI 分析</span>
-                      <span class="ai-btn-glow"></span>
-                    </button>
-                    <button v-if="item.analyzed" class="ric-report-btn" @click.stop="viewRiskReport(item.id)">
-                      <span>📄</span>
-                      <span>查看报告</span>
-                    </button>
                   </div>
-                  <!-- 名称 -->
-                  <div class="ric-name">{{ item.name }}</div>
+                  <!-- 名称 + 操作按钮（竖排，置于标题右侧） -->
+                  <div class="ric-name-row">
+                    <div class="ric-name">{{ item.name }}</div>
+                    <div class="ric-actions-col">
+                      <button class="ric-ai-btn" @click.stop="aiAnalyze(item.id)">
+                        <span class="ai-btn-icon">✨</span>
+                        <span class="ai-btn-text">AI 分析</span>
+                        <span class="ai-btn-glow"></span>
+                      </button>
+                      <button v-if="item.analyzed" class="ric-report-btn" @click.stop="viewRiskReport(item.id)">
+                        <span>📄</span>
+                        <span>查看报告</span>
+                      </button>
+                    </div>
+                  </div>
                   <!-- 涉及主体 + 关联索引 -->
                   <div class="ric-info-row">
                     <span class="ric-info-lbl">涉及主体</span>
@@ -829,7 +833,7 @@
 
     <!-- ══════════ AI 智能体分析步骤弹窗 ══════════ -->
     <transition name="agent-fade">
-      <div v-if="aiAgentModal" class="ai-agent-overlay">
+      <div v-if="aiAgentModal" class="ai-agent-overlay" @click.self="closeAgentModal">
         <div class="ai-agent-modal">
           <div class="ai-agent-header">
             <div class="ai-agent-brain">
@@ -856,11 +860,17 @@
             </div>
           </div>
           <div v-if="aiAgentComplete" class="ai-agent-footer">
-            <div class="ai-agent-result">
-              <span class="ai-result-icon">✓</span>
-              <span>分析完成，已生成风险报告</span>
+            <template v-if="aiReportReady">
+              <div class="ai-agent-result">
+                <span class="ai-result-icon">✓</span>
+                <span>分析完成，已生成风险报告</span>
+              </div>
+              <button class="ai-agent-btn" @click="goToRiskReport">查看分析报告 →</button>
+            </template>
+            <div v-else class="ai-agent-result" style="color:#7c3aed">
+              <span class="ai-step-spin"></span>
+              <span>正在生成报告数据，请稍候…</span>
             </div>
-            <button class="ai-agent-btn" @click="goToRiskReport">查看分析报告 →</button>
           </div>
         </div>
       </div>
@@ -1519,7 +1529,22 @@ function viewRiskReport(id) {
     }
   }
 
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
+}
+
+// AI 分析入口：已分析→直接看报告（不弹窗）；否则弹窗动画 + 并发拉取报告数据
+function aiAnalyze(id) {
+  if (analyzedRiskIds.value.has(id)) { viewRiskReport(id); return }
+  aiAgentTargetId.value = id
+  aiReportReady.value = false
+  aiNavOnView = true
+  // 弹窗动画与报告数据「预取」并发：预取期间 aiDeferNav=true 只取数不跳转；点「查看分析报告」才跳
+  runAgentModal(aiStepDefs, id, null)
+  aiDeferNav = true
+  openRisk(id)
+    .then(() => { aiReportReady.value = true })
+    .catch(() => { aiReportReady.value = true })
+    .finally(() => { aiDeferNav = false })
 }
 
 async function openRisk(id) {
@@ -1599,7 +1624,7 @@ async function openRisk(id) {
       analyzedRiskIds.value.add(id)
       analyzedRiskIds.value = new Set(analyzedRiskIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     } else {
       // 如果没有 report_json，尝试直接使用 message
@@ -1621,7 +1646,7 @@ async function openRisk(id) {
       analyzedRiskIds.value.add(id)
       analyzedRiskIds.value = new Set(analyzedRiskIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     }
   }
@@ -1639,7 +1664,7 @@ async function openRisk(id) {
     analyzedRiskIds.value = new Set(analyzedRiskIds.value)
   }
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // ── 视图导航历史栈（用于返回） ──
@@ -1719,6 +1744,9 @@ const activeRiskItems = computed(() => {
 const aiAgentModal = ref(false)
 const aiAgentSteps = ref([])
 const aiAgentComplete = ref(false)
+const aiReportReady = ref(true)   // 报告数据是否就绪：合同详情AI解析为同步，默认 true；风险分析拉取期间置 false
+let aiDeferNav = false            // 预取期间为 true：只取数、不跳转；待用户点「查看分析报告」再跳
+let aiNavOnView = false           // true=风险分析流程（点击后跳风险报告）；false=合同详情AI解析（不跳转）
 const aiAgentTargetId = ref('')
 const aiElapsed = ref(0)
 let aiTimer = null
@@ -1747,21 +1775,25 @@ const aiContractStepDefs = [
 async function analyzeRiskItem(item) {
   await callFlowInstanceStreamRun(item.id, 'analyze')
   runAgentModal(aiStepDefs, item.id, () => {
+    // 分析完成：仅标记已分析并展示「查看分析报告」按钮，等用户点击再跳转（不自动跳转）
     analyzedRiskIds.value.add(item.id)
     analyzedRiskIds.value = new Set(analyzedRiskIds.value)
-    setTimeout(() => { aiAgentModal.value = false; openRisk(item.id) }, 600)
   })
+}
+
+// 点击遮罩关闭弹窗（不跳转）
+function closeAgentModal() {
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
 }
 
 function goToRiskReport() {
   aiAgentModal.value = false
   clearInterval(aiTimer)
   clearInterval(aiElapsedTimer)
-  // 如果是合同页面的 AI 解析，关闭弹窗回到合同详情（结果已在 analyzeCurrentContract 回调中设置）
-  if (viewMode.value === 'contract-detail') {
-    return
-  }
-  openRisk(aiAgentTargetId.value)
+  // 报告数据已预取就绪；仅风险分析流程在此刻（用户点击）跳转到风险报告页，合同详情解析就地展示不跳转
+  if (aiNavOnView) { aiNavOnView = false; pushViewHistory('risk-detail') }
 }
 
 // AI agent modal — shared step engine
@@ -1785,10 +1817,12 @@ function runAgentModal(steps, targetId, onComplete) {
       aiAgentComplete.value = true
       if (onComplete) onComplete()
     }
-  }, 600)
+  }, 1700)
 }
 
 function analyzeCurrentContract() {
+  aiReportReady.value = true   // 合同详情 AI 解析为同步生成，结果就绪，动画结束即可点「查看分析报告」
+  aiNavOnView = false          // 合同详情解析：点击「查看分析报告」不跳转到风险报告页，仅就地展示
   runAgentModal(aiContractStepDefs, activeContractId.value, () => {
     // Agent modal 完成后，生成结果
     const c = activeContract.value
@@ -2038,6 +2072,9 @@ const stageChartOption = computed(() => {
 .ric-id-link { font-size:12px; font-weight:700; color:#2563eb; font-family:'JetBrains Mono', monospace; background:none; border:none; cursor:pointer; padding:0; text-align:left; text-decoration:underline; text-underline-offset:2px; flex-shrink:0; }
 .ric-id-link:hover { color:#1d4ed8; }
 .ric-name { font-size:13px; font-weight:700; color:#0f172a; line-height:1.35; }
+.ric-name-row { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.ric-name-row .ric-name { flex:1; min-width:0; }
+.ric-actions-col { display:flex; flex-direction:column; align-items:stretch; gap:4px; justify-content:center; flex-shrink:0; }
 .ric-time { font-size:10px; color:#94a3b8; margin-left:auto; flex-shrink:0; }
 
 .ric-info-row { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; align-items:center; padding-top:3px; }
@@ -2065,7 +2102,7 @@ const stageChartOption = computed(() => {
 .di-spin-ring { width:18px; height:18px; border:2px solid #e2e8f0; border-top-color:#7c3aed; border-radius:50%; animation:spin .6s linear infinite; }
 .di-spin-lbl { font-size:13px; }
 
-.ric-report-btn { height:26px; padding:0 10px; border-radius:7px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:.14s; flex-shrink:0; }
+.ric-report-btn { height:26px; padding:0 10px; border-radius:7px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:4px; transition:.14s; flex-shrink:0; }
 .ric-report-btn:hover { background:#2563eb; color:#fff; border-color:#2563eb; }
 .ric-report-btn span:first-child { font-size:12px; }
 

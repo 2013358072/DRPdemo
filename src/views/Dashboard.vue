@@ -2,7 +2,7 @@
   <div class="white-scene">
     <div class="screen">
       <section class="kpis">
-        <article v-for="item in kpis" :key="item.id" class="card kpi" :style="{ '--c': item.color, '--bg': item.bg }">
+        <article v-for="item in currentKpis" :key="item.id" class="card kpi" :style="{ '--c': item.color, '--bg': item.bg }">
           <div class="row">
             <span class="kpi-label">{{ item.label }}</span>
             <span class="pill" :style="{ color: item.color }">{{ item.tag }}</span>
@@ -18,7 +18,7 @@
 
       <section class="value-kpis">
         <article
-          v-for="item in valueKpis"
+          v-for="item in currentValueKpis"
           :key="item.id"
           class="card value-kpi"
           :style="{ '--c': item.color, '--bg': item.bg }"
@@ -141,9 +141,9 @@
             <div class="panel-head">
               <div>
                 <h3>预警趋势</h3>
-                <p>近 12 个月 · 异常月标红</p>
+                <p>{{ (trendDataMap[props.period] || trendDataMap['6m']).subtitle }}</p>
               </div>
-              <span class="pill red">12 个月</span>
+              <span class="pill red">{{ (trendDataMap[props.period] || trendDataMap['6m']).pillLabel }}</span>
             </div>
             <EChart class="trend" theme="light" :option="trendOption" />
           </section>
@@ -153,7 +153,7 @@
               <div>
                 <h3>实时风险事件列表</h3>
               </div>
-              <span class="pill orange">{{ events.length }} 条</span>
+              <span class="pill orange">{{ currentEvents.length }} 条</span>
             </div>
             <div class="table-head">
               <span>ID</span><span>类型</span><span>单位</span><span>描述</span><span>级别</span><span>状态</span><span>时间</span>
@@ -236,6 +236,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import * as echarts from 'echarts'
 import EChart from '../components/EChart.vue'
 
+const props = defineProps({ period: { type: String, default: '6m' } })
 const emit = defineEmits(['navigate'])
 const closureRate = 91.8
 const clock = ref('--:--:--')
@@ -257,9 +258,8 @@ const mapTransformStyle = computed(() => ({
 }))
 let mapDragStart = { x: 0, y: 0, offsetX: 0, offsetY: 0 }
 
-const routeMap = { invest: '投资穿透页面', finance: '资金穿透页面', equity: '合同 / 责任穿透页面', overseas: '采购 / 境外穿透页面' }
+const routeMap = { finance: '资金穿透页面', equity: '合同 / 责任穿透页面', overseas: '采购 / 境外穿透页面' }
 const areaNavigateMap = {
-  invest: 'investment',
   funds: 'funds',
   contract: 'contract',
   procurement: 'procurement',
@@ -299,8 +299,8 @@ const areas = [
 
 const nodes = [
   { id: 'hq', name: '集团总部', x: 46, y: 24, level: 'group', levelLabel: '集团层', risk: 66, alerts: 3, dept: '集团风控中心', areaIds: ['funds','finance'], sectorKey: 'financialService', route: 'finance', path: ['集团总部'], pathLabel: '集团总部', problem: '司库归集运行总体平稳，个别跨账户调拨审批时长偏长。' },
-  { id: 'east', name: '华东电力公司', x: 60, y: 36, level: 'subsidiary', levelLabel: '子公司', risk: 71, alerts: 4, dept: '投资管理部', areaIds: ['invest','funds'], sectorKey: 'powerEnergy', route: 'invest', path: ['集团总部','华东电力公司'], pathLabel: '集团总部 / 华东电力公司', problem: '风电项目存在轻微投资偏差，整体仍处于可控区间。' },
-  { id: 'storage', name: '江苏储能参股公司', x: 68, y: 46, level: 'associate', levelLabel: '参股单位', risk: 59, alerts: 2, dept: '联合专班', areaIds: ['invest','contract'], sectorKey: 'powerEnergy', route: 'invest', path: ['集团总部','华东电力公司','江苏储能参股公司'], pathLabel: '集团总部 / 华东电力公司 / 江苏储能参股公司', problem: '参股单位合同回传稍慢，设备采购与付款节奏基本匹配。' },
+  { id: 'east', name: '华东电力公司', x: 60, y: 36, level: 'subsidiary', levelLabel: '子公司', risk: 71, alerts: 4, dept: '投资管理部', areaIds: ['invest','funds'], sectorKey: 'powerEnergy', route: 'funds', path: ['集团总部','华东电力公司'], pathLabel: '集团总部 / 华东电力公司', problem: '风电项目存在轻微投资偏差，整体仍处于可控区间。' },
+  { id: 'storage', name: '江苏储能参股公司', x: 68, y: 46, level: 'associate', levelLabel: '参股单位', risk: 59, alerts: 2, dept: '联合专班', areaIds: ['invest','contract'], sectorKey: 'powerEnergy', route: 'equity', path: ['集团总部','华东电力公司','江苏储能参股公司'], pathLabel: '集团总部 / 华东电力公司 / 江苏储能参股公司', problem: '参股单位合同回传稍慢，设备采购与付款节奏基本匹配。' },
   { id: 'south', name: '南方工程公司', x: 56, y: 69, level: 'subsidiary', levelLabel: '子公司', risk: 68, alerts: 3, dept: '采购监管部', areaIds: ['procurement','contract'], sectorKey: 'engineeringBuild', route: 'overseas', path: ['集团总部','南方工程公司'], pathLabel: '集团总部 / 南方工程公司', problem: '招采执行总体稳定，个别供应商资料补录略有延迟。' },
   { id: 'zhuhai', name: '珠海装备参股平台', x: 61, y: 77, level: 'associate', levelLabel: '参股单位', risk: 52, alerts: 2, dept: '采购监管部', areaIds: ['procurement','overseas'], sectorKey: 'equipmentMake', route: 'overseas', path: ['集团总部','南方工程公司','珠海装备参股平台'], pathLabel: '集团总部 / 南方工程公司 / 珠海装备参股平台', problem: '关键设备海外采购链路较长，但供应商关联核验结果正常。' },
   { id: 'west', name: '西部产融平台', x: 34, y: 53, level: 'subsidiary', levelLabel: '子公司', risk: 47, alerts: 1, dept: '金融业务部', areaIds: ['financial','funds'], sectorKey: 'financialService', route: 'finance', path: ['集团总部','西部产融平台'], pathLabel: '集团总部 / 西部产融平台', problem: '融资租赁回款节奏稳定，少量项目需持续观察。' },
@@ -311,7 +311,7 @@ const links = [
 ]
 
 const sectors = [
-  { key: 'powerEnergy', label: '电力能源', revenue: 865, profit: 96, risk: 64, area: 'invest', route: 'invest', desc: '投资规模较大，但多数项目执行平稳，少量重点项目需跟踪。' },
+  { key: 'powerEnergy', label: '电力能源', revenue: 865, profit: 96, risk: 64, area: 'invest', route: 'funds', desc: '投资规模较大，但多数项目执行平稳，少量重点项目需跟踪。' },
   { key: 'equipmentMake', label: '装备制造', revenue: 482, profit: 39, risk: 58, area: 'procurement', route: 'overseas', desc: '供应链整体稳定，采购进度和到货周期存在少量波动。' },
   { key: 'engineeringBuild', label: '工程建设', revenue: 536, profit: 44, risk: 61, area: 'contract', route: 'equity', desc: '工程履约总体可控，主要关注合同归档与境外协同效率。' },
   { key: 'financialService', label: '金融服务', revenue: 318, profit: 52, risk: 67, area: 'funds', route: 'finance', desc: '资金调度总体正常，局部审批时效仍需优化。' },
@@ -333,7 +333,7 @@ const plans = [
 ]
 
 const events = [
-  { id: 'E01', scene: '投资', unit: '华东电力公司', unitId: 'east', desc: '风电基地二期月度偏差略高于计划值', level: 'medium', levelText: '关注', status: '跟踪中', time: '09:18', route: 'invest', area: 'invest', dept: '投资管理部', deadline: '2 天', steps: ['复核预算节奏', '确认付款节点', '形成月度说明'] },
+  { id: 'E01', scene: '投资', unit: '华东电力公司', unitId: 'east', desc: '风电基地二期月度偏差略高于计划值', level: 'medium', levelText: '关注', status: '跟踪中', time: '09:18', route: 'funds', area: 'invest', dept: '投资管理部', deadline: '2 天', steps: ['复核预算节奏', '确认付款节点', '形成月度说明'] },
   { id: 'E02', scene: '资金', unit: '集团总部', unitId: 'hq', desc: '个别跨账户调拨审批耗时偏长', level: 'high', levelText: '中风险', status: '处理中', time: '09:26', route: 'finance', area: 'funds', dept: '司库运营中心', deadline: '1 天', steps: ['梳理审批节点', '优化处理时效', '回看抽样结果'] },
   { id: 'E03', scene: '合同', unit: '江苏储能参股公司', unitId: 'storage', desc: '增补协议归档时间晚于计划 1 天', level: 'green', levelText: '正常', status: '已提醒', time: '10:02', route: 'equity', area: 'contract', dept: '法务合规部', deadline: '48h', steps: ['补齐归档材料', '核验主合同', '完成例行复盘'] },
   { id: 'E04', scene: '采购', unit: '南方工程公司', unitId: 'south', desc: '关键设备到货进度需持续跟踪', level: 'medium', levelText: '关注', status: '跟踪中', time: '10:24', route: 'overseas', area: 'procurement', dept: '采购监管部', deadline: '3 天', steps: ['核对供货计划', '更新台账状态', '周度复盘'] },
@@ -342,7 +342,7 @@ const events = [
 
 // 全国企业资金穿透 – 按板块归集资金规模（亿元）
 const fundFlowItems = [
-  { id: 'ff1', name: '电力能源', value: 865, unitId: 'east',    area: 'invest',      route: 'invest',   riskLabel: '正常' },
+  { id: 'ff1', name: '电力能源', value: 865, unitId: 'east',    area: 'invest',      route: 'funds',    riskLabel: '正常' },
   { id: 'ff2', name: '工程建设', value: 536, unitId: 'south',   area: 'contract',    route: 'equity',   riskLabel: '关注' },
   { id: 'ff3', name: '装备制造', value: 482, unitId: 'south',   area: 'procurement', route: 'overseas', riskLabel: '正常' },
   { id: 'ff4', name: '金融服务', value: 318, unitId: 'west',    area: 'funds',       route: 'finance',  riskLabel: '关注' },
@@ -360,6 +360,77 @@ const dutyBars = [
   { id: 'db6', name: '海外工程',   value: 43, unitId: 'south',   area: 'overseas',    planId: 'p3', owner: '海外工程',   project: '境外合规',   riskItem: '履约进度',     status: '核查中' },
 ]
 
+// ── 各数据范围对应的面板数据 ──
+const periodPanelData = {
+  '30d': {
+    kpiVals: [
+      { value:'46.2',  tag:'月环比+1.5%', yoy:'月环比 +1.5%', desc:'月度利润平稳' },
+      { value:'11.9',  tag:'月环比+0.2pp',yoy:'月环比 +0.2pp',desc:'效率稳步提升' },
+      { value:'89.5',  tag:'月环比+0.8pp',yoy:'月环比 +0.8pp',desc:'现金流趋好'   },
+      { value:'65.8',  tag:'月环比-0.2pp',yoy:'月环比 -0.2pp',desc:'风险持续可控' },
+      { value:'5.1',   tag:'月环比+0.1pp',yoy:'月环比 +0.1pp',desc:'创新投入稳健' },
+      { value:'157',   tag:'月环比+1.8%', yoy:'月环比 +1.8%', desc:'效率持续提升' },
+    ],
+    valueKpiVals: ['21.2','15.8','8.6','38.6','1,280'],
+    trendSlice: 4,
+    fundVals: [145, 90, 80, 53, 34, 3],
+    dutyVals:  [62, 54, 48, 38, 28, 22],
+    eventIds:  ['E02','E01','E04'],
+  },
+  '3m': {
+    kpiVals: [
+      { value:'142.8', tag:'季度+7.3%',   yoy:'季度 +7.3%',   desc:'季度利润稳增' },
+      { value:'12.3',  tag:'季度+0.8pp',  yoy:'季度 +0.8pp',  desc:'经营效率提升' },
+      { value:'91.0',  tag:'季度+2.1pp',  yoy:'季度 +2.1pp',  desc:'现金流质量提升'},
+      { value:'65.1',  tag:'季度-0.5pp',  yoy:'季度 -0.5pp',  desc:'风险可控'     },
+      { value:'5.3',   tag:'季度+0.4pp',  yoy:'季度 +0.4pp',  desc:'创新投入加强' },
+      { value:'161',   tag:'季度+3.2%',   yoy:'季度 +3.2%',   desc:'效率稳步提升' },
+    ],
+    valueKpiVals: ['62.4','46.5','24.8','38.6','1,280'],
+    trendSlice: 6,
+    fundVals: [432, 268, 242, 159, 102, 8],
+    dutyVals:  [78, 71, 63, 52, 41, 33],
+    eventIds:  ['E02','E01','E03','E04'],
+  },
+  '6m': {
+    kpiVals: [
+      { value:'286.4', tag:'同比+8.6%',   yoy:'同比 +8.6%',   desc:'利润稳中有升' },
+      { value:'12.8',  tag:'同比+1.3pp',  yoy:'同比 +1.3pp',  desc:'经营效率提升' },
+      { value:'92.6',  tag:'同比+4.2pp',  yoy:'同比 +4.2pp',  desc:'现金流质量向好'},
+      { value:'64.3',  tag:'同比-1.1pp',  yoy:'同比 -1.1pp',  desc:'风险可控'     },
+      { value:'5.7',   tag:'同比+0.8pp',  yoy:'同比 +0.8pp',  desc:'创新投入增强' },
+      { value:'168',   tag:'同比+6.5%',   yoy:'同比 +6.5%',   desc:'效率持续提升' },
+    ],
+    valueKpiVals: ['124.6','92.8','48.3','38.6','1,280'],
+    trendSlice: 12,
+    fundVals: [865, 536, 482, 318, 205, 15],
+    dutyVals:  [91, 85, 78, 64, 52, 43],
+    eventIds:  ['E01','E02','E03','E04','E05'],
+  },
+}
+const activePD = computed(() => periodPanelData[props.period] || periodPanelData['6m'])
+const currentKpis = computed(() => kpis.map((item, i) => ({
+  ...item,
+  value: activePD.value.kpiVals[i].value,
+  tag:   activePD.value.kpiVals[i].tag,
+  yoy:   activePD.value.kpiVals[i].yoy,
+  desc:  activePD.value.kpiVals[i].desc,
+  trend: item.trend.slice(-activePD.value.trendSlice),
+})))
+const currentValueKpis = computed(() => valueKpis.map((item, i) => ({
+  ...item, value: activePD.value.valueKpiVals[i],
+})))
+const currentFundFlowItems = computed(() => fundFlowItems.map((item, i) => ({
+  ...item, value: activePD.value.fundVals[i],
+})))
+const currentDutyBars = computed(() => dutyBars.map((item, i) => ({
+  ...item, value: activePD.value.dutyVals[i],
+})))
+const currentEvents = computed(() => {
+  const ids = new Set(activePD.value.eventIds)
+  return events.filter(e => ids.has(e.id))
+})
+
 const currentArea = computed(() => areas.find(i => i.id === selectedAreaId.value) || areas[0])
 const currentUnit = computed(() => nodes.find(i => i.id === selectedUnitId.value) || nodes[0])
 const currentSector = computed(() => sectors.find(i => i.key === sector.value) || sectors[0])
@@ -369,7 +440,7 @@ const visibleNodes = computed(() => nodes.filter((i) => {
   return match && rank[i.level] <= rank[level.value]
 }))
 const visibleLines = computed(() => links.map(([a,b],idx)=>{ const from=nodes.find(i=>i.id===a); const to=nodes.find(i=>i.id===b); if(!from||!to) return null; if(!visibleNodes.value.some(i=>i.id===a)||!visibleNodes.value.some(i=>i.id===b)) return null; return { id: idx, d: `M ${from.x*9} ${from.y*4.5} C ${(from.x+to.x)*4.5} ${from.y*4.5}, ${(from.x+to.x)*4.5} ${to.y*4.5}, ${to.x*9} ${to.y*4.5}` } }).filter(Boolean))
-const sortedEvents = computed(() => [...events].sort((a,b) => (b.area===selectedAreaId.value) - (a.area===selectedAreaId.value)))
+const sortedEvents = computed(() => [...currentEvents.value].sort((a,b) => (b.area===selectedAreaId.value) - (a.area===selectedAreaId.value)))
 function buildHeatTop3(cellValue, sectorLabel, areaItem) {
   if (cellValue >= 75) {
     return [
@@ -479,10 +550,10 @@ const chinaMapOption = computed(() => {
       type: 'piecewise',
       show: false,
       pieces: [
-        { min: 80, color: '#ef4444' },
-        { min: 60, max: 79, color: '#f97316' },
-        { min: 40, max: 59, color: '#facc15' },
-        { max: 39, color: '#22c55e' },
+        { min: 80, color: '#ef4444e2' },
+        { min: 60, max: 79, color: '#fa822ddf' },
+        { min: 40, max: 59, color: '#f5db73fa' },
+        { max: 39, color: '#219c4eab' },
       ],
     },
     series: [
@@ -499,8 +570,8 @@ const chinaMapOption = computed(() => {
         },
         itemStyle: {
           areaColor: '#f8fafc',
-          borderColor: '#cbd5e1',
-          borderWidth: 1,
+          borderColor: '#626467',
+          borderWidth: 0.2,
         },
         emphasis: {
           label: { show: false },
@@ -635,10 +706,13 @@ const heatmapOption = computed(() => ({
   grid: { left: 76, right: 8, top: 10, bottom: 2, containLabel: true },
   tooltip: {
     trigger: 'item',
+    appendToBody: true,        // 弹窗渲染到 <body>，避免被 .heatmap-shell 的 overflow:hidden 裁剪
+    confine: false,
     backgroundColor: 'rgba(255,255,255,0.98)',
     borderColor: '#dbeafe',
     borderWidth: 1,
     textStyle: { color: '#334155' },
+    extraCssText: 'z-index:9999; box-shadow:0 8px 24px rgba(15,23,42,0.18);',
     formatter: (params) => {
       if (!params.data) return ''
       const cell = params.data
@@ -698,10 +772,10 @@ const heatmapOption = computed(() => ({
     show: false,
     calculable: false,
     pieces: [
-      { min: 80, color: '#ef4444' },
-      { min: 60, max: 79, color: '#f97316' },
-      { min: 40, max: 59, color: '#facc15' },
-      { max: 39, color: '#22c55e' },
+      { gte: 80, color: '#ee5252f6' },
+      { gte: 60, lt: 80, color: '#f68f46' },
+      { gte: 40, lt: 60, color: '#facc15' },
+      { lt: 40, color: '#149b46c1' },
     ],
   },
   series: [
@@ -759,7 +833,7 @@ const fundsOption = computed(() => ({
         label: { show: true, fontSize: 11, fontWeight: 700, color: '#0f172a' },
         itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,.14)' },
       },
-      data: fundFlowItems.map((item, index) => ({
+      data: currentFundFlowItems.value.map((item, index) => ({
         ...item,
         itemStyle: {
           color: ['#2563eb','#0891b2','#7c3aed','#16a34a','#f97316','#ef4444'][index],
@@ -782,7 +856,7 @@ const dutyOption = computed(() => ({
   xAxis: { type: 'value', max: 100, show: false },
   yAxis: {
     type: 'category',
-    data: dutyBars.map(i => i.name),
+    data: currentDutyBars.value.map(i => i.name),
     axisLabel: { color: '#334155', fontSize: 10, fontWeight: 600 },
     axisTick: { show: false },
     axisLine: { show: false },
@@ -793,7 +867,7 @@ const dutyOption = computed(() => ({
       barWidth: 9,
       showBackground: true,
       backgroundStyle: { color: '#f1f5f9', borderRadius: [0, 6, 6, 0] },
-      data: dutyBars.map(item => ({
+      data: currentDutyBars.value.map(item => ({
         ...item,
         value: item.value,
         itemStyle: {
@@ -812,20 +886,55 @@ const dutyOption = computed(() => ({
   ],
 }))
 
-const trendOption = computed(() => ({
-  backgroundColor:'transparent',
-  tooltip:{ trigger:'axis' },
-  legend:{ top:0, textStyle:{ color:'#64748b', fontSize:11 } },
-  grid:{ left:32, right:10, top:26, bottom:16, containLabel:true },
-  xAxis:{ type:'category', data:['06月','07月','08月','09月','10月','11月','12月','01月','02月','03月','04月','05月'], axisLabel:{ color:'#64748b', fontSize:10, margin: 8 }, axisLine:{ lineStyle:{ color:'#cbd5e1' } } },
-  yAxis:{ type:'value', axisLabel:{ color:'#64748b', fontSize:10 }, splitLine:{ lineStyle:{ color:'#e2e8f0' } } },
-  series:[
-    { name:'投资', type:'line', smooth:true, symbol:'circle', symbolSize:7, lineStyle:{ width:3, color:'#2563eb' }, itemStyle:{ color:'#2563eb' }, markPoint:{ symbolSize:32, itemStyle:{ color:'#ef4444' }, data:[{ coord:['03月',12], value:'异常' }] }, data:[4,5,5,6,7,6,7,8,9,12,11,10] },
-    { name:'资金', type:'line', smooth:true, symbol:'circle', symbolSize:7, lineStyle:{ width:3, color:'#0891b2' }, itemStyle:{ color:'#0891b2' }, data:[3,4,4,5,5,6,7,8,7,8,9,11] },
-    { name:'合同', type:'line', smooth:true, symbol:'circle', symbolSize:7, lineStyle:{ width:3, color:'#7c3aed' }, itemStyle:{ color:'#7c3aed' }, data:[2,3,3,4,4,5,6,6,6,7,8,8] },
-    { name:'采购', type:'line', smooth:true, symbol:'circle', symbolSize:7, lineStyle:{ width:3, color:'#f97316' }, itemStyle:{ color:'#f97316' }, markPoint:{ symbolSize:32, itemStyle:{ color:'#ef4444' }, data:[{ coord:['05月',10], value:'异常' }] }, data:[2,2,3,3,4,5,5,6,7,8,10,9] },
-  ],
-}))
+const trendDataMap = {
+  '30d': {
+    xLabels: ['第1周','第2周','第3周','第4周'],
+    pillLabel: '近1月', subtitle: '近 1 个月 · 周度预警',
+    invest:      { data: [3,2,3,2], mp: null },
+    funds:       { data: [3,2,3,3], mp: null },
+    contract:    { data: [2,2,2,2], mp: null },
+    procurement: { data: [2,3,2,3], mp: null },
+  },
+  '3m': {
+    xLabels: ['03月','04月','05月'],
+    pillLabel: '近3月', subtitle: '近 3 个月 · 异常月标红',
+    invest:      { data: [12,11,10], mp: null },
+    funds:       { data: [8,9,11],  mp: null },
+    contract:    { data: [7,8,8],   mp: null },
+    procurement: { data: [8,10,9],  mp: [{ coord:['04月',10], value:'异常' }] },
+  },
+  '6m': {
+    xLabels: ['12月','01月','02月','03月','04月','05月'],
+    pillLabel: '近半年', subtitle: '近 6 个月 · 异常月标红',
+    invest:      { data: [7,8,9,12,11,10], mp: [{ coord:['03月',12], value:'异常' }] },
+    funds:       { data: [7,8,7,8,9,11],   mp: null },
+    contract:    { data: [6,6,6,7,8,8],    mp: null },
+    procurement: { data: [5,6,7,8,10,9],   mp: [{ coord:['04月',10], value:'异常' }] },
+  },
+}
+const trendOption = computed(() => {
+  const td = trendDataMap[props.period] || trendDataMap['6m']
+  const mkSeries = (name, color, sd) => ({
+    name, type:'line', smooth:true, symbol:'circle', symbolSize:7,
+    lineStyle:{ width:3, color }, itemStyle:{ color },
+    ...(sd.mp ? { markPoint:{ symbolSize:32, itemStyle:{ color:'#ef4444' }, data: sd.mp } } : {}),
+    data: sd.data,
+  })
+  return {
+    backgroundColor:'transparent',
+    tooltip:{ trigger:'axis' },
+    legend:{ top:0, textStyle:{ color:'#64748b', fontSize:11 } },
+    grid:{ left:32, right:10, top:26, bottom:16, containLabel:true },
+    xAxis:{ type:'category', data: td.xLabels, axisLabel:{ color:'#64748b', fontSize:10, margin:8 }, axisLine:{ lineStyle:{ color:'#cbd5e1' } } },
+    yAxis:{ type:'value', axisLabel:{ color:'#64748b', fontSize:10 }, splitLine:{ lineStyle:{ color:'#e2e8f0' } } },
+    series:[
+      mkSeries('投资', '#2563eb', td.invest),
+      mkSeries('资金', '#0891b2', td.funds),
+      mkSeries('合同', '#7c3aed', td.contract),
+      mkSeries('采购', '#f97316', td.procurement),
+    ],
+  }
+})
 
 let t1 = null
 let t2 = null

@@ -9,14 +9,14 @@
           <section class="card panel a1-panel">
             <div class="panel-head">
               <h3>财务七维评分</h3>
-              <span class="pill blue">综合 91.5 分</span>
+              <span class="pill blue">综合 {{ finPD.radarScore }} 分</span>
             </div>
             <div class="a1-body">
               <EChart class="radar-chart" theme="light" :option="radarOption" />
               <div class="ww-board">
                 <div class="ww-title">五维联动校验看板</div>
                 <EChart class="ww-chart" theme="light" :option="wuweiOption" />
-                <div class="ww-rate">五单匹配率 <strong>98.2<em>%</em></strong></div>
+                <div class="ww-rate">五单匹配率 <strong>{{ finPD.matchRate }}<em>%</em></strong></div>
                 <div class="ww-diffs">
                   <div class="ww-diff" title="业务-财务差异：12笔 共320万元">
                     <span class="ww-dd">业务-财务</span>
@@ -85,19 +85,19 @@
             <div class="drill-macro">
               <div class="dm-cell">
                 <span>资金归集</span>
-                <strong>¥4,280<em>亿</em></strong>
+                <strong>¥{{ finPD.macroFund }}<em>亿</em></strong>
               </div>
               <div class="dm-cell">
                 <span>合规率</span>
-                <strong style="color:#16a34a">96.2<em>%</em></strong>
+                <strong style="color:#16a34a">{{ finPD.macroCompliance }}<em>%</em></strong>
               </div>
               <div class="dm-cell">
                 <span>异常金额</span>
-                <strong style="color:#dc2626">¥6.5<em>亿</em></strong>
+                <strong style="color:#dc2626">¥{{ finPD.macroAnomaly }}<em>亿</em></strong>
               </div>
               <div class="dm-cell">
                 <span>追回 / 锁止</span>
-                <strong style="color:#2563eb">¥4.2<em>亿</em></strong>
+                <strong style="color:#2563eb">¥{{ finPD.macroRecovered }}<em>亿</em></strong>
               </div>
             </div>
             <!-- 4 域钻取列表 -->
@@ -658,19 +658,128 @@
       </div>
     </template>
 
+    <!-- ══════════ AI 智能体分析步骤弹窗 ══════════ -->
+    <transition name="agent-fade">
+      <div v-if="aiAgentModal" class="ai-agent-overlay" @click.self="closeAgentModal">
+        <div class="ai-agent-modal">
+          <div class="ai-agent-header">
+            <div class="ai-agent-brain">
+              <span class="ai-brain-core">🧠</span>
+              <span class="ai-brain-pulse"></span>
+            </div>
+            <div class="ai-agent-title">
+              <strong>AI 智能体 · 风险穿透分析</strong>
+              <span>DRP Agent 正在执行多步推理…</span>
+            </div>
+          </div>
+          <div class="ai-agent-body">
+            <div v-for="(step, i) in aiAgentSteps" :key="i" class="ai-step" :class="`step-${step.status}`">
+              <div class="ai-step-indicator">
+                <span v-if="step.status === 'pending'" class="ai-step-dot"></span>
+                <span v-else-if="step.status === 'running'" class="ai-step-spin"></span>
+                <span v-else class="ai-step-check">✓</span>
+              </div>
+              <div class="ai-step-content">
+                <span class="ai-step-text">{{ step.text }}</span>
+                <span v-if="step.detail && step.status === 'done'" class="ai-step-detail">{{ step.detail }}</span>
+              </div>
+              <span v-if="step.status === 'running'" class="ai-step-time">{{ aiElapsed }}s</span>
+            </div>
+          </div>
+          <div v-if="aiAgentComplete" class="ai-agent-footer">
+            <template v-if="aiReportReady">
+              <div class="ai-agent-result">
+                <span class="ai-result-icon">✓</span>
+                <span>分析完成，已生成风险报告</span>
+              </div>
+              <button class="ai-agent-btn" @click="goToRiskReport">查看分析报告 →</button>
+            </template>
+            <div v-else class="ai-agent-result" style="color:#7c3aed">
+              <span class="ai-step-spin"></span>
+              <span>正在生成报告数据，请稍候…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
 import EChart from '../components/EChart.vue'
 
+const props = defineProps({ period: { type: String, default: '6m' } })
 const emit = defineEmits(['navigate'])
 function goToDashboard(){ emit('navigate', 'dashboard'); if (typeof window !== 'undefined') window.location.hash = '#/dashboard' }
 
 const selectedAreaId = ref('CW-R01')
 const filterLevel = ref('all')
+
+// ── AI 智能体弹窗 ────────────────────────────────────────────────────────
+const aiAgentModal     = ref(false)
+const aiAgentSteps     = ref([])
+const aiAgentComplete  = ref(false)
+const aiElapsed        = ref(0)
+const aiAgentPendingRisk = ref(null)
+const aiReportReady    = ref(false)   // 报告数据是否已拉取就绪（决定「查看分析报告」按钮何时可点）
+let aiDeferNav     = false            // 预取期间为 true：只取数、不跳转；待用户点「查看分析报告」再跳
+let aiTimer        = null
+let aiElapsedTimer = null
+
+const finStepDefs = [
+  { text: '启动财务风险分析引擎…',       detail: 'DRP Agent v4.7 · 财务全量穿透模型已加载' },
+  { text: '提取财务凭证与账务数据…',     detail: '识别关键凭证 12 份 · 结构化字段 36 个' },
+  { text: '调用 NLP 异常凭证识别模型…', detail: '命中风险规则库 200+ 条 · 匹配中' },
+  { text: '穿透关联银行流水与发票…',     detail: '已关联 4 条资金链路 · 2 条税务链路' },
+  { text: '比对历史财务基准数据…',       detail: '检索近 12 个月同类凭证 · 基准对比完成' },
+  { text: '运行合规规则引擎交叉验证…',   detail: '法务 · 财务 · 国资监管三维度交叉核验' },
+  { text: '生成 AI 财务风险分析报告…',   detail: '报告已生成 · 包含 7 个章节' },
+]
+
+function runAgentModal(steps, onComplete) {
+  aiAgentComplete.value = false
+  aiAgentSteps.value = steps.map((s, i) => ({ ...s, status: i === 0 ? 'running' : 'pending' }))
+  aiElapsed.value = 0
+  aiAgentModal.value = true
+  aiElapsedTimer = setInterval(() => { aiElapsed.value++ }, 1000)
+  let stepIdx = 1
+  aiTimer = setInterval(() => {
+    if (stepIdx < steps.length) {
+      aiAgentSteps.value[stepIdx - 1].status = 'done'
+      aiAgentSteps.value[stepIdx].status = 'running'
+      stepIdx++
+    } else {
+      clearInterval(aiTimer)
+      clearInterval(aiElapsedTimer)
+      aiAgentSteps.value[aiAgentSteps.value.length - 1].status = 'done'
+      aiAgentComplete.value = true
+      if (onComplete) onComplete()
+    }
+  }, 1700)
+}
+
+// 点击遮罩关闭弹窗（不跳转）
+function closeAgentModal() {
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+}
+
+function goToRiskReport() {
+  // 报告数据已在加载期间预取就绪；此刻（用户点击）才真正跳转到报告页
+  aiAgentModal.value = false
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+  pushViewHistory('risk-detail')
+}
+
+onBeforeUnmount(() => {
+  clearInterval(aiTimer)
+  clearInterval(aiElapsedTimer)
+})
 
 // ── AI 风险识别检测报告 ────────────────────────────────────────────────────
 const analyzedReportIds = ref(new Set())
@@ -951,8 +1060,22 @@ const activeRisk = computed(() => {
   return null
 })
 
-// ── AI 分析风险 ────────────────────────────────────────────────────────────
-async function openReport(r) {
+// ── AI 分析风险（先显示弹窗动画，完成后执行真实逻辑）─────────────────────
+function openReport(r) {
+  // 已分析过：直接看报告，不再弹加载窗
+  if (analyzedReportIds.value.has(r.no)) { viewReport(r.no); return }
+  aiAgentPendingRisk.value = r
+  aiReportReady.value = false
+  // 弹窗动画与报告数据「预取」并发：预取期间 aiDeferNav=true 只取数不跳转；就绪后出现「查看分析报告」
+  runAgentModal(finStepDefs, null)
+  aiDeferNav = true
+  _openReportReal(r)
+    .then(() => { aiReportReady.value = true })
+    .catch(() => { aiReportReady.value = true })
+    .finally(() => { aiDeferNav = false })
+}
+
+async function _openReportReal(r) {
   const id = r.no || r.id // 使用 CW-2026001 格式的编号
   
   console.log('=== openReport 开始 ===', 'riskId:', id)
@@ -1002,7 +1125,7 @@ async function openReport(r) {
       analyzedReportIds.value.add(id)
       analyzedReportIds.value = new Set(analyzedReportIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     } else {
       const fallbackData = {
@@ -1019,13 +1142,13 @@ async function openReport(r) {
       analyzedReportIds.value.add(id)
       analyzedReportIds.value = new Set(analyzedReportIds.value)
       
-      pushViewHistory('risk-detail')
+      if (!aiDeferNav) pushViewHistory('risk-detail')
       return
     }
   }
   
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // ── 查看报告（直接使用缓存）─────────────────────────────────────────────────
@@ -1037,7 +1160,7 @@ function viewReport(id) {
   }
 
   selectedRiskId.value = id
-  pushViewHistory('risk-detail')
+  if (!aiDeferNav) pushViewHistory('risk-detail')
 }
 
 // ── 接口调用：流程实例流式运行 ──────────────────────────────────────────────
@@ -1099,6 +1222,48 @@ const riskFilter = ref('all')
 const orbitChain = ref(false)
 
 
+// ── 财务各模块期间数据 ────────────────────────────────────────────────────
+const finPDMap = {
+  '30d': {
+    radarVals: [78, 74, 72, 90, 85, 82, 65],
+    wuweiVals: [95, 93, 94, 90, 96],
+    radarScore: '86.2', matchRate: '97.8',
+    stats: { high: 8, medium: 18, low: 5 },
+    // d7/d30/d6m — 11 risk domains (matches matrixRows order)
+    matrixCounts: [
+      [2,0,0],[3,0,0],[2,0,0],[1,0,0],[0,0,0],
+      [0,0,0],[2,0,0],[1,0,0],[0,0,0],[1,0,0],[0,0,0],
+    ],
+    heatScale: 0.17, partyScale: 0.16,
+    macroFund: '720', macroCompliance: '95.8', macroAnomaly: '1.2', macroRecovered: '0.8',
+  },
+  '3m': {
+    radarVals: [86, 82, 79, 93, 94, 87, 72],
+    wuweiVals: [97, 96, 97, 93, 98],
+    radarScore: '89.1', matchRate: '98.0',
+    stats: { high: 16, medium: 32, low: 9 },
+    matrixCounts: [
+      [4,5,1],[5,4,1],[3,3,1],[1,5,2],[1,0,1],
+      [1,5,0],[4,4,1],[3,5,0],[4,4,1],[3,4,1],[1,2,0],
+    ],
+    heatScale: 0.50, partyScale: 0.50,
+    macroFund: '2,140', macroCompliance: '96.0', macroAnomaly: '3.2', macroRecovered: '2.1',
+  },
+  '6m': {
+    radarVals: [92, 88, 85, 96, 102, 90, 78],
+    wuweiVals: [99, 97, 98, 96, 99],
+    radarScore: '91.5', matchRate: '98.2',
+    stats: { high: 30, medium: 55, low: 16 },
+    matrixCounts: [
+      [6,7,2],[8,6,1],[5,5,2],[2,9,2],[4,3,1],
+      [0,8,3],[7,4,1],[4,3,1],[0,3,2],[1,2,1],[0,1,0],
+    ],
+    heatScale: 1.0, partyScale: 1.0,
+    macroFund: '4,280', macroCompliance: '96.2', macroAnomaly: '6.5', macroRecovered: '4.2',
+  },
+}
+const finPD = computed(() => finPDMap[props.period] || finPDMap['6m'])
+
 // A1 七维雷达
 const radarOption = computed(() => ({
   animation: false,
@@ -1118,7 +1283,7 @@ const radarOption = computed(() => ({
   series: [{
     type: 'radar', symbol: 'circle', symbolSize: 5,
     data: [{
-      value: [92, 88, 85, 96, 102, 90, 78], name: '财务评分',
+      value: finPD.value.radarVals, name: '财务评分',
       areaStyle: { color: 'rgba(37,99,235,0.12)' },
       lineStyle: { color: '#2563eb', width: 2 },
       itemStyle: { color: '#2563eb' },
@@ -1144,7 +1309,7 @@ const wuweiOption = computed(() => ({
   series: [{
     type: 'radar', symbol: 'circle', symbolSize: 4,
     data: [{
-      value: [99, 97, 98, 96, 99], name: '五维匹配',
+      value: finPD.value.wuweiVals, name: '五维匹配',
       areaStyle: { color: 'rgba(124,58,237,0.14)' },
       lineStyle: { color: '#7c3aed', width: 2 },
       itemStyle: { color: '#7c3aed' },
@@ -1173,7 +1338,7 @@ const riskAreas = [
   { id: 'CW-R11', label: '资金集中率低',       desc: '可归集资金集中度未达标',   level: 'yellow', rawLevel: '低', count: 6,  trend: '-2' },
 ]
 
-const stats = { high: 30, medium: 55, low: 16 }
+const stats = computed(() => finPD.value.stats)
 
 const filteredAreas = computed(() => {
   if (filterLevel.value === 'all') return riskAreas
@@ -1252,16 +1417,16 @@ const matrixRows = [
 ]
 const matrixColNames = ['近7天新增', '近30天积压', '近半年归档', '健康度']
 
-// 把 matrixRows 转成条形图数据（每域 d7 / d30 / total / health 等级）
-const riskMatrixFlat = computed(() => matrixRows.map(r => {
-  const d7  = r.cells[0]?.count || 0
-  const d30 = r.cells[1]?.count || 0
-  const d6m = r.cells[2]?.count || 0
-  const total = d7 + d30 + d6m
-  // 健康等级：d7>=4 高危; d7>=1||d30>=4 中危; 否则低
-  const health = d7 >= 4 ? 'danger' : (d7 >= 1 || d30 >= 4 ? 'warn' : 'safe')
-  return { key: r.key, label: r.name, d7, d30, d6m, total, health }
-}))
+// 把 matrixRows 转成条形图数据（随期间变化 d7/d30/d6m）
+const riskMatrixFlat = computed(() => {
+  const counts = finPD.value.matrixCounts
+  return matrixRows.map((r, i) => {
+    const [d7, d30, d6m] = counts[i] || [0, 0, 0]
+    const total = d7 + d30 + d6m
+    const health = d7 >= 4 ? 'danger' : (d7 >= 1 || d30 >= 4 ? 'warn' : 'safe')
+    return { key: r.key, label: r.name, d7, d30, d6m, total, health }
+  })
+})
 
 const filteredRiskMatrix = computed(() => {
   if (riskFilter.value === 'all') return riskMatrixFlat.value
@@ -1440,7 +1605,7 @@ function resetTopo() {
 
 
 
-const partyRanking = [
+const partyRankingBase = [
   { rank: 1,  name: 'XX银行总行',           receive: 2850, pay: 3200, risk: 0, health: 98, top: true },
   { rank: 2,  name: 'XX建设工程有限公司',   receive: 850,  pay: 1200, risk: 5, health: 72 },
   { rank: 3,  name: 'XX建材有限公司',       receive: 620,  pay: 780,  risk: 3, health: 82 },
@@ -1448,10 +1613,28 @@ const partyRanking = [
   { rank: 5,  name: 'XX供应链管理有限公司', receive: 420,  pay: 580,  risk: 8, health: 62 },
   { rank: 6,  name: 'XX信息技术有限公司',   receive: 350,  pay: 420,  risk: 0, health: 95 },
   { rank: 7,  name: 'XX设备制造有限公司',   receive: 280,  pay: 350,  risk: 1, health: 88 },
-  { rank: 8,  name: 'XX投资控股有限公司',   receive: 220,  pay: 380,  risk: 4, health: 58 },
+  { rank: 8,  name: 'XX投资控股有限公司',   receive: 220,  pay: 380,  risk: 4, health: 58,
+    card: [
+      { k: '授信额度',     v: '125% 超额', tone: 'warn' },
+      { k: '两金占用',     v: '14.2% 超控线', tone: 'warn' },
+      { k: '代垫资金',     v: '¥ 86 亿',  tone: 'warn' },
+      { k: '近 30 天预警', v: '4 条',     tone: 'warn' },
+      { k: '关联企业',     v: '12 家',    tone: '' },
+      { k: '建议',         v: '暂停非生产性拨付', tone: 'warn' },
+    ],
+  },
   { rank: 9,  name: 'XX物流运输公司',       receive: 180,  pay: 220,  risk: 2, health: 85 },
   { rank: 10, name: 'XX咨询服务有限公司',   receive: 120,  pay: 180,  risk: 0, health: 90 },
 ]
+const partyRanking = computed(() => {
+  const s = finPD.value.partyScale
+  if (s === 1.0) return partyRankingBase
+  return partyRankingBase.map(p => ({
+    ...p,
+    receive: Math.round(p.receive * s),
+    pay:     Math.round(p.pay     * s),
+  }))
+})
 
 const riskList = [
   {
@@ -1619,8 +1802,8 @@ const drillDomains = [
 // ===== C2 财务热力图（8 业务域 × 8 收支类型）=====
 const heatCols = ['资金', '预算', '核算', '税务', '报表', '产权', '融资', '挂靠']
 const heatRows = ['经营流入', '经营流出', '投资流入', '投资流出', '筹资流入', '筹资流出', '内部划转', '专项拨款']
-// 单位：亿
-const heatValues = [
+// 单位：亿（基准值为近半年）
+const heatValuesBase = [
   // 资金  预算  核算  税务  报表  产权  融资  挂靠
   [320, 180,  92,  68, 145,  38,  60,  12], // 经营流入
   [285, 165,  88,  72, 138,  35,  55,  18], // 经营流出
@@ -1631,10 +1814,15 @@ const heatValues = [
   [185, 120, 105,  22, 220,  88,  45,  92], // 内部划转（挂靠列异常）
   [ 75,  82,  28,  14,  48,  22,  35,  68], // 专项拨款（挂靠列异常）
 ]
+const heatValues = computed(() => {
+  const s = finPD.value.heatScale
+  if (s === 1.0) return heatValuesBase
+  return heatValuesBase.map(row => row.map(v => Math.max(1, Math.round(v * s))))
+})
 
 const financeHeatOption = computed(() => {
   const data = []
-  heatValues.forEach((row, ri) => {
+  heatValues.value.forEach((row, ri) => {
     row.forEach((v, ci) => data.push([ci, ri, v]))
   })
   return {
@@ -1678,24 +1866,6 @@ const financeHeatOption = computed(() => {
 
 // ===== C2 单位名片 =====
 const partyOpenId = ref(null)
-const partyRankingExtra = partyRanking.map(p => {
-  if (p.name === 'XX投资控股有限公司') {
-    return { ...p, card: [
-      { k: '授信额度',     v: '125% 超额', tone: 'warn' },
-      { k: '两金占用',     v: '14.2% 超控线', tone: 'warn' },
-      { k: '代垫资金',     v: '¥ 86 亿',  tone: 'warn' },
-      { k: '近 30 天预警', v: '4 条',     tone: 'warn' },
-      { k: '关联企业',     v: '12 家',    tone: '' },
-      { k: '建议',         v: '暂停非生产性拨付', tone: 'warn' },
-    ]}
-  }
-  return p
-})
-// 替换原数组引用为带 card 字段的新数组
-;(function reassignParty() {
-  partyRanking.length = 0
-  partyRankingExtra.forEach(p => partyRanking.push(p))
-})()
 
 function togglePartyCard(p) {
   if (!p.card) return
@@ -1917,41 +2087,64 @@ function withAlpha(hex, a) {
   return `rgba(${num >> 16}, ${(num >> 8) & 0xff}, ${num & 0xff}, ${a})`
 }
 
-// A3 战略三轴全时态趋势图：柱状营收 + 极光绿利润折线 + 冰晶蓝现金流折线
-const trendOption = computed(() => ({
-  animation: false,
-  backgroundColor: 'transparent',
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,.97)', borderColor: '#dbeafe',
-    textStyle: { color: '#334155', fontSize: 11 }, extraCssText: 'box-shadow:0 4px 20px rgba(15,23,42,.1)' },
-  legend: { top: 2, left: 'center', itemGap: 10, itemWidth: 10, itemHeight: 6, textStyle: { color: '#64748b', fontSize: 10 } },
-  grid: { left: 8, right: 8, top: 38, bottom: 4, containLabel: true },
-  xAxis: {
-    type: 'category',
-    data: ['06', '07', '08', '09', '10', '11', '12', '01', '02', '03', '04', '05'],
-    axisLabel: { color: '#94a3b8', fontSize: 10 },
-    axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false },
+// A3 战略三轴全时态趋势图：营收折线 + 利润折线 + 现金流折线（随数据范围变化）
+const finTrendMap = {
+  '30d': {
+    xLabels: ['第1周','第2周','第3周','第4周'],
+    revenue: [218, 222, 220, 220],
+    profit:  [31,  32,  33,  32],
+    cashflow:[18,  20,  19,  18],
   },
-  yAxis: [
-    { type: 'value', name: '营收(亿)', nameTextStyle: { color: '#94a3b8', fontSize: 9 },
-      axisLabel: { color: '#94a3b8', fontSize: 10 }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-    { type: 'value', name: '%', nameTextStyle: { color: '#94a3b8', fontSize: 9 },
-      axisLabel: { color: '#94a3b8', fontSize: 10, formatter: '{value}' }, splitLine: { show: false } },
-  ],
-  series: [
-    { name: '营业收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
-      lineStyle: { width: 2.2, color: '#3b82f6' }, itemStyle: { color: '#3b82f6' },
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.22)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }] } },
-      data: [820, 835, 848, 830, 855, 868, 840, 852, 865, 878, 885, 880] },
-    { name: '利润总额', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
-      lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' },
-      data: [105, 108, 112, 104, 115, 118, 108, 112, 118, 122, 125, 128] },
-    { name: '经营性现金流', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
-      lineStyle: { width: 2, color: '#0891b2' }, itemStyle: { color: '#0891b2' },
-      areaStyle: { color: 'rgba(8,145,178,0.08)' },
-      data: [65, 68, 72, 58, 75, 78, 55, 62, 70, 82, 85, 75] },
-  ],
-}))
+  '3m': {
+    xLabels: ['03月','04月','05月'],
+    revenue: [878, 885, 880],
+    profit:  [122, 125, 128],
+    cashflow:[82,  85,  75],
+  },
+  '6m': {
+    xLabels: ['12月','01月','02月','03月','04月','05月'],
+    revenue: [840, 852, 865, 878, 885, 880],
+    profit:  [108, 112, 118, 122, 125, 128],
+    cashflow:[55,  62,  70,  82,  85,  75],
+  },
+}
+const trendOption = computed(() => {
+  const td = finTrendMap[props.period] || finTrendMap['6m']
+  return {
+    animation: false,
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,.97)', borderColor: '#dbeafe',
+      textStyle: { color: '#334155', fontSize: 11 }, extraCssText: 'box-shadow:0 4px 20px rgba(15,23,42,.1)' },
+    legend: { top: 2, left: 'center', itemGap: 10, itemWidth: 10, itemHeight: 6, textStyle: { color: '#64748b', fontSize: 10 } },
+    grid: { left: 8, right: 8, top: 38, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: td.xLabels,
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+      axisLine: { lineStyle: { color: '#e2e8f0' } }, axisTick: { show: false },
+    },
+    yAxis: [
+      { type: 'value', name: '营收(亿)', nameTextStyle: { color: '#94a3b8', fontSize: 9 },
+        axisLabel: { color: '#94a3b8', fontSize: 10 }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      { type: 'value', name: '%', nameTextStyle: { color: '#94a3b8', fontSize: 9 },
+        axisLabel: { color: '#94a3b8', fontSize: 10, formatter: '{value}' }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: '营业收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 0,
+        lineStyle: { width: 2.2, color: '#3b82f6' }, itemStyle: { color: '#3b82f6' },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.22)' }, { offset: 1, color: 'rgba(59,130,246,0.02)' }] } },
+        data: td.revenue },
+      { name: '利润总额', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
+        lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' },
+        data: td.profit },
+      { name: '经营性现金流', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, yAxisIndex: 1,
+        lineStyle: { width: 2, color: '#0891b2' }, itemStyle: { color: '#0891b2' },
+        areaStyle: { color: 'rgba(8,145,178,0.08)' },
+        data: td.cashflow },
+    ],
+  }
+})
 </script>
 
 <style scoped>
@@ -2582,8 +2775,8 @@ const trendOption = computed(() => ({
 }
 .risk-title-row .risk-title { flex: 1; min-width: 0; }
 .risk-actions-row {
-  display: flex; align-items: center; gap: 8px;
-  justify-content: flex-end; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  justify-content: center; flex-shrink: 0;
 }
 .risk-handler { color: #475569; }
 .risk-deadline {
@@ -4044,4 +4237,38 @@ const trendOption = computed(() => ({
 .status-box .status-label { font-size: 12px; color: #64748b; font-weight: 600; }
 .status-box .status-value { font-size: 15px; font-weight: 800; color: #059669; }
 .status-box .status-value.deadline { color: #dc2626; font-family: 'JetBrains Mono', monospace; }
+
+/* ══════════ AI 智能体分析弹窗 ══════════ */
+.ai-agent-overlay { position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; }
+.ai-agent-modal { width:560px; max-height:80vh; background:#0b1120; border:1px solid rgba(99,102,241,0.35); border-radius:18px; padding:28px; display:flex; flex-direction:column; gap:20px; box-shadow:0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.12); }
+.ai-agent-header { display:flex; align-items:center; gap:14px; }
+.ai-agent-brain { position:relative; width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2)); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-brain-core { font-size:24px; position:relative; z-index:1; }
+.ai-brain-pulse { position:absolute; inset:-4px; border-radius:50%; border:2px solid rgba(99,102,241,0.5); animation:brain-pulse 1.5s ease-in-out infinite; }
+@keyframes brain-pulse { 0%,100% { transform:scale(1); opacity:0.6; } 50% { transform:scale(1.15); opacity:1; } }
+.ai-agent-title { display:flex; flex-direction:column; gap:3px; }
+.ai-agent-title strong { font-size:17px; color:#e2e8f0; letter-spacing:0.02em; }
+.ai-agent-title span { font-size:12px; color:#64748b; }
+.ai-agent-body { display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
+.ai-step { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; transition:.3s; }
+.ai-step.step-running { background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25); }
+.ai-step.step-done { background:rgba(16,185,129,0.06); }
+.ai-step.step-done .ai-step-text { color:#94a3b8; }
+.ai-step-indicator { width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-step-dot { width:8px; height:8px; border-radius:50%; background:#334155; }
+.ai-step-spin { width:18px; height:18px; border:2px solid rgba(99,102,241,0.3); border-top-color:#818cf8; border-radius:50%; animation:agent-spin .7s linear infinite; }
+.ai-step-check { width:22px; height:22px; border-radius:50%; background:rgba(16,185,129,0.2); color:#10b981; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+.ai-step-content { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ai-step-text { font-size:13px; color:#cbd5e1; font-weight:500; }
+.ai-step-detail { font-size:11px; color:#64748b; }
+.ai-step-time { font-size:12px; color:#6366f1; font-family:'JetBrains Mono',monospace; flex-shrink:0; }
+.ai-agent-footer { display:flex; flex-direction:column; gap:12px; border-top:1px solid rgba(99,102,241,0.15); padding-top:16px; }
+.ai-agent-result { display:flex; align-items:center; gap:8px; color:#10b981; font-size:14px; font-weight:600; }
+.ai-result-icon { width:24px; height:24px; border-radius:50%; background:rgba(16,185,129,0.2); display:flex; align-items:center; justify-content:center; font-size:13px; }
+.ai-agent-btn { width:100%; height:44px; border-radius:12px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:.2s; letter-spacing:.04em; }
+.ai-agent-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(99,102,241,0.45); }
+@keyframes agent-spin { to { transform:rotate(360deg); } }
+.agent-fade-enter-active { transition:opacity .25s; }
+.agent-fade-leave-active { transition:opacity .2s; }
+.agent-fade-enter-from, .agent-fade-leave-to { opacity:0; }
 </style>
