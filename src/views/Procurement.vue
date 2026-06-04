@@ -2,10 +2,19 @@
   <div class="prc-scene">
     <div v-if="viewMode === 'penetration'" class="prc-screen">
 
+      <!-- 布局重组状态条（对话切换布局时出现，可一键还原） -->
+      <transition name="report-fade">
+        <div v-if="layoutState.preset !== 'default'" class="layout-chip">
+          <span class="layout-chip-dot"></span>
+          <span class="layout-chip-tx">布局已重组 · {{ presetLabel }}</span>
+          <button class="layout-chip-reset" @click="applyPreset('default')">还原</button>
+        </div>
+      </transition>
+
       <!-- ========== 左列 1.5 : 3 : 2 ========== -->
       <div class="col col-left">
         <!-- A1 雷达 60% + 74号文看板 40% -->
-        <section class="glass-panel a1-panel">
+        <section class="glass-panel a1-panel" :class="lm('a1')">
           <div class="ph">
             <h3>采购六维评分</h3>
             <span class="gpill ice">综合 {{ pd.radarScore }} 分</span>
@@ -30,14 +39,20 @@
         </section>
 
         <!-- B1 采购十大风险域 -->
-        <section class="glass-panel b1-panel">
+        <section class="glass-panel b1-panel" :class="[{ linked: penetrationContext.active }, lm('b1')]">
           <div class="ph">
             <h3>采购十大风险域</h3>
-            <div class="b1-filters">
-              <button :class="['b1-filt', { active: riskFilter === 'all' }]"    @click="riskFilter = 'all'">全部</button>
-              <button :class="['b1-filt', { active: riskFilter === 'danger' }]" @click="riskFilter = 'danger'">高危</button>
-              <button :class="['b1-filt', { active: riskFilter === 'warn' }]"   @click="riskFilter = 'warn'">中危</button>
-              <button :class="['b1-filt', { active: riskFilter === 'safe' }]"   @click="riskFilter = 'safe'">正常</button>
+            <div class="b1-head-right">
+              <div class="b1-form">
+                <button :class="['b1-form-btn', { active: b1ChartMode === 'bar' }]" @click="setB1Chart('bar')" title="柱状图">▭</button>
+                <button :class="['b1-form-btn', { active: b1ChartMode === 'trend' }]" @click="setB1Chart('trend')" title="趋势图">📈</button>
+              </div>
+              <div class="b1-filters">
+                <button :class="['b1-filt', { active: riskFilter === 'all' }]"    @click="riskFilter = 'all'">全部</button>
+                <button :class="['b1-filt', { active: riskFilter === 'danger' }]" @click="riskFilter = 'danger'">高危</button>
+                <button :class="['b1-filt', { active: riskFilter === 'warn' }]"   @click="riskFilter = 'warn'">中危</button>
+                <button :class="['b1-filt', { active: riskFilter === 'safe' }]"   @click="riskFilter = 'safe'">正常</button>
+              </div>
             </div>
           </div>
           <div class="b1-kpis">
@@ -50,11 +65,11 @@
             <span>已联动网络图 · <b>{{ activeRiskDomain }}</b></span>
             <button class="b1-link-clear" @click="clearRiskDomain">✕ 取消</button>
           </div>
-          <EChart class="b1-chart" :option="riskBarOption" @chart-click="onRiskDomainClick" />
+          <EChart class="b1-chart" :option="b1ChartOption" @chart-click="onRiskDomainClick" />
         </section>
 
         <!-- C1 两类穿透概览（总分折叠形式）-->
-        <section class="glass-panel c1-panel">
+        <section class="glass-panel c1-panel" :class="lm('c1')">
           <div class="ph">
             <h3>两类穿透概览</h3>
             <span class="gpill warn">异常 {{ pd.penetAnomTotal }}</span>
@@ -193,7 +208,7 @@
       <!-- ========== 中列 核心指标(+1/6高) : 网络图 : 热力图 ========== -->
       <div class="col col-center">
         <!-- A2 核心指标 -->
-        <section class="glass-panel a2-panel">
+        <section class="glass-panel a2-panel" :class="lm('a2')">
           <div class="ph">
             <h3>核心指标</h3>
             <span class="gpill green">{{ periodLabel }}</span>
@@ -221,21 +236,27 @@
         </section>
 
         <!-- B2 穿透网络图 -->
-        <section class="glass-panel b2-panel">
+        <section class="glass-panel b2-panel" :class="[{ linked: penetrationContext.active }, lm('b2')]">
           <div class="ph">
             <h3>采购主体穿透网络图</h3>
+            <transition name="linkbadge-fade">
+              <span v-if="penetrationContext.active" class="link-badge">
+                <i class="link-dot"></i>联动中 · 关联链路 {{ penetrationContext.highlightNodes.length }} 主体
+              </span>
+            </transition>
+            <button v-if="penetrationContext.active" class="net-reset-btn" @click="resetPenetration">⟲ 恢复默认</button>
             <div class="legend-mini">
               <span><i class="ld ld-safe"></i>低风险</span>
               <span><i class="ld ld-warn"></i>中风险</span>
               <span><i class="ld ld-danger"></i>高风险</span>
-              <span class="ld-info">22节点 · 21边</span>
+              <span class="ld-info">22节点 · 23边</span>
             </div>
           </div>
           <EChart class="net-chart" :option="darkNetworkOption" />
         </section>
 
         <!-- C2 热力图 + 供应商 -->
-        <section class="glass-panel c2-panel">
+        <section class="glass-panel c2-panel" :class="lm('c2')">
           <div class="ph">
             <h3>品类 × 采购方式分布</h3>
             <div style="display:flex;align-items:center;gap:5px">
@@ -249,7 +270,7 @@
               <div class="sup-side-title">供应商 TOP 6</div>
               <div class="sup-side-rows">
                 <div v-for="s in supplierRanking" :key="s.rank"
-                     class="sup-side-row" :class="{ 'sup-alert': s.riskCount >= 5 }">
+                     class="sup-side-row" :class="{ 'sup-alert': s.riskCount >= 5, 'assistant-hl': assistantSupplierHl && s.name.includes('鼎信建设一公司') }">
                   <span class="ssr-rank" :class="rankClass(s.rank)">{{ s.rank }}</span>
                   <div class="ssr-info">
                     <div class="ssr-name">{{ s.name }}</div>
@@ -279,7 +300,7 @@
       <!-- ========== 右列 3 : 4 : 3 ========== -->
       <div class="col col-right">
         <!-- A3 趋势 -->
-        <section class="glass-panel a3-panel">
+        <section class="glass-panel a3-panel" :class="lm('a3')">
           <div class="ph">
             <h3>趋势数据</h3>
             <span class="gpill ice">{{ periodLabel }} · 三轴</span>
@@ -288,17 +309,19 @@
         </section>
 
         <!-- B3 实时采购风险 -->
-        <section class="glass-panel b3-panel">
+        <section class="glass-panel b3-panel" :class="[{ linked: penetrationContext.active }, lm('b3')]">
           <div class="ph">
             <h3>实时采购风险</h3>
             <span class="gpill danger">高 {{ highRiskCount }} 条</span>
           </div>
           <div class="risk-stack">
-            <div v-for="r in riskList" :key="r.id" class="risk-card" :class="r.level">
+            <div v-for="r in riskList" :key="r.id" class="risk-card"
+                 :class="[r.level, { 'story-focus': r.storyFocus && penetrationContext.active && focusOrderId === r.no }]">
               <div class="risk-header">
                 <span class="risk-tag" :class="r.level">{{ r.no }}</span>
                 <span class="risk-level-badge" :class="r.level">{{ r.levelLabel }}</span>
                 <span class="risk-status" :class="r.statusCode">{{ r.status }}</span>
+                <span v-if="r.storyFocus && penetrationContext.active && focusOrderId === r.no" class="risk-focus-flag">● 关联输送·已联动</span>
                 <span class="risk-time">⏱ {{ formatTime(r.warningTime) }}</span>
               </div>
               <div class="risk-title-row">
@@ -334,7 +357,7 @@
         </section>
 
         <!-- C3 AI建议 + 系统入口 -->
-        <section class="glass-panel c3-panel">
+        <section class="glass-panel c3-panel" :class="lm('c3')">
           <div class="ph">
             <h3>AI 建议 · 系统入口</h3>
             <span class="gpill ice">智能监管</span>
@@ -552,8 +575,11 @@
                 <div class="rdr-header-left">
                   <h2>风险事项详情报告</h2>
                   <p>采购管理域 · {{ activeRisk.name }} · AI智能体自动生成报告</p>
-                  <p><a href="http://192.168.16.206:8098/process_detail?flow_id=10010&title=%E9%87%87%E8%B4%AD%E7%A9%BF%E9%80%8F" target="_blank">点击查看运行日志</a></p>
+                  <p><a href="http://10.8.0.206:8098/process_detail?flow_id=10010&title=%E9%87%87%E8%B4%AD%E7%A9%BF%E9%80%8F" target="_blank">点击查看运行日志</a></p>
                 </div>
+                <button v-if="activeRisk" class="rdr-drill-btn" :class="{ active: drillPanelOpen }" @click="drillPanelOpen = !drillPanelOpen">
+                  <span class="rdr-drill-ico">🔎</span>关联穿透 · 逐层下钻
+                </button>
               </div>
               <div class="rdr-scroll">
                 <div class="report-container">
@@ -669,17 +695,17 @@
                         <div class="link-group">
                           <div class="link-group-title">采购域</div>
                           <div class="link-items">
-                            <button class="link-item" @click="showToast('查看采购计划')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'采购计划', label:'CGP-'+activeRisk.no.replace('CG-',''), domain:'采购域' })">
                               <span class="link-icon">🛒</span>
                               <span class="link-text">采购计划</span>
                               <span class="link-id">CGP-{{ activeRisk.no.replace('CG-','') }}</span>
                             </button>
-                            <button class="link-item" @click="showToast('查看询价记录')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'询价记录', label:'XJ-'+activeRisk.no.replace('CG-',''), domain:'采购域' })">
                               <span class="link-icon">🔍</span>
                               <span class="link-text">询价记录</span>
                               <span class="link-id">XJ-{{ activeRisk.no.replace('CG-','') }}</span>
                             </button>
-                            <button class="link-item" @click="showToast('查看中标公告')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'中标公告', label:'ZB-'+activeRisk.no.replace('CG-',''), domain:'采购域' })">
                               <span class="link-icon">📣</span>
                               <span class="link-text">中标公告</span>
                               <span class="link-id">ZB-{{ activeRisk.no.replace('CG-','') }}</span>
@@ -689,12 +715,12 @@
                         <div class="link-group">
                           <div class="link-group-title">合同域</div>
                           <div class="link-items">
-                            <button class="link-item" @click="showToast('查看关联合同 ' + activeRisk.contractRef)">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'关联合同', label:activeRisk.contractRef, domain:'合同域' })">
                               <span class="link-icon">📄</span>
                               <span class="link-text">关联合同</span>
                               <span class="link-id">{{ activeRisk.contractRef }}</span>
                             </button>
-                            <button class="link-item" @click="showToast('查看合同审批单')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'合同审批单', label:'SP-'+activeRisk.contractRef.replace('HT-',''), domain:'合同域' })">
                               <span class="link-icon">✅</span>
                               <span class="link-text">合同审批单</span>
                               <span class="link-id">SP-{{ activeRisk.contractRef.replace('HT-','') }}</span>
@@ -704,17 +730,17 @@
                         <div class="link-group">
                           <div class="link-group-title">财务域</div>
                           <div class="link-items">
-                            <button class="link-item" @click="showToast('查看发票')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'发票', label:'FP-'+activeRisk.no.replace('CG-',''), domain:'财务域' })">
                               <span class="link-icon">🧾</span>
                               <span class="link-text">发票</span>
                               <span class="link-id">FP-{{ activeRisk.no.replace('CG-','') }}</span>
                             </button>
-                            <button class="link-item" @click="showToast('查看会计凭证')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'会计凭证', label:'PZ-'+activeRisk.no.replace('CG-',''), domain:'财务域' })">
                               <span class="link-icon">📊</span>
                               <span class="link-text">会计凭证</span>
                               <span class="link-id">PZ-{{ activeRisk.no.replace('CG-','') }}</span>
                             </button>
-                            <button class="link-item" @click="showToast('查看付款申请')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'付款申请', label:'FK-'+activeRisk.no.replace('CG-',''), domain:'财务域' })">
                               <span class="link-icon">💳</span>
                               <span class="link-text">付款申请</span>
                               <span class="link-id">FK-{{ activeRisk.no.replace('CG-','') }}</span>
@@ -724,7 +750,7 @@
                         <div class="link-group">
                           <div class="link-group-title">资金域</div>
                           <div class="link-items">
-                            <button class="link-item" @click="showToast('查看银行流水')">
+                            <button class="link-item" @click="openDrill({ kind:'doc', type:'银行流水', label:'LS-'+activeRisk.no.replace('CG-',''), domain:'资金域' })">
                               <span class="link-icon">🏦</span>
                               <span class="link-text">银行流水</span>
                               <span class="link-id">LS-{{ activeRisk.no.replace('CG-','') }}</span>
@@ -787,6 +813,256 @@
       </div>
     </template>
 
+    <!-- ══════════ 关联穿透浮层（页面 1/3，悬浮于页面） ══════════ -->
+    <transition name="drillpanel-fade">
+      <div v-if="drillPanelOpen && activeRisk" class="drillpanel">
+        <div class="dp-head">
+          <div class="dp-head-l">
+            <span class="dp-ico">🔎</span>
+            <div class="dp-head-tt">
+              <strong>风险核查与处置工作台</strong>
+              <span>{{ activeRisk.id }} · {{ activeRisk.name }}</span>
+            </div>
+          </div>
+          <button class="dp-close" @click="drillPanelOpen = false">✕</button>
+        </div>
+        <div class="dp-body" ref="dpBodyEl">
+          <!-- ① 涉及对象：用关系图展示，点击放大弹窗 -->
+          <div class="dp-block">
+            <div class="dp-block-hd"><span class="dp-step">1</span>涉及对象
+              <button class="dp-expand" @click="entityModalOpen = true">⤢ 放大</button>
+            </div>
+            <div class="entity-graph-wrap" @click="entityModalOpen = true">
+              <EChart class="entity-graph" :option="entityGraphOption" />
+              <span class="entity-graph-hint">点击放大</span>
+            </div>
+          </div>
+
+          <!-- ② AI 推荐核查方向（自然措辞，不暴露剧本；整改建议已独立下移） -->
+          <div v-if="showStoryAdvice" class="dp-block">
+            <div class="dp-block-hd"><span class="dp-step">2</span>AI 推荐核查方向</div>
+            <div class="dp-chips">
+              <button class="advice-chip" @click="openDrill('risk_related_transfer')">资金往来核查</button>
+              <button class="advice-chip" @click="openDrill('person_zhangwei')">经办人画像</button>
+              <button class="advice-chip" @click="openDrill('org_dingxin1')">供应商背景</button>
+            </div>
+          </div>
+
+          <!-- 整改建议：独立、显著的向下推进按钮 -->
+          <div v-if="showStoryAdvice" class="dp-rectify">
+            <button class="rectify-cta" :class="{ loading: rectifyLoading, done: plansVisible }" :disabled="rectifyLoading" @click="onRectifyClick">
+              <span class="rc-ico">{{ rectifyLoading ? '⏳' : plansVisible ? '✓' : '🛠' }}</span>
+              <span class="rc-main">
+                <b>整改建议</b>
+                <em>{{ rectifyLoading ? 'AI 正在生成处置方案…' : plansVisible ? '处置方案已生成' : '点击生成处置方案' }}</em>
+              </span>
+              <span v-if="!plansVisible && !rectifyLoading" class="rc-arrow">↓</span>
+            </button>
+          </div>
+
+          <!-- ③ 处置闭环：人选方案 + AI 实施（点整改建议后延迟出现 + 动画） -->
+          <transition name="plans-reveal">
+          <div v-if="storyReportActive && plansVisible" class="dp-block">
+            <div class="dp-block-hd"><span class="dp-step">3</span>处置闭环 · 人选方案 + AI 实施</div>
+            <div class="plan-grid">
+              <button v-for="p in plans" :key="p.key" class="plan-card"
+                      :class="[{ selected: selectedPlan === p.key, recommended: p.recommended }]"
+                      @click="choosePlan(p.key)">
+                <div class="plan-top">
+                  <span class="plan-key">{{ p.key }}</span>
+                  <span class="plan-name">{{ p.name }}</span>
+                  <span class="plan-strength" :class="p.strength">{{ p.strength }}</span>
+                  <span v-if="p.recommended" class="plan-rec">推荐</span>
+                </div>
+                <div class="plan-impact">预计影响：{{ p.impact }}</div>
+              </button>
+            </div>
+
+            <!-- 已选方案 → 处置结果以弹窗呈现，这里提供再次查看入口 -->
+            <div v-if="selectedPlan" class="exec-wrap">
+              <button class="exec-reopen" @click="reopenPlanResult">📋 查看方案 {{ selectedPlan }} 处置结果与初步成效</button>
+            </div>
+          </div>
+          </transition>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ══════════ 涉及对象·关系图放大弹窗（图 + 对象按钮） ══════════ -->
+    <div v-if="entityModalOpen && activeRisk" class="ent-overlay" @click.self="entityModalOpen = false">
+        <div class="ent-dialog">
+          <div class="ent-head">
+            <h3>涉及对象 · 关系视图</h3>
+            <span class="ent-sub">{{ activeRisk.id }}</span>
+            <span class="ent-hint">滚轮缩放 · 拖动平移 · 可拖拽节点</span>
+            <button class="ent-close" @click="entityModalOpen = false">✕</button>
+          </div>
+          <EChart class="ent-graph-big" :option="entityGraphOptionBig" />
+          <div class="ent-btns-wrap">
+            <div class="ent-btns-lbl">点击对象查看明细：</div>
+            <div class="ent-btns">
+              <button v-for="(e, ei) in reportEntitiesLive" :key="ei" class="drill-chip" @click="openEntityFromModal(e)">
+                <em class="chip-kind">{{ e.type }}</em>{{ e.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- ══════════ 处置结果弹窗（下达后初步成效 + 继续穿透，完善故事线解决部分） ══════════ -->
+    <div v-if="planResultOpen && currentPlanResult" class="pr-overlay" @click.self="planResultOpen = false">
+      <div class="pr-dialog" :class="currentPlanResult.tone">
+        <div class="pr-head">
+          <div class="pr-head-l">
+            <span class="pr-badge" :class="currentPlanResult.tone">方案 {{ selectedPlan }}</span>
+            <div class="pr-head-tt">
+              <strong>{{ currentPlanResult.name }}</strong>
+              <span>已下达 · {{ currentPlanResult.status }}</span>
+            </div>
+          </div>
+          <button class="pr-close" @click="planResultOpen = false">✕</button>
+        </div>
+        <div class="pr-body">
+          <!-- AI 实施回执（方案A 逐条打勾） -->
+          <div v-if="selectedPlan === 'A'" class="pr-sect">
+            <div class="pr-sect-lbl">AI 实施回执</div>
+            <transition-group name="exec-fade" tag="div" class="exec-list">
+              <div v-for="s in executionVisible" :key="s.step" class="exec-step">
+                <span class="exec-step-no">{{ s.step }}</span>
+                <div class="exec-step-bd">
+                  <div class="exec-step-text">{{ s.text }}</div>
+                  <div class="exec-step-meta">{{ s.operator }} · {{ s.time }} · <em :class="{ wait: s.status.includes('待') }">{{ s.status }}</em></div>
+                </div>
+              </div>
+            </transition-group>
+          </div>
+
+          <!-- 处置效果（初步）：整改后逐条缓慢动态生效 -->
+          <div class="pr-sect">
+            <div class="pr-sect-lbl">处置效果（初步）</div>
+            <transition-group name="pr-eff" tag="div" class="pr-effects">
+              <div v-for="(ef, i) in visibleEffects" :key="i" class="pr-effect">
+                <span class="pr-ef-ico">{{ ef.icon }}</span>
+                <div class="pr-ef-bd"><b>{{ ef.k }}</b><span>{{ ef.v }}</span></div>
+              </div>
+            </transition-group>
+            <div v-if="!effectsAllShown" class="pr-analyzing">
+              <span class="pr-spin"></span>整改处置中，效果逐项生效…（{{ prEffectsRevealed }}/{{ currentPlanResult.effects.length }}）
+            </div>
+          </div>
+
+          <!-- 继续穿透 + 闭环结论：效果全部生效后再出现（一步步推进） -->
+          <transition name="pr-eff">
+            <div v-if="effectsAllShown">
+              <div v-if="currentPlanResult.drill && currentPlanResult.drill.length" class="pr-sect">
+                <div class="pr-sect-lbl">继续穿透 · 核验处置结果</div>
+                <div class="pr-drills">
+                  <button v-for="(d, i) in currentPlanResult.drill" :key="i" class="pr-drill-btn" @click="openDrill(d.to)">{{ d.label }} →</button>
+                </div>
+              </div>
+              <div class="pr-closing">{{ currentPlanResult.closing }}</div>
+            </div>
+          </transition>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 穿透弹窗（可视化图表 + 明细表 + 核查处置表单/按钮） ══════════ -->
+    <div v-if="drillModalOpen && currentLayer" class="dm-overlay" @click.self="closeDrillModal">
+        <div class="dm-dialog">
+          <!-- 头部 + 面包屑 -->
+          <div class="dm-head">
+            <div class="dm-head-main">
+              <span class="dm-type">{{ currentLayer.type }}</span>
+              <h3 class="dm-title">{{ currentLayer.title }}</h3>
+              <span v-if="currentLayer.badge" class="dm-badge">{{ currentLayer.badge }}</span>
+              <span class="dm-srctag" :class="{ advice: currentLayer.kind === 'advice' }">{{ currentLayer.kind === 'advice' ? 'AI建议·供参考' : '报告对象' }}</span>
+            </div>
+            <button class="dm-close" @click="closeDrillModal">✕</button>
+          </div>
+          <div class="dm-breadcrumb">
+            <button class="dbc-item" @click="backToReport">报告</button>
+            <template v-for="(d, i) in drillNodes" :key="i">
+              <span class="dbc-sep">›</span>
+              <button class="dbc-item" :class="{ active: i === drillNodes.length - 1 }" @click="drillTo(i)">{{ d.title }}</button>
+            </template>
+          </div>
+
+          <div class="dm-body">
+            <p v-if="currentLayer.summary" class="dm-summary">{{ currentLayer.summary }}</p>
+
+            <!-- 可视化图表 -->
+            <div v-if="currentChart" class="dm-chart-wrap">
+              <EChart class="dm-chart" :option="currentChart" />
+            </div>
+
+            <!-- 字段卡 -->
+            <div v-if="currentLayer.fields && currentLayer.fields.length" class="dm-fields">
+              <div v-for="(f, fi) in currentLayer.fields" :key="fi" class="dm-field" :class="{ danger: f.danger }">
+                <span class="dm-fk">{{ f.k }}</span>
+                <span class="dm-fv">{{ f.v }}</span>
+              </div>
+            </div>
+
+            <!-- 明细表 -->
+            <table v-if="currentLayer.table" class="dm-table">
+              <thead><tr><th v-for="(c, ci) in currentLayer.table.columns" :key="ci">{{ c }}</th></tr></thead>
+              <tbody>
+                <tr v-for="(row, ri) in currentLayer.table.rows" :key="ri">
+                  <td v-for="(cell, cci) in row" :key="cci">{{ cell }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- 建议穿透方向（提示性） -->
+            <div v-if="currentLayer.suggestions && currentLayer.suggestions.length" class="dm-suggest">
+              <div class="dm-suggest-title">💡 建议核查方向（可继续，非强制）</div>
+              <ul><li v-for="(s, si) in currentLayer.suggestions" :key="si">{{ s }}</li></ul>
+            </div>
+
+            <!-- 继续穿透（AI建议路径节点） -->
+            <div v-if="currentLayer.drilldowns && currentLayer.drilldowns.length" class="dm-drilldowns">
+              <div class="dm-section-lbl">继续穿透</div>
+              <div class="dm-dd-grid">
+                <button v-for="(dd, ddi) in currentLayer.drilldowns" :key="ddi" class="dm-dbtn" @click="openDrill(dd.to)">
+                  {{ dd.label }}<em v-if="dd.hint"> · {{ dd.hint }}</em> →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部：核查处置操作（力度递进；点击后弹窗提示已下达） -->
+          <div class="dm-foot">
+            <div class="dm-foot-head">
+              <span class="dm-foot-lbl">核查处置</span>
+              <span class="dm-foot-flow">按处置力度递进：<b>留观</b> → <b>取证</b> → <b>核查</b> → <b>阻断</b></span>
+            </div>
+            <div class="dm-act-row">
+              <button v-for="a in drillActions" :key="a.label" class="dm-act-btn" :class="a.tone" @click="doDrillAction(a)">
+                <span class="dm-act-ico">{{ a.icon }}</span>
+                <span class="dm-act-name">{{ a.label }}</span>
+                <span class="dm-act-tag" :class="a.tone">{{ a.stage }}·{{ a.strength }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- ══════════ 核查处置·操作已下达 确认弹窗 ══════════ -->
+    <div v-if="actionDone" class="ad-overlay" @click.self="actionDone = null">
+      <div class="ad-card" :class="actionDone.tone">
+        <div class="ad-ico">✓</div>
+        <div class="ad-title">操作已下达</div>
+        <div class="ad-action">
+          <span class="ad-emoji">{{ actionDone.icon }}</span>{{ actionDone.label }}
+          <em class="dm-act-tag" :class="actionDone.tone">{{ actionDone.stage }}·{{ actionDone.strength }}</em>
+        </div>
+        <div class="ad-effect">{{ actionDone.effect }}</div>
+        <div class="ad-meta">承办：核查中心 · 状态：已下达待执行（演示）</div>
+        <button class="ad-ok" @click="actionDone = null">确定</button>
+      </div>
+    </div>
+
     <!-- ===== Toast 提示 ===== -->
     <transition name="report-fade">
       <div v-if="toastVisible" class="prc-toast">{{ toastText }}</div>
@@ -794,7 +1070,7 @@
 
     <!-- ══════════ AI 智能体分析步骤弹窗 ══════════ -->
     <transition name="agent-fade">
-      <div v-if="aiAgentModal" class="ai-agent-overlay" @click.self="closeAgentModal">
+      <div v-if="aiAgentModal && viewMode !== 'risk-detail'" class="ai-agent-overlay" @click.self="closeAgentModal">
         <div class="ai-agent-modal">
           <div class="ai-agent-header">
             <div class="ai-agent-brain">
@@ -841,9 +1117,18 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, nextTick } from 'vue'
 import axios from 'axios'
 import EChart from '../components/EChart.vue'
+import { layoutState, applyPreset } from '../layout.js'
+
+// 布局重组：按模块 id 返回当前呈现状态类（页面完全按 layoutState 渲染）
+function lm(id) {
+  const m = layoutState.modules[id] || {}
+  return { 'lm-emphasis': m.emphasis, 'lm-center': m.center, 'lm-faded': m.faded, 'lm-collapsed': m.collapsed }
+}
+const presetLabelMap = { fundFlowFocus: '资金/关联链路聚焦', supplierFocus: '供应商画像聚焦', relatedTopic: '关联专题视图', custom: '自定义布局' }
+const presetLabel = computed(() => presetLabelMap[layoutState.preset] || layoutState.preset)
 
 const props = defineProps({ period: { type: String, default: 'half' } })
 const emit = defineEmits(['navigate'])
@@ -860,23 +1145,740 @@ const timePeriod     = computed(() => props.period)
 const activeRiskDomain = ref('')
 // 每个风险域涉及的网络主体节点（点击该域 → 中部网络高亮这些主体）
 const riskDomainNodes = {
-  '围标串标':   ['XX建设公司','XX建设一公司','XX车间维修工程','XX贸易公司','XX供应链项目'],
-  '关联输送':   ['XX贸易公司','XX供应链管理','XX仓储物流项目','XX供应链项目'],
-  '单一来源滥用':['XX安装公司','XX设备采购项目'],
-  '异常低价':   ['XX材料公司','XX管道项目'],
-  '资质挂靠':   ['XX建设一公司','XX环保公司','XX排污项目'],
-  '履约不符':   ['XX建设公司','XX安装公司','XX设备采购项目'],
-  '融资性贸易': ['XX贸易公司','XX供应链项目'],
-  '空转走单':   ['XX物流公司','XX仓储建设项目','XX贸易公司'],
-  '应招未招':   ['XX监管公司','XX安防改造项目'],
-  '化整为零':   ['XX科技公司','XX信息系统项目'],
+  '关联输送':   ['华东建设集团','鼎信建设有限公司','鼎信建设一公司','二号车间维修工程','王建国','王建军（王建国之弟）','鼎信物资贸易有限公司'],
+  '围标串标':   ['恒通供应链管理有限公司','智能设备采购项目','鼎信建设一公司'],
+  '单一来源滥用':['宏达建材公司','厂区管网改造'],
+  '异常低价':   ['宏达建材公司','厂区管网改造'],
+  '资质挂靠':   ['鼎信建设一公司','清源环保公司','排污治理项目'],
+  '履约不符':   ['华东能源公司','华东仓储物流公司','仓储建设项目'],
+  '融资性贸易': ['恒通供应链管理有限公司','鼎信物资贸易有限公司'],
+  '空转走单':   ['华东仓储物流公司','仓储建设项目','鼎信物资贸易有限公司'],
+  '应招未招':   ['华建工程监理公司','厂区安防改造项目'],
+  '化整为零':   ['华建科技公司','智慧园区信息系统'],
 }
 function onRiskDomainClick(params) {
   const label = params?.name || params?.data?.label || ''
   if (!label || !(label in riskDomainNodes)) return
+  // 关联输送 = 故事线一入口：写穿透上下文、高亮红链、定位 CG-2026001
+  if (label === '关联输送') {
+    if (penetrationContext.active && penetrationContext.riskDomain === 'related_transfer') {
+      resetPenetration()
+    } else {
+      activateRelatedTransfer('riskDomain')
+    }
+    return
+  }
   activeRiskDomain.value = activeRiskDomain.value === label ? '' : label
 }
-function clearRiskDomain() { activeRiskDomain.value = '' }
+function clearRiskDomain() { activeRiskDomain.value = ''; if (penetrationContext.riskDomain === 'related_transfer') resetPenetration() }
+
+// ══════════ 故事线一：关联输送穿透底座 ══════════
+// 穿透上下文：任一模块/任一穿透层触发时写入它，其余模块据此高亮/重算/定位
+const penetrationContext = reactive({
+  active: false,
+  riskDomain: null,      // 'related_transfer'
+  highlightNodes: [],    // 网络图要高亮的节点 name 集合
+  focusOrderId: null,    // 'CG-2026001'
+  source: null,          // 'riskDomain' | 'realtime' | 'drill'
+})
+const focusOrderId = ref('')   // 右栏高亮定位的单据编号
+
+// 激活关联输送故事线（点「关联输送」域 或 点 CG-2026001「AI研判」）
+function activateRelatedTransfer(source) {
+  Object.assign(penetrationContext, {
+    active: true,
+    riskDomain: 'related_transfer',
+    highlightNodes: [...storyChainNodes],
+    focusOrderId: 'CG-2026001',
+    source,
+  })
+  activeRiskDomain.value = '关联输送'
+  focusOrderId.value = 'CG-2026001'
+  // 右栏定位滚动到焦点卡片
+  nextTick(() => {
+    const el = typeof document !== 'undefined' && document.querySelector('.risk-card.story-focus')
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
+// 恢复默认：清空穿透栈与上下文，三栏复位
+function resetPenetration() {
+  Object.assign(penetrationContext, { active: false, riskDomain: null, highlightNodes: [], focusOrderId: null, source: null })
+  activeRiskDomain.value = ''
+  focusOrderId.value = ''
+  drillStack.value = []
+  selectedPlan.value = ''
+  executionVisible.value = []
+  if (execTimer) { clearTimeout(execTimer); execTimer = null }
+  assistantSupplierHl.value = false
+}
+
+// ── AI 小助手 ↔ 页面组件联动：小助手研判时高亮页面对应模块 ──
+const assistantSupplierHl = ref(false)   // 供应商画像 → 高亮鼎信建设一公司行（CG-2026001 供应商）
+let supplierHlTimer = null
+function onAssistantFocus(e) {
+  const key = e?.detail?.key
+  if (!key) return
+  if (key === 'reset') { resetPenetration(); return }
+  if (key === 'supplier') {
+    assistantSupplierHl.value = true
+    nextTick(() => { const el = document.querySelector('.sup-side-row.assistant-hl'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+    if (supplierHlTimer) clearTimeout(supplierHlTimer)
+    supplierHlTimer = setTimeout(() => { assistantSupplierHl.value = false }, 6000)
+    return
+  }
+  // report / evidence / aggregate / plan / receipts → 点亮三栏联动 + 定位 CG-2026001
+  activateRelatedTransfer('assistant')
+}
+onMounted(() => { if (typeof window !== 'undefined') window.addEventListener('drp-assistant-focus', onAssistantFocus) })
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('drp-assistant-focus', onAssistantFocus)
+  if (supplierHlTimer) clearTimeout(supplierHlTimer)
+})
+
+// ── 报告后穿透：穿透栈 + 面包屑 ──
+// 穿透层统一结构：{ kind, type, title, badge?, summary, fields?, table?, suggestions?, drilldowns?, srcReal }
+//  - 真实实体（从后台报告字段动态生成）走 liveLayerFor，srcReal=true，无明细时只给"建议方向"；
+//  - AI 建议路径（故事线剧情）走 penetrationGraph，srcReal=false，明确标注"供参考"。
+// 二者共用同一套渲染，互不写死覆盖。
+const drillStack = ref([])
+const drillNodes = computed(() => drillStack.value)
+const drillModalOpen = ref(false)                                   // 穿透以弹窗形式展示
+const drillPanelOpen = ref(false)                                   // 关联穿透浮层（页面1/3）
+const currentLayer = computed(() => drillStack.value[drillStack.value.length - 1] || null)
+
+// graphKey → 网络图节点名（剧情节点联动网络高亮用）
+const penetGraphNodeName = {
+  group: '华东建设集团', dingxin: '鼎信建设有限公司', dingxin1: '鼎信建设一公司',
+  proj: '二号车间维修工程', wang: '王建国', wangj: '王建军（王建国之弟）', trade: '鼎信物资贸易有限公司',
+}
+function applyDrillContext(ctx) {
+  if (!ctx) return
+  const names = (ctx.highlightChain || []).map(k => penetGraphNodeName[k]).filter(Boolean)
+  Object.assign(penetrationContext, {
+    active: true,
+    riskDomain: ctx.riskDomain || penetrationContext.riskDomain || 'related_transfer',
+    highlightNodes: names.length ? names : penetrationContext.highlightNodes,
+    focusOrderId: ctx.focusOrderId || penetrationContext.focusOrderId,
+    source: 'drill',
+  })
+  activeRiskDomain.value = '关联输送'
+  if (ctx.focusOrderId) focusOrderId.value = ctx.focusOrderId
+}
+// openDrill 既接 AI建议路径(字符串=penetrationGraph key) 也接真实实体(对象)
+function openDrill(arg) {
+  if (typeof arg === 'string') {
+    const g = penetrationGraph[arg]
+    if (!g) return
+    drillStack.value.push({ kind: 'advice', key: arg, srcReal: false, ...g })
+    applyDrillContext(g.context)
+  } else if (arg && typeof arg === 'object') {
+    drillStack.value.push(liveLayerFor(arg))
+  } else return
+  drillModalOpen.value = true
+}
+function drillTo(index) { drillStack.value = drillStack.value.slice(0, index + 1) }
+function backOneLevel() { drillStack.value.pop(); if (!drillStack.value.length) drillModalOpen.value = false }
+function backToReport() { drillStack.value = []; drillModalOpen.value = false }
+function closeDrillModal() { drillModalOpen.value = false; drillStack.value = [] }
+
+// 从真实报告字段动态构造穿透层；无真实明细时只给"建议穿透方向"，绝不写死假数据
+function liveLayerFor(ent) {
+  const a = activeRisk.value || {}
+  const secs = reportSections.value || {}
+  const money = a.amount ? ('¥' + a.amount + (a.amountUnit || '')) : '—'
+  if (ent.kind === 'risk') {
+    return { kind:'live', type:'风险', srcReal:true, title: ent.label, badge: riskLevelLabel[a.level] || '',
+      summary: secs.risk_definition?.content || a.summary || '本单风险定义。',
+      fields: (secs.cause_analysis?.items || []).map(it => ({ k: it.label, v: it.content })),
+      suggestions: ['可继续查看「计算逻辑 / 原因分析」作为佐证', '可穿透涉及主体与责任人核实关联关系'] }
+  }
+  if (ent.kind === 'person') {
+    return { kind:'live', type:'责任人', srcReal:true, title: ent.label,
+      summary: '本单相关责任人，可核查其经办 / 审批行为。',
+      fields: [ { k:'关联单据', v:a.no }, { k:'整改期限', v:a.deadline||'—' }, { k:'当前状态', v:a.status||'—' } ],
+      suggestions: ['可核查其经办单据的供应商集中度是否异常', '可核查其审批通过率与回避执行情况'] }
+  }
+  if (ent.kind === 'subject') {
+    const rows = (a.table_rows || []).filter(r => JSON.stringify(r).includes(ent.label))
+    return { kind:'live', type:'涉及主体', srcReal: rows.length > 0, title: ent.label,
+      summary: rows.length ? '报告内可关联到的明细如下。' : '报告涉及主体（报告未含更细数据，以下为建议核查方向）。',
+      fields: [ { k:'涉及单据', v:a.no }, { k:'涉及金额', v: money } ],
+      table: rows.length ? { columns: Object.keys(rows[0]), rows: rows.map(r => Object.values(r)) } : null,
+      suggestions: ['可核查该主体工商登记与股权 / 实控关系', '可核查与该主体的资金往来流水', '可核查其投标记录是否同源'] }
+  }
+  if (ent.kind === 'doc') {
+    return { kind:'live', type: ent.type || '单据', srcReal:true, title: ent.label, badge: ent.domain,
+      summary: ent.domain ? (ent.domain + ' · 关联单据穿透') : '关联单据穿透。',
+      fields: [ { k:'编号', v: ent.label }, { k:'所属域', v: ent.domain || '—' }, { k:'关联金额', v: money }, { k:'当前状态', v: a.status || '—' } ],
+      suggestions: ['可核对该单据与合同约定 / 付款节点是否匹配', '可核查审批、验收记录是否齐全'] }
+  }
+  return { kind:'live', type:'实体', srcReal:false, title: ent.label || '实体', summary:'', fields:[], suggestions:[] }
+}
+
+// ── 穿透弹窗里的可视化图表（按层动态生成 ECharts 配置；无可视数据则返回 null 只展示表单/表格） ──
+function mkBar(cats, vals, name, color) {
+  return {
+    animation:false, backgroundColor:'transparent',
+    grid:{ left:8, right:14, top:30, bottom:6, containLabel:true },
+    tooltip:{ trigger:'axis', axisPointer:{ type:'shadow' } },
+    title:{ text:name, left:0, top:0, textStyle:{ fontSize:11, color:'#64748B', fontWeight:600 } },
+    xAxis:{ type:'category', data:cats, axisLabel:{ color:'#64748B', fontSize:10 }, axisLine:{ lineStyle:{ color:'#E2E8F0' } }, axisTick:{ show:false } },
+    yAxis:{ type:'value', axisLabel:{ color:'#94A3B8', fontSize:10 }, splitLine:{ lineStyle:{ color:'#F1F5F9' } } },
+    series:[{ type:'bar', barMaxWidth:34, data:vals, itemStyle:{ color, borderRadius:[4,4,0,0] },
+      label:{ show:true, position:'top', fontSize:10, color:'#475569' } }],
+  }
+}
+function mkGauge(val, name, max, color) {
+  return {
+    animation:false, backgroundColor:'transparent',
+    series:[{ type:'gauge', min:0, max:max||100, radius:'92%', center:['50%','58%'],
+      progress:{ show:true, width:12, itemStyle:{ color } },
+      axisLine:{ lineStyle:{ width:12, color:[[1,'#EEF2F7']] } },
+      axisTick:{ show:false }, splitLine:{ show:false }, axisLabel:{ show:false }, pointer:{ show:false },
+      anchor:{ show:false },
+      detail:{ valueAnimation:false, fontSize:22, fontWeight:800, color, offsetCenter:[0,'5%'], formatter:'{value}' },
+      title:{ offsetCenter:[0,'34%'], fontSize:11, color:'#64748B' },
+      data:[{ value:val, name }] }],
+  }
+}
+function mkPie(data, name) {
+  return {
+    animation:false, backgroundColor:'transparent',
+    title:{ text:name, left:0, top:0, textStyle:{ fontSize:11, color:'#64748B', fontWeight:600 } },
+    tooltip:{ trigger:'item' },
+    series:[{ type:'pie', radius:['38%','66%'], center:['50%','58%'], avoidLabelOverlap:true,
+      label:{ fontSize:10, color:'#475569' },
+      data: data.map((d,i)=>({ ...d, itemStyle:{ color:['#DC2626','#F59E0B','#3B82F6','#10B981'][i%4] } })) }],
+  }
+}
+// 尝试从真实表格里取一个数值列做柱状图（live 实体兜底可视化）
+function barFromTable(tbl) {
+  if (!tbl || !tbl.rows?.length) return null
+  const cols = tbl.columns || []
+  for (let c = 0; c < cols.length; c++) {
+    const nums = tbl.rows.map(r => { const m = String(r[c]).match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null })
+    if (nums.every(n => n !== null) && nums.some(n => n > 0)) {
+      const labelCol = c === 0 ? (cols.length > 1 ? 1 : 0) : 0
+      return mkBar(tbl.rows.map(r => String(r[labelCol]).slice(0,8)), nums, cols[c], '#7C3AED')
+    }
+  }
+  return null
+}
+const currentChart = computed(() => {
+  const l = currentLayer.value
+  if (!l) return null
+  switch (l.key) {
+    case 'evidence_fund':        return mkBar(['03-12','04-08','05-06'], [45,38,37], '资金回流 (万元) · 合计120', '#DC2626')
+    case 'reason_projects':      return mkBar(['CG-2026001','CG-2026005','CG-2026012'], [40,280,40], '在途关联敞口 (万元) · 合计360', '#F59E0B')
+    case 'case_history':         return mkBar(['物资关联案','分包关联案','服务关联案'], [92,81,85], '历史挽回损失 (万元)', '#10B981')
+    case 'person_zhangwei':      return mkGauge(37, '鼎信系集中度 %', 100, '#DC2626')
+    case 'org_dingxin1':         return mkGauge(58, '供应商健康评分', 100, '#F59E0B')
+    case 'person_zhangwei_scope':return mkBar(['CG-2026001','CG-2026012','CG-2026031','CG-2026044'], [40,40,18,26], '经办单金额 (万元)', '#7C3AED')
+    case 'evidence_bid':         return mkPie([{ name:'同IP同设备场次', value:3 }, { name:'独立投标', value:0 }], '投标同源分析')
+  }
+  if (l.table) return barFromTable(l.table)
+  return null
+})
+// 穿透弹窗内的核查处置操作（按处置力度由弱到强：留观 → 取证 → 核查 → 阻断）
+// 每个动作给出「效果提示」与「与其他动作的联系」，体现处置链路的递进关系
+const drillActions = [
+  { label: '标记待核查', icon: '🚩', tone: 'watch', stage: '留观', strength: '弱',
+    effect: '仅打标监控、不干预业务，纳入重点观察名单。',
+    relate: '证据不足时的过渡动作；补齐佐证后可升级为「派发核查工单」。' },
+  { label: '补充佐证材料', icon: '📎', tone: 'evidence', stage: '取证', strength: '辅助',
+    effect: '关联 / 上传佐证材料，提升风险定性置信度。',
+    relate: '为「派发核查工单」提供依据；佐证充分可直接「冻结付款节点」。' },
+  { label: '派发核查工单', icon: '📨', tone: 'route', stage: '核查', strength: '中',
+    effect: '生成核查工单派发至采购部 / 纪检，限时反馈结论。',
+    relate: '通常与「冻结付款节点」并行；核查结论决定解冻或移交。' },
+  { label: '冻结付款节点', icon: '🧊', tone: 'block', stage: '阻断', strength: '强',
+    effect: '当前付款节点立即止付，资金不再流出（最强处置）。',
+    relate: '触发后建议同时「派发核查工单」核实，避免误冻。' },
+]
+const actionDone = ref(null)   // 当前已下达的处置动作 → 弹窗提示
+function doDrillAction(a) { actionDone.value = a }
+
+// ── 处置闭环：A/B/C 方案 + 人判断 + AI 实施回执 ──
+const plans = [
+  { key: 'A', name: '立即冻结付款 + 启动专项审查', strength: '强', recommended: true,
+    impact: '当日止付 ¥40 万；冻结后供应商或申诉；可一并阻断 3 个在途关联标的。' },
+  { key: 'B', name: '暂不冻结，先约谈经办与供应商核实', strength: '中', recommended: false,
+    impact: '保留付款选项、给整改空间；存在资金已付的风险窗口约 5 个工作日。' },
+  { key: 'C', name: '列入重点观察名单，持续监控', strength: '弱', recommended: false,
+    impact: '不干预当前业务、持续监控；适用证据不足场景，本案证据已较充分，不建议。' },
+]
+const executionSteps = [
+  { step: 1, status: '已执行',
+    text: '在 SRM 系统将「鼎信建设一公司」标记“待核查”，并冻结采购单 CG-2026001 的付款节点。',
+    operator: 'AI 助手', time: '2026-05-21 09:46' },
+  { step: 2, status: '已执行',
+    text: '自动生成《关联输送核查任务单》（编号 RW-2026-0501），附完整证据链（工商/资金/投标三类），派发至纪检监察室核查组。',
+    operator: 'AI 助手', time: '2026-05-21 09:46' },
+  { step: 3, status: '已派发 · 待回执',
+    text: '向经办 张伟 及主管 李强 推送整改通知，要求补充关联披露与验收材料，回执截止 2026-05-28；逾期自动升级上级监管并预警。',
+    operator: 'AI 助手', time: '2026-05-21 09:46' },
+]
+const selectedPlan = ref('')
+const executionVisible = ref([])
+const reportFailed = ref(false)        // 真实接口失败 → 报告体回退 12 环兜底
+const storyReportActive = ref(false)   // 当前报告是否为故事线一焦点（CG-2026001）
+let execTimer = null
+const prEffectsRevealed = ref(0)        // 处置效果逐条揭示计数
+let prTimers = []
+function clearPrTimers() { prTimers.forEach(clearTimeout); prTimers = []; if (execTimer) { clearTimeout(execTimer); execTimer = null } }
+function choosePlan(key) {
+  selectedPlan.value = key
+  executionVisible.value = []
+  prEffectsRevealed.value = 0
+  clearPrTimers()
+  planResultOpen.value = true   // 选定方案 → 弹出处置结果（含实施回执、初步成效、继续穿透）
+  const res = planResults[key]
+  const effN = res ? res.effects.length : 0
+  // 处置效果：整改后「缓慢、一个个」动态揭示（每条间隔 1s）
+  const startEffects = (delay) => {
+    for (let i = 0; i < effN; i++) {
+      prTimers.push(setTimeout(() => { prEffectsRevealed.value = i + 1 }, delay + i * 1000))
+    }
+  }
+  if (key === 'A') {
+    // 先逐条出「AI 实施回执」，回执走完后再缓慢逐条出「处置效果」，形成一步步推进的节奏
+    let i = 0
+    const tick = () => {
+      if (i >= executionSteps.length) return
+      executionVisible.value = [...executionVisible.value, executionSteps[i]]
+      i++
+      execTimer = setTimeout(tick, 700)
+    }
+    tick()
+    startEffects(executionSteps.length * 700 + 500)
+  } else {
+    startEffects(500)
+  }
+}
+const executionDone = computed(() => selectedPlan.value === 'A' && executionVisible.value.length === executionSteps.length)
+// 已揭示的处置效果（逐条切片，配合 transition-group 出场动画）
+const visibleEffects = computed(() => currentPlanResult.value ? currentPlanResult.value.effects.slice(0, prEffectsRevealed.value) : [])
+const effectsAllShown = computed(() => !!currentPlanResult.value && prEffectsRevealed.value >= currentPlanResult.value.effects.length)
+
+// 处置结果弹窗：下达后的初步成效 + 继续穿透（完善故事线"解决"部分）
+const planResultOpen = ref(false)
+const planResults = {
+  A: {
+    name: '立即冻结付款 + 启动专项审查', tone: 'block', status: '处置中 · 待闭环',
+    effects: [
+      { icon: '🧊', k: '资金止付', v: 'CG-2026001 ¥40万 付款节点已冻结，资金不再流出' },
+      { icon: '🚧', k: '关联阻断', v: '一并阻断鼎信系在途关联标的 3 单、合计 ¥360万（CG-2026001 / 005 / 012）' },
+      { icon: '🏷️', k: '供应商处置', v: '鼎信建设一公司 列入“待核查”，暂停新单准入与付款' },
+      { icon: '📨', k: '核查派单', v: '《关联输送核查任务单》RW-2026-0501 附证据链已派发纪检监察室' },
+      { icon: '📉', k: '初步成效', v: '预计避免资金损失 ¥40万、阻断潜在关联输送敞口 ¥320万；本单状态 待整改 → 处置中 → 待闭环' },
+    ],
+    drill: [ { label: '看在途关联敞口（¥360万）', to: 'reason_projects' }, { label: '看供应商处置', to: 'org_dingxin1' }, { label: '穿透实控人王建国', to: 'person_wangjianguo' } ],
+    closing: '处置闭环已启动；待纪检核查回执（截止 2026-05-28）确认后转「已闭环」。',
+  },
+  B: {
+    name: '暂不冻结，先约谈核实', tone: 'route', status: '观察 · 待补验收',
+    effects: [
+      { icon: '📞', k: '发起约谈', v: '已向经办张伟与鼎信建设一公司发起约谈，要求 7 个工作日内补验收 + 关联披露' },
+      { icon: '⏳', k: '风险窗口', v: '付款选项保留，存在资金已付风险窗口约 5 个工作日，需持续盯办' },
+      { icon: '🔎', k: '未即时阻断', v: '未触发止付与关联阻断；约谈不实将自动升级为方案 A' },
+    ],
+    drill: [ { label: '看本单依据', to: 'risk_related_transfer' }, { label: '看供应商背景', to: 'org_dingxin1' } ],
+    closing: '已进入限期整改观察；逾期未补齐将自动升级为冻结处置。',
+  },
+  C: {
+    name: '列入重点观察名单，持续监控', tone: 'watch', status: '监控中',
+    effects: [
+      { icon: '🚩', k: '打标监控', v: 'CG-2026001 及鼎信建设一公司 列入重点观察名单，不干预当前业务' },
+      { icon: '📡', k: '节点拦截', v: '在下一付款 / 中标节点自动拦截复核' },
+      { icon: '⚠️', k: '风险提示', v: '本案叠加关联输送、证据已较充分，仅观察存在资金损失风险，建议升级处置' },
+    ],
+    drill: [ { label: '看关联输送证据', to: 'risk_related_transfer' } ],
+    closing: '已纳入持续监控；如出现新单或付款将触发拦截。',
+  },
+}
+const currentPlanResult = computed(() => (selectedPlan.value && planResults[selectedPlan.value]) || null)
+function reopenPlanResult() {
+  if (!selectedPlan.value) return
+  // 重看：直接显示全部（不重新逐条动画）
+  clearPrTimers()
+  const res = planResults[selectedPlan.value]
+  prEffectsRevealed.value = res ? res.effects.length : 0
+  if (selectedPlan.value === 'A') executionVisible.value = [...executionSteps]
+  planResultOpen.value = true
+}
+
+// ── 从真实报告动态识别可点实体（报告变 → 实体跟着变，不预设、不写死） ──
+const reportEntitiesLive = computed(() => {
+  const a = activeRisk.value
+  if (!a) return []
+  const ents = []
+  ;(a.entity || '').split(/[\/、,，;；]+/).map(s => s.trim()).filter(Boolean).forEach(name => ents.push({ kind: 'subject', type: '主体', label: name }))
+  const rp = extractNames(a.responsible)
+  if (rp && rp !== '无法获取' && rp !== '—') ents.push({ kind: 'person', type: '责任人', label: rp })
+  if (a.contractRef) ents.push({ kind: 'doc', type: '合同', label: a.contractRef, domain: '合同域' })
+  if (a.no) ents.push({ kind: 'doc', type: '采购单', label: a.no, domain: '采购域' })
+  if (a.name) ents.push({ kind: 'risk', type: '风险', label: a.name })
+  return ents
+})
+
+// ① 涉及对象关系图：力导向（不僵硬），可缩放/拖动；焦点单据用富关系链，其余用动态报告实体
+const entCatColor = { '风险': '#DC2626', '采购单': '#F59E0B', '供应商': '#2563EB', '责任人': '#7C3AED', '项目': '#0D9488', '合同': '#0891B2', '自然人': '#B91C1C', '关联企业': '#EF4444', '主体': '#2563EB', '默认': '#64748B' }
+// 焦点（CG-2026001 关联输送）富关系图：节点 + 带关系标签的边
+function entStoryGraph() {
+  const nodes = [
+    { name: 'CG-2026001', _cat: '采购单' },
+    { name: '未验收付款·关联输送', _cat: '风险' },
+    { name: '鼎信建设一公司', _cat: '供应商' },
+    { name: '张伟（采购部）', _cat: '责任人' },
+    { name: '李强（审批）', _cat: '责任人' },
+    { name: '二号车间维修工程', _cat: '项目' },
+    { name: 'HT-2026-0312', _cat: '合同' },
+    { name: '王建国（实控人）', _cat: '自然人' },
+    { name: '鼎信建设有限公司', _cat: '关联企业' },
+    { name: '王建军（代持法人）', _cat: '自然人' },
+  ]
+  const links = [
+    ['CG-2026001', '未验收付款·关联输送', '命中'],
+    ['CG-2026001', '鼎信建设一公司', '供应商'],
+    ['CG-2026001', '张伟（采购部）', '经办'],
+    ['CG-2026001', '李强（审批）', '审批'],
+    ['CG-2026001', 'HT-2026-0312', '付款依据'],
+    ['HT-2026-0312', '二号车间维修工程', '标的'],
+    ['鼎信建设一公司', '二号车间维修工程', '承接'],
+    ['王建国（实控人）', '鼎信建设一公司', '实际控制'],
+    ['王建国（实控人）', '鼎信建设有限公司', '持股65%'],
+    ['鼎信建设有限公司', '鼎信建设一公司', '资金回流¥120万'],
+    ['王建军（代持法人）', '鼎信建设一公司', '代持法人'],
+  ]
+  return { nodes, links }
+}
+// 通用：从动态报告实体生成（中心=风险）
+function entGenericGraph() {
+  const ents = reportEntitiesLive.value
+  const center = ents.find(e => e.kind === 'risk') || { type: '风险', label: activeRisk.value?.name || '风险事项' }
+  const others = ents.filter(e => e.kind !== 'risk')
+  const nodes = [{ name: center.label, _cat: '风险' }]
+  const links = []
+  others.forEach(e => { nodes.push({ name: e.label, _cat: e.type === '主体' ? '供应商' : e.type }); links.push([center.label, e.label, e.type]) })
+  return { nodes, links }
+}
+function buildEntityGraphOption(big) {
+  const { nodes, links } = storyReportActive.value ? entStoryGraph() : entGenericGraph()
+  const cats = [...new Set(nodes.map(n => n._cat))].map(c => ({ name: c, itemStyle: { color: entCatColor[c] || entCatColor['默认'] } }))
+  const catIndex = Object.fromEntries(cats.map((c, i) => [c.name, i]))
+  return {
+    animation: true, animationDuration: 600, backgroundColor: 'transparent',
+    legend: big ? [{ data: cats.map(c => c.name), bottom: 4, itemWidth: 9, itemHeight: 9, itemGap: 10, textStyle: { fontSize: 10, color: '#64748B' } }] : undefined,
+    tooltip: { trigger: 'item', backgroundColor: 'rgba(255,255,255,0.97)', borderColor: '#E2E8F0', textStyle: { color: '#334155', fontSize: 11 },
+      formatter: (p) => p.dataType === 'edge' ? (p.data._rel || '') : `<b>${p.data._cat}</b> · ${p.data.name}` },
+    series: [{
+      type: 'graph', layout: 'force', roam: big, draggable: big, symbol: 'circle',
+      force: { repulsion: big ? 340 : 140, edgeLength: big ? [70, 140] : [34, 64], gravity: 0.08, friction: 0.16 },
+      categories: cats,
+      label: { show: true, position: 'right', fontSize: big ? 11 : 8, color: '#334155', fontWeight: 600,
+        formatter: (p) => { const s = String(p.data.name); return s.length > (big ? 16 : 7) ? s.slice(0, big ? 15 : 6) + '…' : s } },
+      edgeSymbol: ['none', 'arrow'], edgeSymbolSize: [0, big ? 7 : 4],
+      lineStyle: { color: '#CBD5E1', width: big ? 1.5 : 1, curveness: 0.12, opacity: 0.85 },
+      edgeLabel: big ? { show: true, fontSize: 9, color: '#B91C1C', fontWeight: 600, formatter: (p) => p.data._rel || '' } : { show: false },
+      emphasis: { focus: 'adjacency', lineStyle: { width: big ? 3 : 2, opacity: 1 }, label: { fontSize: big ? 12 : 9 } },
+      data: nodes.map(n => ({ name: n.name, _cat: n._cat, category: catIndex[n._cat],
+        symbolSize: n._cat === '风险' ? (big ? 58 : 34) : n._cat === '采购单' ? (big ? 50 : 30) : (big ? 38 : 22),
+        itemStyle: { borderColor: '#fff', borderWidth: big ? 2.5 : 1.5, shadowColor: 'rgba(15,23,42,0.18)', shadowBlur: 6 } })),
+      links: links.map(([s, t, rel]) => ({ source: s, target: t, _rel: rel })),
+    }],
+  }
+}
+const entityGraphOption = computed(() => buildEntityGraphOption(false))
+const entityGraphOptionBig = computed(() => buildEntityGraphOption(true))
+const entityModalOpen = ref(false)
+function openEntityFromModal(e) { entityModalOpen.value = false; openDrill(e) }
+
+// 整改建议 → 延迟 1s 揭示「处置闭环」并播放动画
+const dpBodyEl = ref(null)
+const plansVisible = ref(false)
+const rectifyLoading = ref(false)
+let rectifyTimer = null
+function onRectifyClick() {
+  if (rectifyLoading.value || plansVisible.value) return
+  rectifyLoading.value = true
+  if (rectifyTimer) clearTimeout(rectifyTimer)
+  rectifyTimer = setTimeout(() => {
+    rectifyLoading.value = false
+    plansVisible.value = true
+    nextTick(() => { const el = dpBodyEl.value; if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) })
+  }, 1000)
+}
+function resetDisposition() { plansVisible.value = false; rectifyLoading.value = false; if (rectifyTimer) clearTimeout(rectifyTimer); selectedPlan.value = ''; planResultOpen.value = false; prEffectsRevealed.value = 0; clearPrTimers() }
+
+// AI 建议路径（故事线剧情）：默认收起，点了才展开；仅当报告疑似关联输送时才提示"可以这样穿透"
+const storyAdviceOpen = ref(false)
+const showStoryAdvice = computed(() => {
+  const a = activeRisk.value
+  const blob = JSON.stringify(reportSections.value || {}) + (a?.name || '') + (a?.entity || '')
+  return storyReportActive.value || /关联|输送|鼎信|关联交易|利益输送/.test(blob)
+})
+
+// ── 全量穿透图（报告后逐层穿透，不断头） ──
+const penetrationGraph = {
+  risk_related_transfer: {
+    type: 'risk', title: '关联输送风险', badge: '高',
+    summary: 'CG-2026001 命中“隐性关联 + 资金回流 + 同源投标”组合特征，疑为未披露关联交易项下的利益输送。',
+    context: { riskDomain: 'related_transfer', highlightChain: ['group','dingxin','dingxin1','proj'], focusOrderId: 'CG-2026001' },
+    fields: [
+      { k: '风险等级', v: '高', danger: true },
+      { k: '命中规则', v: 'R-07 关联交易未披露' },
+      { k: '触发特征', v: '隐性关联 + 资金回流¥120万 + 同源投标', danger: true },
+      { k: '命中红线', v: '十不准·不准向关联方输送利益 / 不准隐瞒关联关系参与采购', danger: true },
+      { k: '关联单据', v: 'CG-2026001（¥40万，待付）' },
+    ],
+    drilldowns: [
+      { label: '看工商证据', to: 'evidence_gongshang' },
+      { label: '看资金证据', to: 'evidence_fund', hint: '回流 ¥120万 / 3笔' },
+      { label: '看投标证据', to: 'evidence_bid', hint: '同IP / 同设备' },
+      { label: '穿透关联主体', to: 'org_dingxin1' },
+      { label: '穿透实控人', to: 'person_wangjianguo' },
+    ],
+  },
+  evidence_gongshang: {
+    type: 'evidence', title: '工商证据', summary: '股权与控制关系穿透，证明两家供应商实为关联方。',
+    fields: [
+      { k: '王建国 → 鼎信建设有限公司', v: '持股 65%（控股）', danger: true },
+      { k: '王建国 → 鼎信建设一公司', v: '实际控制（其弟王建军代持法人）', danger: true },
+      { k: '关联企业', v: '鼎信建设有限公司 / 鼎信建设一公司 / 鼎信物资贸易有限公司 / 信达劳务服务有限公司（4家）' },
+      { k: '披露情况', v: '本次采购未申报关联关系', danger: true },
+    ],
+    drilldowns: [ { label: '穿透王建国关联网络', to: 'person_wangjianguo' }, { label: '看供应商画像', to: 'org_dingxin1' } ],
+  },
+  evidence_fund: {
+    type: 'evidence', title: '资金证据 · 近6月回流 ¥120万', summary: '鼎信建设有限公司向关联方鼎信建设一公司回流资金，分3笔合计¥120万。',
+    table: {
+      columns: ['日期', '金额', '付方 → 收方', '备注'],
+      rows: [
+        ['2026-03-12', '¥45万', '鼎信建设有限公司 → 鼎信建设一公司', '工程款'],
+        ['2026-04-08', '¥38万', '鼎信建设有限公司 → 鼎信建设一公司', '材料预付'],
+        ['2026-05-06', '¥37万', '鼎信建设有限公司 → 鼎信建设一公司', '往来款'],
+      ],
+    },
+    fields: [ { k: '合计', v: '¥120万', danger: true }, { k: '资金性质', v: '关联方往来，与真实交易匹配度低' } ],
+    drilldowns: [ { label: '穿透收款方', to: 'org_dingxin1' } ],
+  },
+  evidence_bid: {
+    type: 'evidence', title: '投标证据 · 同源投标', summary: '两家公司在3场招标中表现出同源制单特征。',
+    table: {
+      columns: ['招标项目', '投标IP', '制单设备MAC', '结果'],
+      rows: [
+        ['二号车间维修工程', '116.62.45.21', '00-1B-44-11-3A-B7', '鼎信建设一公司中标'],
+        ['智能设备采购项目', '116.62.45.21', '00-1B-44-11-3A-B7', '陪标'],
+        ['厂区管网改造',     '116.62.45.21', '00-1B-44-11-3A-B7', '陪标'],
+      ],
+    },
+    fields: [ { k: '同IP', v: '116.62.45.21（3场一致）', danger: true }, { k: '同制单设备', v: 'MAC 00-1B-44-11-3A-B7', danger: true } ],
+    drilldowns: [ { label: '看智能设备采购项目', to: 'project_smartdevice' } ],
+  },
+  person_zhangwei: {
+    type: 'person', title: '张伟（经办人）', badge: '采购部',
+    summary: '本单经办人。其经办业务对鼎信系供应商集中度偏高，存在利益关联嫌疑。',
+    context: { riskDomain: 'related_transfer', highlightChain: ['group','dingxin','dingxin1','proj'], focusOrderId: 'CG-2026001' },
+    fields: [
+      { k: '部门 / 岗位', v: '采购部 / 采购主管' },
+      { k: '入职时间', v: '2019-03' },
+      { k: '近12月经办采购单', v: '86 笔' },
+      { k: '触发预警', v: '5 次', danger: true },
+      { k: '鼎信系集中度', v: '占其经办金额 37%（异常偏高）', danger: true },
+    ],
+    drilldowns: [
+      { label: '穿透他所负责的内容', to: 'person_zhangwei_scope', hint: '在办单据/项目' },
+      { label: '看本单 CG-2026001', to: 'order_cg2026001' },
+      { label: '看同供应商单 CG-2026012', to: 'order_cg2026012', hint: '同为鼎信建设一公司' },
+    ],
+  },
+  person_zhangwei_scope: {
+    type: 'scope', title: '张伟 · 所负责的内容', badge: '在办 4 单',
+    summary: '其在办采购单中两单连续指向同一关联供应商鼎信建设一公司，集中度异常，建议并案核查。',
+    table: {
+      columns: ['采购单', '项目', '金额', '供应商', '风险', '状态'],
+      rows: [
+        ['CG-2026001', '二号车间维修工程',         '¥40万', '鼎信建设一公司', '关联输送·高', '待付'],
+        ['CG-2026012', '二号车间维修工程（二期）', '¥40万', '鼎信建设一公司', '未验收付款·高', '已付待验收'],
+        ['CG-2026031', '厂区绿化养护',             '¥18万', '绿源园林工程有限公司', '正常', '已完成'],
+        ['CG-2026044', '安防设备维保',             '¥26万', '安泰智能科技有限公司', '正常', '在办'],
+      ],
+    },
+    fields: [
+      { k: '负责项目', v: '二号车间维修工程（含二期）、厂区配套' },
+      { k: '异常提示', v: '鼎信系连续两单 ¥80万，集中度异常，建议并案', danger: true },
+    ],
+    drilldowns: [
+      { label: '穿透 CG-2026012', to: 'order_cg2026012' },
+      { label: '穿透二号车间维修工程', to: 'project_workshop2' },
+    ],
+  },
+  person_liqiang: {
+    type: 'person', title: '李强（审批人）', badge: '采购部主管',
+    summary: '本单审批人。对鼎信系单据审批通过率 100%，审批把关存疑。',
+    fields: [
+      { k: '部门 / 岗位', v: '采购部 / 主管' },
+      { k: '近12月审批', v: '210 笔' },
+      { k: '鼎信系单据审批', v: '6/6 全部通过', danger: true },
+      { k: '本单审批', v: 'CG-2026001 已审批通过（未要求关联披露）', danger: true },
+    ],
+    drilldowns: [ { label: '看其审批的鼎信系单据', to: 'person_zhangwei_scope' } ],
+  },
+  org_dingxin1: {
+    type: 'org', title: '鼎信建设一公司', badge: '关联供应商 · 评分58',
+    summary: '王建国实际控制的关联供应商（王建军代持），近年密集中标本集团项目。',
+    context: { riskDomain: 'related_transfer', highlightChain: ['dingxin','dingxin1','proj'], focusOrderId: 'CG-2026001' },
+    fields: [
+      { k: '成立时间', v: '2021-08' },
+      { k: '注册资本', v: '500 万' },
+      { k: '法定代表人', v: '王建军（王建国之弟，代持）', danger: true },
+      { k: '实际控制人', v: '王建国（未披露）', danger: true },
+      { k: '供应商健康评分', v: '58（偏低）', danger: true },
+      { k: '中标本集团项目', v: '5 个 / 合计 ¥860万' },
+    ],
+    drilldowns: [
+      { label: '穿透实控人王建国', to: 'person_wangjianguo' },
+      { label: '看资金往来', to: 'evidence_fund' },
+      { label: '看承接项目', to: 'project_workshop2' },
+    ],
+  },
+  person_wangjianguo: {
+    type: 'person', title: '王建国（共同实际控制人）', badge: '自然人',
+    summary: '同时控制鼎信建设有限公司与鼎信建设一公司，形成隐性关联交易闭环。',
+    context: { riskDomain: 'related_transfer', highlightChain: ['group','dingxin','dingxin1','proj','wang'], focusOrderId: 'CG-2026001' },
+    fields: [
+      { k: '鼎信建设有限公司', v: '持股 65%（控股）', danger: true },
+      { k: '鼎信建设一公司', v: '实际控制（王建军代持）', danger: true },
+      { k: '关联企业', v: '鼎信建设有限公司 / 鼎信建设一公司 / 鼎信物资贸易有限公司 / 信达劳务服务有限公司' },
+      { k: '风险结论', v: '可在关联企业间转移利益、操纵投标', danger: true },
+    ],
+    drilldowns: [ { label: '看资金证据', to: 'evidence_fund' }, { label: '看投标证据', to: 'evidence_bid' } ],
+  },
+  project_workshop2: {
+    type: 'project', title: '二号车间维修工程', badge: '合同 HT-2026-0312',
+    summary: '本案核心项目，由关联供应商鼎信建设一公司承接，验收单缺失而付款待付。',
+    context: { riskDomain: 'related_transfer', highlightChain: ['group','dingxin1','proj'], focusOrderId: 'CG-2026001' },
+    fields: [
+      { k: '合同编号 / 金额', v: 'HT-2026-0312 / ¥40万' },
+      { k: '承接方', v: '鼎信建设一公司' },
+      { k: '对应采购单', v: 'CG-2026001' },
+      { k: '施工进度', v: '已施工 60%' },
+      { k: '验收单', v: '缺失', danger: true },
+      { k: '付款状态', v: '待付 ¥40万', danger: true },
+    ],
+    drilldowns: [
+      { label: '看采购单 CG-2026001', to: 'order_cg2026001' },
+      { label: '看二期 CG-2026012', to: 'order_cg2026012' },
+      { label: '看在途关联标的', to: 'reason_projects' },
+    ],
+  },
+  project_smartdevice: {
+    type: 'project', title: '智能设备采购项目', badge: '¥280万',
+    summary: '鼎信建设一公司在此项目陪标（同IP/同设备），与本案同源，属在途关联敞口。',
+    fields: [
+      { k: '金额', v: '¥280万' }, { k: '采购单', v: 'CG-2026005' },
+      { k: '关联点', v: '鼎信参与投标，同IP同制单设备', danger: true },
+    ],
+    drilldowns: [ { label: '看投标证据', to: 'evidence_bid' } ],
+  },
+  order_cg2026001: {
+    type: 'order', title: '采购单 CG-2026001', badge: '关联输送·高', summary: '本案焦点单据。',
+    fields: [
+      { k: '项目', v: '二号车间维修工程' }, { k: '金额', v: '¥40万' },
+      { k: '供应商', v: '鼎信建设一公司' }, { k: '经办', v: '张伟（采购部）' },
+      { k: '审批', v: '李强（采购部主管）' }, { k: '验收单', v: '缺失', danger: true }, { k: '付款', v: '待付', danger: true },
+    ],
+    drilldowns: [ { label: '穿透经办人张伟', to: 'person_zhangwei' }, { label: '穿透供应商', to: 'org_dingxin1' } ],
+  },
+  order_cg2026012: {
+    type: 'order', title: '采购单 CG-2026012', badge: '未验收付款·高',
+    summary: '张伟经办的另一单，同供应商鼎信建设一公司，付款已走但验收单空缺。',
+    fields: [
+      { k: '项目', v: '二号车间维修工程（二期）' }, { k: '金额', v: '¥40万' },
+      { k: '供应商', v: '鼎信建设一公司' }, { k: '经办', v: '张伟（采购部）' },
+      { k: '付款', v: '已付', danger: true }, { k: '验收单', v: '空缺', danger: true },
+    ],
+    drilldowns: [ { label: '穿透供应商', to: 'org_dingxin1' }, { label: '回到张伟负责内容', to: 'person_zhangwei_scope' } ],
+  },
+  suggestion_root: {
+    type: 'suggestion', title: '整改建议', summary: '三个处置方案，推荐 A。点方案可看建议原因。',
+    fields: [
+      { k: 'A（推荐）', v: '立即冻结付款 + 启动专项审查 ｜ 影响：当日止付¥40万，可阻断在途关联标的' },
+      { k: 'B', v: '先约谈核实 ｜ 影响：保留付款选项，存在已付风险窗口约5个工作日' },
+      { k: 'C', v: '列入重点观察名单 ｜ 影响：不干预，持续监控（本案证据已充分，不建议）' },
+    ],
+    drilldowns: [ { label: '为什么推荐A（建议原因）', to: 'reason_A' } ],
+  },
+  reason_A: {
+    type: 'reason', title: '建议原因 · 为什么立即冻结+审查',
+    summary: '金额虽小但性质恶劣、模式可复制、证据已充分，须先阻断防扩散。',
+    fields: [
+      { k: '模式可复制', v: '“隐性关联+资金回流+同源投标”可套用到更大标的', danger: true },
+      { k: '扩散风险', v: '存在多个在途关联标的，敞口合计 ¥360万', danger: true },
+      { k: '证据充分', v: '工商/资金/投标三类证据闭环' },
+      { k: '历史佐证', v: '同类案例 3 起，平均挽回损失 ¥86万' },
+    ],
+    drilldowns: [
+      { label: '看原因涉及的项目', to: 'reason_projects', hint: '在途关联敞口 ¥360万' },
+      { label: '看历史案例', to: 'case_history' },
+      { label: '看法规依据', to: 'regulation' },
+    ],
+  },
+  reason_projects: {
+    type: 'project', title: '原因涉及的项目 · 在途关联敞口', badge: '合计 ¥360万',
+    summary: '若不立即阻断，以下在途关联标的存在同样的利益输送扩散风险。',
+    table: {
+      columns: ['采购单', '项目', '金额', '关联点', '状态'],
+      rows: [
+        ['CG-2026001', '二号车间维修工程',         '¥40万',  '鼎信建设一公司承接', '待付'],
+        ['CG-2026005', '智能设备采购项目',         '¥280万', '鼎信同源投标/陪标', '评标中'],
+        ['CG-2026012', '二号车间维修工程（二期）', '¥40万',  '鼎信建设一公司承接', '已付待验收'],
+      ],
+    },
+    fields: [ { k: '敞口合计', v: '¥360万', danger: true } ],
+    drilldowns: [
+      { label: '穿透 CG-2026005 项目', to: 'project_smartdevice' },
+      { label: '穿透 CG-2026012', to: 'order_cg2026012' },
+    ],
+  },
+  case_history: {
+    type: 'case', title: '历史同类案例（3起）', summary: '关联输送类案例处置参考。',
+    table: {
+      columns: ['案例', '手法', '处置', '挽回'],
+      rows: [
+        ['2024 物资采购关联案', '亲属代持+回流', '冻结+移送纪检', '¥92万'],
+        ['2025 工程分包关联案', '同源投标抬价',   '废标重招+追责', '¥81万'],
+        ['2025 服务类关联案',   '未披露关联交易', '止付+补充披露', '¥85万'],
+      ],
+    },
+    fields: [ { k: '平均挽回', v: '¥86万' } ],
+  },
+  regulation: {
+    type: 'regulation', title: '法规 / 制度依据', summary: '本次研判与处置的合规依据。',
+    fields: [
+      { k: '《招标投标法实施条例》第34条', v: '投标人不得与他人串通投标、不得弄虚作假' },
+      { k: '集团《采购管理办法》', v: '关联交易须如实披露，违者暂停资格' },
+      { k: '十不准', v: '不准向关联方输送利益 / 不准隐瞒关联关系参与采购' },
+    ],
+  },
+}
+
+// 12 环兜底（仅当真实接口失败时按此渲染）
+const verdict12Fallback = [
+  { ring: 1, title: '关联依据', body: '「关联输送」风险域 18 笔居首；CG-2026001 命中“隐性关联 + 资金回流 + 同源投标”组合特征，初判为未披露关联交易项下的利益输送。' },
+  { ring: 2, title: '弹窗调依据', body: '证据卡：\n· 工商 — 王建国持鼎信建设有限公司 65% 股权，同时实际控制鼎信建设一公司（其弟王建军代持法人）。\n· 资金 — 近6个月鼎信建设有限公司向鼎信建设一公司回流 ¥120 万，分3笔。\n· 投标 — 2026年3场招标两家公司同一投标IP（116.62.45.21）、同一制单设备（MAC 00-1B-44-11-3A-B7）上传标书。' },
+  { ring: 3, title: '关联风险', body: '关联交易未披露、利益输送、围标嫌疑；对应红线「十不准」之“不准向关联方输送利益”“不准隐瞒关联关系参与采购”。' },
+  { ring: 4, title: '具体项目', body: '「二号车间维修工程」，合同 HT-2026-0312，金额 ¥40 万，承接方 鼎信建设一公司。' },
+  { ring: 5, title: '穿透单据·责任人', body: '采购单 CG-2026001：经办 张伟（采购部）、审批 李强（采购部主管）；缺陷—验收单缺失，付款申请已提交财务待付。' },
+  { ring: 6, title: '给出建议', body: '暂停 CG-2026001 付款 + 启动专项核查 + 要求鼎信建设一公司补充关联关系披露材料。' },
+  { ring: 7, title: '协调方式', body: '纪检监察室牵头核查、财务部冻结付款节点、SRM 将鼎信建设一公司标记“待核查”并限制新单。' },
+  { ring: 8, title: '给出理由', body: '本单虽仅 ¥40 万，但“隐性关联+资金回流+同源投标”模式可复制到更大标的，须先阻断，防系统性扩散。' },
+  { ring: 9, title: '可选方案', body: '见 A / B / C（每个标注预计影响）。', plans: true },
+  { ring: 10, title: '调理由依据', body: '历史同类案例3起（平均挽回损失 ¥86 万）；鼎信建设一公司供应商健康评分 58；《招标投标法实施条例》第34条；集团《采购管理办法》关联交易披露条款。' },
+  { ring: 11, title: '人做判断', body: '监管员在 A / B / C 中选定（决策权在人）。' },
+  { ring: 12, title: 'AI 实施', body: '执行所选方案并实时回执。' },
+]
 
 // ── AI 风险识别检测报告 ────────────────────────────────────────────────────
 // ── AI 智能体弹窗 ────────────────────────────────────────────────────────
@@ -1040,7 +2042,7 @@ const activeRisk = computed(() => {
       // 状态信息
       status: apiStatus,
       statusCode: statusCode,
-      statusFlow: flow,
+      statusFlow: Array.isArray(flow) ? flow.join(' → ') : flow,
       currentStatusIdx: curIdx,
       responsible: apiData.responsible_person || apiData.responsible || apiData.handler || localRisk?.handler || '无法获取',
       deadline: apiData.deadline || localRisk?.deadline || '—',
@@ -1095,7 +2097,7 @@ const activeRisk = computed(() => {
       alertTime: localRisk.warningTime || new Date().toLocaleString(),
       source: 'AI智能体 · 采购全量数据穿透',
       contractRef: 'HT-' + (localRisk.no || selectedRiskId.value).replace('CG-','').replace('R-CG-',''),
-      statusFlow: ['待核查','核查中','整改中','已闭环'],
+      statusFlow: '待核查 → 核查中 → 整改中 → 已闭环',
       currentStatusIdx: Math.max(0, progressSteps.findIndex(s => s.code === localRisk.statusCode))
     }
   }
@@ -1371,73 +2373,80 @@ riskMatrixByPeriod.all = riskMatrixByPeriod.half
 const riskMatrix = computed(() => riskMatrixByPeriod[timePeriod.value] || riskMatrixByPeriod.half)
 
 const supplierRanking = [
-  { rank:1, name:'XX建设工程有限公司',   amount:285.6, riskCount:5, health:72, trend:-1, white:true,  category:'土建工程' },
-  { rank:2, name:'XX建材有限公司',       amount:248.2, riskCount:3, health:82, trend: 1, white:true,  category:'材料采购' },
-  { rank:3, name:'XX能源科技有限公司',   amount:198.5, riskCount:1, health:92, trend: 1, white:true,  category:'设备采购' },
-  { rank:4, name:'XX供应链管理有限公司', amount:168.8, riskCount:8, health:62, trend:-1, white:false, category:'服务采购' },
-  { rank:5, name:'XX信息技术有限公司',   amount:125.3, riskCount:0, health:95, trend: 0, white:true,  category:'IT采购' },
-  { rank:6, name:'XX设备制造有限公司',   amount: 98.6, riskCount:1, health:88, trend: 0, white:true,  category:'设备采购' },
+  { rank:1, name:'鼎信建设有限公司',     amount:285.6, riskCount:5, health:62, trend:-1, white:false, category:'土建工程' },
+  { rank:2, name:'宏达建材有限公司',     amount:248.2, riskCount:3, health:82, trend: 1, white:true,  category:'材料采购' },
+  { rank:3, name:'华东能源科技有限公司', amount:198.5, riskCount:1, health:92, trend: 1, white:true,  category:'设备采购' },
+  { rank:4, name:'鼎信建设一公司',       amount:168.8, riskCount:8, health:58, trend:-1, white:false, category:'服务采购' },
+  { rank:5, name:'华建信息技术有限公司', amount:125.3, riskCount:0, health:95, trend: 0, white:true,  category:'IT采购' },
+  { rank:6, name:'恒通供应链管理有限公司',amount: 98.6, riskCount:1, health:88, trend: 0, white:true,  category:'设备采购' },
 ]
 
 const riskList = [
   { id:'R-CG-001', no:'CG-2026001', name:'未验收即付款预警', level:'red', levelLabel:'高风险',
-    warningTime:'2026-05-16 09:40', entity:'XX工程部门 / XX建设工程有限公司',
+    storyFocus:true, domain:'未验收付款',
+    warningTime:'2026-05-21 09:40', entity:'采购部 / 鼎信建设一公司',
     status:'待整改', statusCode:'rectifying', amount:'40', amountUnit:'万',
-    handler:'马XX（工程部）', deadline:'2026-05-28',
+    handler:'张伟（采购部）', deadline:'2026-05-28',
     detail:{
-      riskItem:'XX 车间维修工程，合同 HT-202604001 约定验收合格后付 80% 工程款 40 万元，工程未验收即于 2026-05-16 支付 40 万元。',
+      riskItem:'二号车间维修工程，合同 HT-2026-0312 约定验收合格后付 80% 工程款 40 万元，工程未验收即提交付款申请待付。AI 穿透发现承接方鼎信建设一公司与集团供应商鼎信建设有限公司同受王建国控制，疑为未披露关联交易项下的利益输送。',
       causeAnalysis:[
-        '采购计划 CG-202604001，工程计划完工时间 2026-05-20，截至预警日仍在施工中，未验收。',
-        '合同 HT-202604001 明确约定"验收合格后支付 80% 工程款"，付款节点未提前。',
-        '银行流水 LS-20260516001，付款 40 万元，审批流程中"验收确认"环节被跳过。',
-        '会计凭证 PZ-20260516001 附合同复印件但未附验收记录。',
+        '采购计划 CGP-2026001，工程计划完工时间 2026-05-20，截至预警日已施工 60%，未验收。',
+        '合同 HT-2026-0312 明确约定"验收合格后支付 80% 工程款"，付款节点未提前。',
+        '工商穿透：王建国持鼎信建设有限公司 65% 股权，同时实际控制鼎信建设一公司（其弟王建军代持法人），本次采购未申报关联关系。',
+        '资金穿透：近6月鼎信建设有限公司向鼎信建设一公司回流 ¥120 万（分3笔）。',
+        '投标穿透：两家公司 3 场招标同一投标IP（116.62.45.21）、同一制单设备（MAC 00-1B-44-11-3A-B7）。',
       ],
       penetrationLinks:[
-        { domain:'采购域', data:'采购计划 CG-202604001' },
-        { domain:'采购域', data:'采购验收记录 YS-202604001（未验收）' },
-        { domain:'合同域', data:'合同详情 HT-202604001' },
-        { domain:'资金域', data:'银行流水 LS-20260516001' },
-        { domain:'财务域', data:'会计凭证 PZ-20260516001' },
+        { domain:'采购域', data:'采购计划 CGP-2026001' },
+        { domain:'采购域', data:'采购验收记录 YS-2026-0312（缺失）' },
+        { domain:'合同域', data:'合同详情 HT-2026-0312' },
+        { domain:'资金域', data:'资金回流 ¥120万 / 3笔（鼎信建设→鼎信建设一公司）' },
+        { domain:'财务域', data:'付款申请 FK-2026001（待付 ¥40万）' },
       ],
       rectificationSuggestions:[
-        '立即暂停后续付款，由工程部门组织核查工程进度及质量，尽快完成验收。',
-        '若验收合格补充验收记录及质量检测报告；若不合格要求限期整改。',
-        '问责：跳过验收确认的审批人、未核实验收的记账人员。',
-        '系统设置"验收记录必传"校验，无验收记录无法提交付款申请。',
+        '立即冻结 CG-2026001 付款节点，启动关联输送专项审查。',
+        '要求鼎信建设一公司补充关联关系披露材料与验收记录。',
+        '问责：跳过验收确认、未核实关联关系的经办张伟与审批李强。',
+        '系统设置"关联关系申报 + 验收记录必传"校验，无则无法提交付款申请。',
       ],
     },
   },
   { id:'R-CG-002', no:'CG-2026005', name:'围标串标预警', level:'red', levelLabel:'高风险',
-    warningTime:'2026-05-18 14:20', entity:'XX采购部 / 3家投标单位',
+    domain:'围标串标',
+    warningTime:'2026-05-20 14:20', entity:'采购部 / 恒通供应链管理有限公司',
     status:'核查中', statusCode:'investigating', amount:'280', amountUnit:'万',
-    handler:'孙XX（采购部）', deadline:'2026-05-25',
+    handler:'孙磊（采购部）', deadline:'2026-05-25',
     summary:'AI 检测到 3 家投标单位的 IP / MAC 地址、报价节奏存在串通嫌疑。' },
-  { id:'R-CG-003', no:'CG-2026012', name:'关联输送预警', level:'red', levelLabel:'高风险',
-    warningTime:'2026-05-15 11:00', entity:'XX能源公司 / XX关联供应商',
-    status:'核查中', statusCode:'investigating', amount:'350', amountUnit:'万',
-    handler:'钱XX（审计部）', deadline:'2026-05-22',
-    summary:'疑似向关联供应商输送利益，合同金额 350 万元，关联关系已核实。' },
-  { id:'R-CG-004', no:'CG-2026018', name:'异常低价中标预警', level:'orange', levelLabel:'中风险',
-    warningTime:'2026-05-14 16:30', entity:'XX建设公司 / XX低价中标单位',
-    status:'待核查', statusCode:'pending', amount:'120', amountUnit:'万',
-    handler:'李XX（招采部）', deadline:'2026-05-24' },
+  { id:'R-CG-003', no:'CG-2026012', name:'未验收付款预警（二期）', level:'red', levelLabel:'高风险',
+    domain:'未验收付款',
+    warningTime:'2026-05-19 11:00', entity:'采购部 / 鼎信建设一公司',
+    status:'核查中', statusCode:'investigating', amount:'40', amountUnit:'万',
+    handler:'张伟（采购部）', deadline:'2026-05-26',
+    summary:'二号车间维修工程（二期），同经办张伟、同供应商鼎信建设一公司，付款已走但验收单空缺，与 CG-2026001 同源。' },
+  { id:'R-CG-004', no:'CG-2026018', name:'价格虚高预警', level:'orange', levelLabel:'中风险',
+    domain:'价格虚高',
+    warningTime:'2026-05-18 15:30', entity:'综合部 / 锐捷办公用品有限公司',
+    status:'待核查', statusCode:'pending', amount:'56', amountUnit:'万',
+    handler:'周敏（综合部）', deadline:'2026-05-30' },
   { id:'R-CG-005', no:'CG-2026025', name:'资质挂靠预警', level:'orange', levelLabel:'中风险',
-    warningTime:'2026-05-13 09:15', entity:'XX建设一公司 / XX承包商',
+    domain:'资质挂靠',
+    warningTime:'2026-05-13 09:15', entity:'工程部 / 鼎信建设一公司',
     status:'整改中', statusCode:'rectifying', amount:'85', amountUnit:'万',
-    handler:'周XX（工程部）', deadline:'2026-05-27' },
+    handler:'周强（工程部）', deadline:'2026-05-27' },
   { id:'R-CG-006', no:'CG-2026033', name:'融资性贸易采购预警', level:'red', levelLabel:'高风险',
-    warningTime:'2026-05-12 13:45', entity:'XX贸易公司 / XX投资公司',
+    domain:'融资性贸易',
+    warningTime:'2026-05-12 13:45', entity:'风控部 / 鼎信物资贸易有限公司',
     status:'待核查', statusCode:'pending', amount:'150', amountUnit:'万',
-    handler:'吴XX（风控部）', deadline:'2026-05-26' },
+    handler:'吴明（风控部）', deadline:'2026-05-26' },
 ]
 
 const aiSuggestions = [
-  { id:'AI-1', type:'CG-2026001 未验收付款', priority:'high', priorityLabel:'高',
-    content:'XX建设工程（TOP1供应商）未验收即付款 40 万元，建议立即暂停后续付款并核查工程进度。' },
+  { id:'AI-1', type:'CG-2026001 关联输送', priority:'high', priorityLabel:'高',
+    content:'二号车间维修工程承接方鼎信建设一公司与集团供应商鼎信建设有限公司同受王建国控制，未验收即待付 40 万元，建议立即冻结付款并启动专项审查。' },
   { id:'AI-2', type:'合规风险预警', priority:'high', priorityLabel:'高',
-    content:'发现 2 笔采购涉嫌融资性贸易（合计 150 万），建议启动专项排查。' },
+    content:'发现鼎信系在途关联标的合计 ¥360 万（CG-2026001/005/012），建议并案启动专项排查。' },
   { id:'AI-3', type:'供应商管理', priority:'medium', priorityLabel:'中',
-    content:'XX供应链管理本月新增 18 笔合同但健康评分仅 62 分，建议重点关注其履约风险与白名单准入。' },
+    content:'鼎信建设一公司健康评分仅 58 分、近年密集中标本集团 5 个项目，建议重点关注关联关系与白名单准入。' },
 ]
 const systemEntries = [
   { id:'sys1', icon:'SRM', label:'SRM 系统' },{ id:'sys2', icon:'ERP', label:'ERP 系统' },
@@ -1472,26 +2481,25 @@ const drawerAccordions = [
 
 // ── 穿透弹窗数据 ────────────────────────────────────────────────────────
 const bidAnomalies = [
-  { project:'XX车间改造工程',   code:'CG-202604012', winner:'XX建设工程有限公司', type:'评标程序违规',   level:'高', lvClass:'high', status:'待整改' },
-  { project:'XX设备采购项目',   code:'CG-202604018', winner:'XX机械设备公司',     type:'评标专家回避',   level:'高', lvClass:'high', status:'核查中' },
-  { project:'XX绿化工程',       code:'CG-202604025', winner:'XX园林公司',         type:'评分标准不一致', level:'中', lvClass:'mid',  status:'待整改' },
-  { project:'XX道路修缮工程',   code:'CG-202604031', winner:'XX路桥公司',         type:'评标时间异常',   level:'中', lvClass:'mid',  status:'待核查' },
-  { project:'XX办公装修项目',   code:'CG-202604038', winner:'XX装饰公司',         type:'围标串标嫌疑',   level:'高', lvClass:'high', status:'核查中' },
-  { project:'XX消防设备采购',   code:'CG-202604042', winner:'XX消防器材公司',     type:'资质审查缺失',   level:'中', lvClass:'mid',  status:'待整改' },
-  { project:'XX信息系统升级',   code:'CG-202604055', winner:'XX信息技术公司',     type:'评标流程不合规', level:'低', lvClass:'low',  status:'已闭环' },
-  { project:'XX仓储物流项目',   code:'CG-202604061', winner:'XX物流公司',         type:'专家资质存疑',   level:'中', lvClass:'mid',  status:'核查中' },
+  { project:'二号车间维修工程',   code:'CG-2026001', winner:'鼎信建设一公司',   type:'同源投标/关联未披露', level:'高', lvClass:'high', status:'待整改' },
+  { project:'智能设备采购项目',   code:'CG-2026005', winner:'恒通供应链管理有限公司', type:'三家投标同源',     level:'高', lvClass:'high', status:'核查中' },
+  { project:'厂区绿化养护',       code:'CG-2026025', winner:'绿源园林工程有限公司', type:'评分标准不一致',     level:'中', lvClass:'mid',  status:'待整改' },
+  { project:'厂区道路修缮工程',   code:'CG-2026031', winner:'华路路桥有限公司',     type:'评标时间异常',       level:'中', lvClass:'mid',  status:'待核查' },
+  { project:'办公装修项目',       code:'CG-2026038', winner:'雅居装饰有限公司',     type:'围标串标嫌疑',       level:'高', lvClass:'high', status:'核查中' },
+  { project:'消防设备采购',       code:'CG-2026042', winner:'安泰消防器材有限公司', type:'资质审查缺失',       level:'中', lvClass:'mid',  status:'待整改' },
+  { project:'信息系统升级',       code:'CG-2026055', winner:'华建信息技术有限公司', type:'评标流程不合规',     level:'低', lvClass:'low',  status:'已闭环' },
+  { project:'仓储物流外包项目',   code:'CG-2026061', winner:'华东仓储物流公司',     type:'专家资质存疑',       level:'中', lvClass:'mid',  status:'核查中' },
 ]
 const acceptAnomalies = [
-  { contract:'HT-202604001', project:'XX车间维修工程', supplier:'XX建设工程有限公司', amount:'40万',  time:'2026-05-16', acceptStatus:'未验收',   requirement:'补充验收手续后方可付款' },
-  { contract:'HT-202604015', project:'XX管道改造工程', supplier:'XX安装公司',         amount:'85万',  time:'2026-05-14', acceptStatus:'部分验收', requirement:'完成全部验收后付余款' },
-  { contract:'HT-202604023', project:'XX外墙翻新工程', supplier:'XX建材公司',         amount:'28万',  time:'2026-05-18', acceptStatus:'未验收',   requirement:'暂停付款并组织验收' },
+  { contract:'HT-2026-0312', project:'二号车间维修工程',     supplier:'鼎信建设一公司', amount:'40万',  time:'2026-05-21', acceptStatus:'未验收',   requirement:'冻结付款并启动关联输送审查' },
+  { contract:'HT-2026-0301', project:'二号车间维修工程（二期）', supplier:'鼎信建设一公司', amount:'40万',  time:'2026-05-19', acceptStatus:'未验收',   requirement:'付款已走，补验收并并案核查' },
+  { contract:'HT-2026-0318', project:'外墙翻新工程',         supplier:'宏达建材有限公司', amount:'28万',  time:'2026-05-18', acceptStatus:'部分验收', requirement:'完成全部验收后付余款' },
 ]
 const approvalAnomalies = [
-  { item:'设备采购定标', approver:'王XX', time:'2026-05-12', reason:'超权限审批',     level:'中', lvClass:'mid',  responsible:'王XX', deadline:'2026-05-25' },
-  { item:'工程分包定标', approver:'李XX', time:'2026-05-10', reason:'审批流程缺失',   level:'高', lvClass:'high', responsible:'李XX', deadline:'2026-05-22' },
-  { item:'服务采购定标', approver:'张XX', time:'2026-05-08', reason:'利益冲突未回避', level:'高', lvClass:'high', responsible:'张XX', deadline:'2026-05-20' },
-  { item:'材料采购定标', approver:'陈XX', time:'2026-05-15', reason:'审批依据不充分', level:'低', lvClass:'low',  responsible:'陈XX', deadline:'2026-05-28' },
-  { item:'IT采购定标',   approver:'赵XX', time:'2026-05-17', reason:'越级审批',       level:'中', lvClass:'mid',  responsible:'赵XX', deadline:'2026-05-26' },
+  { item:'二号车间维修工程定标', approver:'李强', time:'2026-05-21', reason:'关联关系未要求披露', level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-28' },
+  { item:'智能设备采购定标',     approver:'李强', time:'2026-05-20', reason:'同源投标未识别',     level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-25' },
+  { item:'材料采购定标',         approver:'陈晓', time:'2026-05-15', reason:'审批依据不充分',     level:'低', lvClass:'low',  responsible:'陈晓', deadline:'2026-05-28' },
+  { item:'服务采购定标',         approver:'赵刚', time:'2026-05-17', reason:'利益冲突未回避',     level:'中', lvClass:'mid',  responsible:'赵刚', deadline:'2026-05-26' },
 ]
 
 const heatmapCategories = ['土建工程','安装工程','设备采购','材料采购','服务采购','IT采购','咨询服务','其他']
@@ -1570,6 +2578,37 @@ const riskBarOption = computed(() => {
   }
 })
 
+// 「十大风险域」的趋势图表现形式（写死示例：对话切换 / 表头切换触发；适配 B1 区域）
+const riskTrendOption = computed(() => {
+  const rows = [...filteredRiskMatrix.value].sort((a,b)=>(b.d7*3+b.d30)-(a.d7*3+a.d30))
+  if (riskFilter.value === 'safe') {
+    return { animation:false, backgroundColor:'transparent',
+      graphic:[{type:'text',left:'center',top:'middle',
+        style:{text:'✓  应招未招 / 化整为零 均为 0，合规达标',font:'bold 12px Microsoft YaHei',fill:'#059669'}}] }
+  }
+  const cats = rows.map(r=>r.label)
+  return {
+    animation:true, animationDuration:500, backgroundColor:'transparent',
+    tooltip:{trigger:'axis',backgroundColor:'rgba(255,255,255,0.97)',borderColor:'#E2E8F0',textStyle:{color:'#334155',fontSize:11},extraCssText:'box-shadow:0 4px 20px rgba(15,23,42,0.1)',
+      formatter:(p)=>{const r=rows[p[0].dataIndex];return r?`<b>${r.label}</b><br/>近7天: <b style="color:#EF4444">${r.d7}</b> 近30天: <b style="color:#F59E0B">${r.d30}</b> 合计: <b>${r.total}</b>`:''}},
+    legend:{top:0,right:0,itemWidth:10,itemHeight:6,textStyle:{color:'#94A3B8',fontSize:9},data:['近7天','近30天']},
+    grid:{left:4,right:12,top:18,bottom:42,containLabel:true},
+    xAxis:{type:'category',data:cats,boundaryGap:false,axisLabel:{color:'#64748B',fontSize:8.5,rotate:34,interval:0},axisLine:{lineStyle:{color:'#E8EDF5'}},axisTick:{show:false}},
+    yAxis:{type:'value',axisLabel:{color:'#CBD5E1',fontSize:9},splitLine:{lineStyle:{color:'#F1F5F9',type:'dashed'}},axisLine:{show:false},axisTick:{show:false}},
+    series:[
+      {name:'近7天',type:'line',smooth:true,symbol:'circle',symbolSize:5,data:rows.map(r=>r.d7),
+        lineStyle:{width:2.4,color:'#EF4444'},itemStyle:{color:'#EF4444'},areaStyle:{color:'rgba(239,68,68,0.14)'}},
+      {name:'近30天',type:'line',smooth:true,symbol:'circle',symbolSize:5,data:rows.map(r=>r.d30),
+        lineStyle:{width:2.4,color:'#F59E0B'},itemStyle:{color:'#F59E0B'},areaStyle:{color:'rgba(245,158,11,0.12)'},
+        label:{show:true,position:'top',fontSize:9,color:'#94A3B8',formatter:(p)=>{const r=rows[p.dataIndex];return r?`${r.total}`:''}}},
+    ],
+  }
+})
+// B1 当前表现形式：bar | trend（受 layoutState.b1Chart 驱动，可对话/手动切换）
+const b1ChartMode = computed(() => layoutState.b1Chart || 'bar')
+const b1ChartOption = computed(() => b1ChartMode.value === 'trend' ? riskTrendOption.value : riskBarOption.value)
+function setB1Chart(mode) { layoutState.b1Chart = mode }
+
 const darkTrendOption = computed(() => {
   const d = pd.value
   return {
@@ -1591,75 +2630,85 @@ const darkTrendOption = computed(() => {
   }
 })
 
-// B2 网络：22节点 21边，上下各2分支·左右各3分支，CG-2026001高亮
+// B2 网络：真实主体命名（无 XX 占位）。故事线一红链：
+// 华东建设集团 → 鼎信建设有限公司 → 鼎信建设一公司 → 二号车间维修工程，叠加王建国隐性控制边 + 资金回流边 + 同源投标虚线
 const netNodes = [
       /* 集团中心 */
-      {name:'XX集团',x:260,y:135,symbolSize:48,tier:'集团',amount:5680,riskLabel:'中',
+      {name:'华东建设集团',x:260,y:135,symbolSize:48,tier:'集团',amount:5680,riskLabel:'中',
         itemStyle:{color:'#F97316',shadowColor:'rgba(249,115,22,0.5)',shadowBlur:14},label:{position:'inside',fontSize:9,color:'#FFF'}},
       /* ── 上方 2 分支 ── */
-      {name:'XX科技公司',x:182,y:52,symbolSize:26,tier:'二级',amount:580,riskLabel:'低',itemStyle:{color:'#3B82F6'},label:{position:'top'}},
-      {name:'XX信息系统项目',x:110,y:10,symbolSize:14,tier:'项目',amount:120,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'top',fontSize:7}},
-      {name:'XX监管公司',x:338,y:52,symbolSize:24,tier:'二级',amount:320,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'top'}},
-      {name:'XX安防改造项目',x:415,y:10,symbolSize:14,tier:'项目',amount:85,riskLabel:'低',itemStyle:{color:'#6EE7B7'},label:{position:'top',fontSize:7}},
+      {name:'华建科技公司',x:182,y:52,symbolSize:26,tier:'二级',amount:580,riskLabel:'低',itemStyle:{color:'#3B82F6'},label:{position:'top'}},
+      {name:'智慧园区信息系统',x:110,y:10,symbolSize:14,tier:'项目',amount:120,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'top',fontSize:7}},
+      {name:'华建工程监理公司',x:338,y:52,symbolSize:24,tier:'二级',amount:320,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'top'}},
+      {name:'厂区安防改造项目',x:415,y:10,symbolSize:14,tier:'项目',amount:85,riskLabel:'低',itemStyle:{color:'#6EE7B7'},label:{position:'top',fontSize:7}},
       /* ── 下方 2 分支 ── */
-      {name:'XX物流公司',x:182,y:218,symbolSize:22,tier:'二级',amount:420,riskLabel:'中',itemStyle:{color:'#FBBF24'},label:{position:'bottom'}},
-      {name:'XX仓储建设项目',x:110,y:258,symbolSize:14,tier:'项目',amount:95,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'bottom',fontSize:7}},
-      {name:'XX贸易公司',x:338,y:218,symbolSize:26,tier:'二级',amount:850,riskLabel:'高',itemStyle:{color:'#EF4444'},label:{position:'bottom'}},
-      {name:'XX供应链项目',x:415,y:258,symbolSize:14,tier:'项目',amount:150,riskLabel:'中',itemStyle:{color:'#FCD34D'},label:{position:'bottom',fontSize:7}},
+      {name:'华东仓储物流公司',x:182,y:218,symbolSize:22,tier:'二级',amount:420,riskLabel:'中',itemStyle:{color:'#FBBF24'},label:{position:'bottom'}},
+      {name:'仓储建设项目',x:110,y:258,symbolSize:14,tier:'项目',amount:95,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'bottom',fontSize:7}},
+      {name:'恒通供应链管理有限公司',x:338,y:218,symbolSize:26,tier:'二级',amount:850,riskLabel:'高',itemStyle:{color:'#EF4444'},label:{position:'bottom'}},
+      {name:'智能设备采购项目',x:415,y:258,symbolSize:14,tier:'项目',amount:150,riskLabel:'中',itemStyle:{color:'#FCD34D'},label:{position:'bottom',fontSize:7}},
       /* ── 左侧 3 分支 ── */
-      {name:'XX能源集团',x:125,y:80,symbolSize:32,tier:'二级',amount:1680,riskLabel:'中',itemStyle:{color:'#F97316'},label:{position:'left'}},
-      {name:'XX光伏项目',x:38,y:35,symbolSize:14,tier:'项目',amount:280,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'left',fontSize:7}},
-      {name:'XX材料公司',x:100,y:135,symbolSize:22,tier:'二级',amount:460,riskLabel:'中',itemStyle:{color:'#F59E0B'},label:{position:'left'}},
-      {name:'XX管道项目',x:22,y:135,symbolSize:12,tier:'项目',amount:75,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'left',fontSize:7}},
-      {name:'XX环保公司',x:125,y:190,symbolSize:22,tier:'二级',amount:380,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'left'}},
-      {name:'XX排污项目',x:38,y:235,symbolSize:14,tier:'项目',amount:90,riskLabel:'低',itemStyle:{color:'#6EE7B7'},label:{position:'left',fontSize:7}},
-      /* ── 右侧 3 分支（含高亮路径）── */
-      {name:'XX建设公司',x:395,y:80,symbolSize:36,tier:'二级',amount:2100,riskLabel:'高',
+      {name:'华东能源公司',x:125,y:80,symbolSize:32,tier:'二级',amount:1680,riskLabel:'中',itemStyle:{color:'#F97316'},label:{position:'left'}},
+      {name:'光伏发电项目',x:38,y:35,symbolSize:14,tier:'项目',amount:280,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'left',fontSize:7}},
+      {name:'宏达建材公司',x:100,y:135,symbolSize:22,tier:'二级',amount:460,riskLabel:'中',itemStyle:{color:'#F59E0B'},label:{position:'left'}},
+      {name:'厂区管网改造',x:22,y:135,symbolSize:12,tier:'项目',amount:75,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{position:'left',fontSize:7}},
+      {name:'清源环保公司',x:125,y:190,symbolSize:22,tier:'二级',amount:380,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'left'}},
+      {name:'排污治理项目',x:38,y:235,symbolSize:14,tier:'项目',amount:90,riskLabel:'低',itemStyle:{color:'#6EE7B7'},label:{position:'left',fontSize:7}},
+      /* ── 右侧 3 分支（含故事线一高亮红链）── */
+      {name:'鼎信建设有限公司',x:395,y:80,symbolSize:36,tier:'供应商',amount:2100,riskLabel:'高',
         itemStyle:{color:'#EF4444',shadowColor:'rgba(239,68,68,0.3)',shadowBlur:8}},
-      {name:'XX建设一公司',x:470,y:40,symbolSize:22,tier:'三级',amount:450,riskLabel:'高',itemStyle:{color:'#EF4444'}},
-      {name:'XX车间维修工程',x:530,y:10,symbolSize:16,tier:'项目',amount:50,riskLabel:'高',
+      {name:'鼎信建设一公司',x:470,y:40,symbolSize:22,tier:'关联供应商',amount:450,riskLabel:'高',itemStyle:{color:'#EF4444'}},
+      {name:'二号车间维修工程',x:530,y:10,symbolSize:16,tier:'项目',amount:40,riskLabel:'高',
         itemStyle:{color:'#DC2626',shadowColor:'rgba(220,38,38,0.5)',shadowBlur:12},label:{position:'top',fontSize:7}},
-      {name:'XX安装公司',x:420,y:135,symbolSize:24,tier:'二级',amount:520,riskLabel:'中',itemStyle:{color:'#F59E0B'}},
-      {name:'XX设备采购项目',x:510,y:135,symbolSize:14,tier:'项目',amount:160,riskLabel:'低',itemStyle:{color:'#93C5FD'},label:{fontSize:7}},
-      {name:'XX供应链管理',x:395,y:190,symbolSize:22,tier:'二级',amount:360,riskLabel:'中',itemStyle:{color:'#F59E0B'}},
-      {name:'XX仓储物流项目',x:490,y:240,symbolSize:14,tier:'项目',amount:110,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'bottom',fontSize:7}},
+      /* 王建国：隐性实控人；王建军：代持法人 */
+      {name:'王建国',x:455,y:120,symbolSize:26,tier:'自然人',amount:0,riskLabel:'高',
+        itemStyle:{color:'#B91C1C',shadowColor:'rgba(185,28,28,0.5)',shadowBlur:10},label:{position:'right',fontSize:8}},
+      {name:'王建军（王建国之弟）',x:545,y:90,symbolSize:16,tier:'自然人',amount:0,riskLabel:'中',itemStyle:{color:'#F59E0B'},label:{position:'right',fontSize:7}},
+      {name:'鼎信物资贸易有限公司',x:395,y:190,symbolSize:22,tier:'关联方',amount:360,riskLabel:'中',itemStyle:{color:'#F59E0B'},label:{position:'bottom'}},
+      {name:'仓储物流外包项目',x:490,y:240,symbolSize:14,tier:'项目',amount:110,riskLabel:'低',itemStyle:{color:'#10B981'},label:{position:'bottom',fontSize:7}},
 ]
 const netLinks = [
       /* 集团→上方 */
-      {source:'XX集团',target:'XX科技公司',lineStyle:{width:1.4,color:'#3B82F6'}},
-      {source:'XX集团',target:'XX监管公司',lineStyle:{width:1.2,color:'#10B981'}},
+      {source:'华东建设集团',target:'华建科技公司',lineStyle:{width:1.4,color:'#3B82F6'}},
+      {source:'华东建设集团',target:'华建工程监理公司',lineStyle:{width:1.2,color:'#10B981'}},
       /* 集团→下方 */
-      {source:'XX集团',target:'XX物流公司',lineStyle:{width:1.2,color:'#FBBF24'}},
-      {source:'XX集团',target:'XX贸易公司',lineStyle:{width:1.8,color:'#EF4444',opacity:0.6}},
+      {source:'华东建设集团',target:'华东仓储物流公司',lineStyle:{width:1.2,color:'#FBBF24'}},
+      {source:'华东建设集团',target:'恒通供应链管理有限公司',lineStyle:{width:1.8,color:'#EF4444',opacity:0.6}},
       /* 集团→左侧 */
-      {source:'XX集团',target:'XX能源集团',lineStyle:{width:1.8,color:'#F97316',opacity:0.8}},
-      {source:'XX集团',target:'XX材料公司',lineStyle:{width:1.2,color:'#F59E0B'}},
-      {source:'XX集团',target:'XX环保公司',lineStyle:{width:1.2,color:'#10B981'}},
-      /* 集团→右侧 CG-2026001 高亮路径 */
-      {source:'XX集团',target:'XX建设公司',lineStyle:{width:2.8,color:'#EF4444',opacity:0.95}},
-      {source:'XX集团',target:'XX安装公司',lineStyle:{width:1.2,color:'#F59E0B'}},
-      {source:'XX集团',target:'XX供应链管理',lineStyle:{width:1.2,color:'#F59E0B'}},
+      {source:'华东建设集团',target:'华东能源公司',lineStyle:{width:1.8,color:'#F97316',opacity:0.8}},
+      {source:'华东建设集团',target:'宏达建材公司',lineStyle:{width:1.2,color:'#F59E0B'}},
+      {source:'华东建设集团',target:'清源环保公司',lineStyle:{width:1.2,color:'#10B981'}},
+      /* 集团→右侧 故事线一高亮红链 */
+      {source:'华东建设集团',target:'鼎信建设有限公司',relation:'采购合同（多笔）',lineStyle:{width:2.8,color:'#EF4444',opacity:0.95}},
+      {source:'华东建设集团',target:'二号车间维修工程',relation:'采购单 CG-2026001',lineStyle:{width:1.4,color:'#EF4444',opacity:0.5,type:'dashed'}},
+      {source:'华东建设集团',target:'鼎信物资贸易有限公司',lineStyle:{width:1.2,color:'#F59E0B'}},
       /* 上方延伸→项目 */
-      {source:'XX科技公司',target:'XX信息系统项目'},
-      {source:'XX监管公司',target:'XX安防改造项目'},
+      {source:'华建科技公司',target:'智慧园区信息系统'},
+      {source:'华建工程监理公司',target:'厂区安防改造项目'},
       /* 下方延伸→项目 */
-      {source:'XX物流公司',target:'XX仓储建设项目'},
-      {source:'XX贸易公司',target:'XX供应链项目'},
+      {source:'华东仓储物流公司',target:'仓储建设项目'},
+      {source:'恒通供应链管理有限公司',target:'智能设备采购项目'},
       /* 左侧延伸→项目 */
-      {source:'XX能源集团',target:'XX光伏项目'},
-      {source:'XX材料公司',target:'XX管道项目'},
-      {source:'XX环保公司',target:'XX排污项目'},
+      {source:'华东能源公司',target:'光伏发电项目'},
+      {source:'宏达建材公司',target:'厂区管网改造'},
+      {source:'清源环保公司',target:'排污治理项目'},
       /* 右侧延伸→项目 高亮路径续 */
-      {source:'XX建设公司',target:'XX建设一公司',lineStyle:{width:2.8,color:'#EF4444',opacity:0.95}},
-      {source:'XX建设一公司',target:'XX车间维修工程',lineStyle:{width:2.8,color:'#DC2626',opacity:1}},
-      {source:'XX安装公司',target:'XX设备采购项目'},
-      {source:'XX供应链管理',target:'XX仓储物流项目'},
+      {source:'鼎信建设有限公司',target:'鼎信建设一公司',relation:'近6月资金回流 ¥120万（分3笔）',lineStyle:{width:2.8,color:'#DC2626',opacity:1}},
+      {source:'鼎信建设一公司',target:'二号车间维修工程',relation:'中标承接',lineStyle:{width:2.8,color:'#DC2626',opacity:1}},
+      /* 王建国隐性控制 + 同源投标 + 资金通道 */
+      {source:'王建国',target:'鼎信建设有限公司',relation:'持股65%（控股）',lineStyle:{width:2,color:'#B91C1C',opacity:0.9}},
+      {source:'王建国',target:'鼎信建设一公司',relation:'实际控制（未披露）',lineStyle:{width:2,color:'#B91C1C',opacity:0.9,type:'dashed'}},
+      {source:'王建军（王建国之弟）',target:'鼎信建设一公司',relation:'法人/代持',lineStyle:{width:1.2,color:'#F59E0B',type:'dashed'}},
+      {source:'鼎信建设一公司',target:'鼎信物资贸易有限公司',relation:'资金往来',lineStyle:{width:1.2,color:'#F59E0B',type:'dashed'}},
 ]
+// 故事线一红链节点集合（含隐性实控人）
+const storyChainNodes = ['华东建设集团','鼎信建设有限公司','鼎信建设一公司','二号车间维修工程','王建国','王建军（王建国之弟）','鼎信物资贸易有限公司']
 // 联动高亮：选中风险域时，高亮该域涉及主体、淡化其余
 const darkNetworkOption = computed(() => {
-  const hi = activeRiskDomain.value
-    ? new Set([...(riskDomainNodes[activeRiskDomain.value] || []), 'XX集团'])
-    : null
+  // 优先用穿透上下文（含穿透层逐层收窄）；否则回退到风险域点击高亮
+  const ctxStory = penetrationContext.active && penetrationContext.highlightNodes.length
+  const hi = ctxStory
+    ? new Set([...penetrationContext.highlightNodes, '华东建设集团'])
+    : (activeRiskDomain.value ? new Set([...(riskDomainNodes[activeRiskDomain.value] || []), '华东建设集团']) : null)
   const data = netNodes.map(n => {
     if (!hi) return n
     if (hi.has(n.name)) return { ...n, itemStyle:{ ...(n.itemStyle||{}), borderColor:'#2563EB', borderWidth:3, shadowColor:'rgba(37,99,235,0.55)', shadowBlur:18, opacity:1 }, label:{ ...(n.label||{}), opacity:1 } }
@@ -1668,7 +2717,11 @@ const darkNetworkOption = computed(() => {
   const links = netLinks.map(l => {
     if (!hi) return l
     const on = hi.has(l.source) && hi.has(l.target)
-    return { ...l, lineStyle:{ ...(l.lineStyle||{}), opacity: on ? 0.95 : 0.05, width: on ? 2.6 : (l.lineStyle?.width || 1) } }
+    return {
+      ...l,
+      lineStyle:{ ...(l.lineStyle||{}), opacity: on ? 0.95 : 0.05, width: on ? Math.max(2.6, l.lineStyle?.width || 0) : (l.lineStyle?.width || 1) },
+      label: on && l.relation ? { show:true, formatter:l.relation, fontSize:7, color:'#B91C1C', fontWeight:600 } : { show:false },
+    }
   })
   return {
     animation:false, backgroundColor:'transparent',
@@ -1711,6 +2764,16 @@ function formatTime(s){ if(!s) return ''; const m=s.match(/(\d{2}:\d{2})/); retu
 
 // ── AI 检测报告：先显示弹窗动画，完成后执行真实逻辑 ─────────────────────
 function openReport(r) {
+  // 故事线一：点 CG-2026001（焦点单据）「AI 分析」即写穿透上下文，联动高亮红链 + 定位卡片
+  storyReportActive.value = !!r.storyFocus
+  if (r.storyFocus) {
+    activateRelatedTransfer('realtime')
+    drillStack.value = []
+    selectedPlan.value = ''
+    executionVisible.value = []
+    resetDisposition()
+  }
+  reportFailed.value = false
   // 已分析过：直接看报告，不再弹加载窗
   if (analyzedReportIds.value.has(r.no)) { viewReport(r.no); return }
   aiAgentPendingRisk.value = r
@@ -1718,38 +2781,60 @@ function openReport(r) {
   // 弹窗动画与报告数据「预取」并发：预取期间 aiDeferNav=true 只取数不跳转；就绪后出现「查看分析报告」
   runAgentModal(procStepDefs, null)
   aiDeferNav = true
+  fetchReportWithRetry(r)
+}
+
+// 始终访问后台真实报告：失败不写死、不切演示，自动重试直到取得真实数据（用户关闭弹窗则停止）
+function fetchReportWithRetry(r) {
   _openReportReal(r)
-    .then(() => { aiReportReady.value = true })
-    .catch(() => { aiReportReady.value = true })
-    .finally(() => { aiDeferNav = false })
+    .then(() => { aiReportReady.value = true; aiDeferNav = false })
+    .catch((e) => {
+      console.warn('真实报告获取失败，正在自动重试访问后台…', e)
+      if (!aiAgentModal.value) { aiDeferNav = false; return }   // 用户已关闭加载窗 → 停止重试
+      setTimeout(() => { if (aiAgentModal.value) fetchReportWithRetry(r); else aiDeferNav = false }, 2500)
+    })
 }
 
 async function _openReportReal(r) {
   drawerOpen.value = false
   const id = r.no // 使用 CG-2026001 格式的编号
-  
+  // 提前锁定焦点单据：即便真实接口失败/超时，报告视图也能回退本地数据并渲染 12 环兜底
+  selectedRiskId.value = id
+
   console.log('=== openReport 开始 ===', 'riskId:', id)
-  
+
   const apiData = await callFlowInstanceStreamRun(id, 'view')
   
   if (apiData && apiData.message) {
     let reportJson = null
     
-    if (typeof apiData.message === 'object') {
+    const tryParse = (s) => { try { return JSON.parse(s) } catch (e) { return null } }
+
+    // 1) message 为对象：兼容旧结构（整理报告_1.report_json），或对象本身即报告
+    if (apiData.message && typeof apiData.message === 'object') {
       reportJson = apiData.message['整理报告_1.report_json']
+        || (apiData.message.risk_id || apiData.message.risk_code || apiData.message.sections ? apiData.message : null)
     }
-    
+
+    // 2) message 为字符串：新后台返回 JSON 字符串（含 risk_id / report_title / sections）
+    let jsonSrc = ''
     if (!reportJson && typeof apiData.message === 'string') {
       try {
-        const jsonMatch = apiData.message.match(/\{[\s\S]*"risk_code"[\s\S]*\}/)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
+        const raw = apiData.message.trim()
+        let parsed = tryParse(raw)
+        if (!parsed) {                              // 容错：从混排文本里抠出 JSON 段
+          const m = raw.match(/\{[\s\S]*\}/)
+          if (m) { parsed = tryParse(m[0]); if (parsed) jsonSrc = m[0] }
+        } else {
+          jsonSrc = raw
+        }
+        if (parsed && (parsed.risk_id || parsed.risk_code || parsed.report_title || parsed.sections)) {
           reportJson = parsed
         } else {
-          const riskCodeMatch = apiData.message.match(/风险 ID[：:]\s*([A-Z0-9-]+)/)
-          const riskNameMatch = apiData.message.match(/风险事项 [：:]\s*([^\n]+)/)
-          const riskLevelMatch = apiData.message.match(/风险等级[：:]\s*([高中低][风险])/)
-          
+          // 兜底：纯文本报告，从中提取风险 ID / 事项 / 等级
+          const riskCodeMatch = raw.match(/风险\s*ID[：:]\s*([A-Z0-9-]+)/)
+          const riskNameMatch = raw.match(/风险事项\s*[：:]\s*([^\n]+)/)
+          const riskLevelMatch = raw.match(/风险等级[：:]\s*((?:重大|高|中|低)风险|正常)/)
           if (riskCodeMatch || riskNameMatch) {
             reportJson = {
               risk_code: riskCodeMatch ? riskCodeMatch[1] : id,
@@ -1764,7 +2849,14 @@ async function _openReportReal(r) {
         console.error('解析 message 字符串失败:', e)
       }
     }
-    
+
+    // 统一规整：确保 report/detailDescription 为含 sections 的 JSON 字符串，供报告详情解析
+    if (reportJson && typeof reportJson === 'object' && reportJson.sections && !reportJson.report) {
+      const jsonStr = jsonSrc || JSON.stringify(reportJson)
+      reportJson.report = jsonStr
+      reportJson.detailDescription = jsonStr
+    }
+
     if (reportJson) {
       const riskKey = reportJson.risk_code || reportJson.risk_id || id
       riskDataCache.value[riskKey] = reportJson
@@ -1823,7 +2915,7 @@ async function callFlowInstanceStreamRun(riskId, action) {
   const url = '/api/jobs/open_plat/flow_instance/stream_run'
   
   const payload = {
-    flow_id: 10018,  // 采购穿透的 flow_id
+    flow_id: 10010,  // 采购穿透的 flow_id
     flow_title: "采购穿透",
     version: null,
     input_data: {
@@ -1834,6 +2926,7 @@ async function callFlowInstanceStreamRun(riskId, action) {
   }
 
   const response = await axios.post(url, payload, {
+    timeout: 0,   // 不设超时：一直等到后台真实报告生成完为止（慢也等），失败自动重试访问，绝不写死/切演示
     headers: {
       'Accept': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -1927,9 +3020,31 @@ async function callFlowInstanceStreamRun(riskId, action) {
   background:#FFF; border:1px solid #E8EDF5; border-radius:10px;
   display:flex; flex-direction:column; min-height:0;
   padding:9px 11px; box-shadow:0 1px 4px rgba(15,23,42,0.04),0 4px 16px rgba(15,23,42,0.06);
+  transition:opacity .42s ease, transform .42s ease, flex-grow .5s ease, flex-basis .5s ease, max-height .5s ease, box-shadow .3s ease, filter .42s ease, padding .4s ease, margin .4s ease;
 }
+/* ── 对话驱动·布局重组态 ───────────────────────────────────────────── */
+.glass-panel.lm-faded { opacity:.32 !important; filter:saturate(.55) blur(.4px); pointer-events:none; }
+.glass-panel.lm-emphasis { transform:scale(1.012); z-index:5; box-shadow:0 10px 30px rgba(37,99,235,0.18); border-color:#BFDBFE; }
+.glass-panel.lm-center { z-index:6; transform:scale(1.03); box-shadow:0 16px 44px rgba(124,58,237,0.24); border-color:#C4B5FD; }
+.glass-panel.lm-collapsed { opacity:0 !important; transform:scale(.94); flex:0 0 0 !important; max-height:0 !important; min-height:0 !important; margin:0 !important; padding-top:0 !important; padding-bottom:0 !important; border-width:0 !important; overflow:hidden; pointer-events:none; }
+/* 布局重组状态条 */
+.layout-chip { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:40; display:flex; align-items:center; gap:8px; padding:5px 12px; border-radius:999px; background:rgba(124,58,237,0.96); color:#fff; font-size:12px; font-weight:700; box-shadow:0 6px 20px rgba(124,58,237,0.35); }
+.layout-chip-dot { width:7px; height:7px; border-radius:50%; background:#fff; animation:link-dot-pulse 1.4s ease-out infinite; }
+.layout-chip-reset { padding:1px 9px; border-radius:999px; border:none; background:rgba(255,255,255,0.22); color:#fff; font-size:11px; font-weight:700; cursor:pointer; }
+.layout-chip-reset:hover { background:rgba(255,255,255,0.34); }
 .ph { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; flex-shrink:0; }
 .ph h3 { margin:0; font-size:11px; font-weight:700; color:#0F172A; letter-spacing:0.02em; }
+
+/* ── 联动态：被联动的面板柔和高亮（突出但不突兀） ─────────────────── */
+.glass-panel.linked { border-color:#FBD5DD; transition:border-color .4s ease; }
+/* 实时采购风险：联动时内部渲染淡红渐变（浅，不要太深） */
+.b3-panel.linked { background:linear-gradient(180deg,#FFF6F6 0%,#FFFAFA 38%,#FFFFFF 100%); transition:background .5s ease; }
+/* B2 头部·联动徽标 */
+.link-badge { display:inline-flex; align-items:center; gap:5px; margin-left:auto; padding:2px 9px; border-radius:999px; background:#FEF2F2; color:#DC2626; font-size:10px; font-weight:800; border:1px solid #FECACA; white-space:nowrap; }
+.link-dot { width:6px; height:6px; border-radius:50%; background:#DC2626; box-shadow:0 0 0 0 rgba(220,38,38,0.5); animation:link-dot-pulse 1.4s ease-out infinite; }
+@keyframes link-dot-pulse { 0% { box-shadow:0 0 0 0 rgba(220,38,38,0.5);} 70% { box-shadow:0 0 0 5px rgba(220,38,38,0);} 100% { box-shadow:0 0 0 0 rgba(220,38,38,0);} }
+.linkbadge-fade-enter-active, .linkbadge-fade-leave-active { transition:opacity .3s, transform .3s; }
+.linkbadge-fade-enter-from, .linkbadge-fade-leave-to { opacity:0; transform:translateY(-3px); }
 
 /* ── Pills ──────────────────────────────────────────────────────────────── */
 .gpill { display:inline-flex; align-items:center; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; white-space:nowrap; }
@@ -1977,6 +3092,10 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .a3-panel .trend-chart { flex:1; min-height:0; }
 
 /* ── B1 十大风险域 ──────────────────────────────────────────────────────── */
+.b1-head-right { display:flex; align-items:center; gap:6px; }
+.b1-form { display:flex; gap:2px; }
+.b1-form-btn { padding:1px 6px; border-radius:6px; border:1px solid #E2E8F0; background:#F8FAFC; color:#94A3B8; font-size:11px; line-height:1.4; cursor:pointer; transition:.15s; }
+.b1-form-btn.active { background:#EEF2FF; border-color:#A5B4FC; color:#4F46E5; }
 .b1-filters { display:flex; gap:2px; }
 .b1-filt { padding:2px 5px; border-radius:999px; border:1px solid #E2E8F0; background:#F8FAFC;
   font-size:8.5px; font-weight:600; color:#64748B; cursor:pointer; transition:0.15s; white-space:nowrap; }
@@ -2774,4 +3893,301 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .agent-fade-enter-active { transition:opacity .25s; }
 .agent-fade-leave-active { transition:opacity .2s; }
 .agent-fade-enter-from, .agent-fade-leave-to { opacity:0; }
+
+/* ══════════ 故事线一：联动 / 穿透 / 处置闭环 ══════════ */
+/* 网络图恢复默认按钮 */
+.net-reset-btn { padding:2px 8px; border-radius:999px; border:1px solid #FECACA; background:#FEF2F2; color:#DC2626; font-size:10px; font-weight:700; cursor:pointer; transition:.15s; }
+.net-reset-btn:hover { background:#FEE2E2; }
+/* 焦点风险卡高亮 + 联动徽标 */
+/* 焦点高亮：取消红色外框/左边框，整卡淡红渲染突出（轻微呼吸） */
+.risk-stack .risk-card.story-focus { background:#FEF2F2; border:1px solid #FCA5A5 !important; box-shadow:0 4px 16px rgba(220,38,38,0.12); animation:story-pulse 1.9s ease-in-out infinite; }
+@keyframes story-pulse { 0%,100% { background-color:#FEF2F2; } 50% { background-color:#FCDCDC; } }
+.risk-focus-flag { margin-left:auto; padding:0 6px; border-radius:999px; background:#FEF2F2; color:#DC2626; font-size:9px; font-weight:800; border:1px solid #FECACA; }
+
+/* 报告内：来源标记 / 演示兜底 */
+.sl-src-tag { margin-left:8px; padding:1px 8px; border-radius:999px; font-size:10px; font-weight:700; background:#ECFDF5; color:#059669; border:1px solid #A7F3D0; }
+.sl-src-tag.fail { background:#FFF7ED; color:#C2410C; border-color:#FED7AA; }
+.sl-demo-tag { margin-left:8px; padding:1px 8px; border-radius:999px; font-size:10px; font-weight:700; background:#FFF7ED; color:#C2410C; border:1px solid #FED7AA; }
+
+/* 12 环兜底 */
+.ring-list { display:flex; flex-direction:column; gap:8px; }
+.ring-item { display:flex; gap:10px; padding:8px 10px; background:#F8FAFC; border:1px solid #E8EDF5; border-radius:8px; }
+.ring-no { flex-shrink:0; width:22px; height:22px; border-radius:50%; background:#F59E0B; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.ring-bd { min-width:0; }
+.ring-title { font-size:13px; font-weight:700; color:#0F172A; margin-bottom:2px; }
+.ring-body { font-size:12px; color:#475569; line-height:1.6; white-space:pre-line; }
+
+/* 穿透：可点实体 chip */
+.drill-entities { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.drill-entities-lbl { font-size:12px; color:#64748B; }
+.drill-chip { padding:3px 12px; border-radius:999px; border:1px solid #C7D2FE; background:#EEF2FF; color:#4338CA; font-size:12px; font-weight:600; cursor:pointer; transition:.15s; }
+.drill-chip:hover { background:#E0E7FF; border-color:#A5B4FC; transform:translateY(-1px); }
+/* 面包屑 */
+.drill-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:4px; padding:6px 8px; background:#F1F5F9; border-radius:8px; margin-bottom:10px; }
+.dbc-item { padding:2px 8px; border-radius:6px; border:none; background:transparent; color:#475569; font-size:12px; font-weight:600; cursor:pointer; }
+.dbc-item:hover { background:#E2E8F0; }
+.dbc-item.active { background:#7C3AED; color:#fff; }
+.dbc-sep { color:#94A3B8; font-size:12px; }
+.dbc-tools { margin-left:auto; display:flex; gap:6px; }
+.dbc-tool { padding:2px 8px; border-radius:6px; border:1px solid #E2E8F0; background:#fff; color:#64748B; font-size:11px; cursor:pointer; }
+.dbc-tool:hover { border-color:#CBD5E1; color:#334155; }
+/* 穿透层卡片 */
+.drill-layer { }
+.dl-card { border:1px solid #E8EDF5; border-radius:10px; padding:12px 14px; background:#fff; box-shadow:0 2px 10px rgba(15,23,42,0.05); }
+.dl-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.dl-type { padding:1px 7px; border-radius:6px; background:#EEF2FF; color:#6366F1; font-size:10px; font-weight:700; text-transform:uppercase; }
+.dl-title { font-size:15px; font-weight:800; color:#0F172A; }
+.dl-badge { padding:1px 8px; border-radius:999px; background:#FEF2F2; color:#DC2626; font-size:11px; font-weight:700; border:1px solid #FECACA; }
+.dl-summary { font-size:12.5px; color:#475569; line-height:1.7; margin-bottom:10px; }
+.dl-fields { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px; }
+.dl-field { display:flex; flex-direction:column; gap:1px; padding:6px 9px; background:#F8FAFC; border:1px solid #EEF2F7; border-radius:7px; }
+.dl-field.danger { background:#FEF2F2; border-color:#FECACA; }
+.dl-fk { font-size:10.5px; color:#94A3B8; }
+.dl-fv { font-size:12.5px; color:#0F172A; font-weight:600; }
+.dl-field.danger .dl-fv { color:#DC2626; }
+.dl-table { width:100%; border-collapse:collapse; margin-bottom:10px; font-size:11.5px; }
+.dl-table th { background:#F1F5F9; color:#475569; font-weight:700; padding:6px 8px; text-align:left; border:1px solid #E8EDF5; }
+.dl-table td { padding:6px 8px; border:1px solid #EEF2F7; color:#334155; }
+.dl-table tbody tr:nth-child(even) { background:#FAFCFF; }
+.dl-drilldowns { display:flex; flex-wrap:wrap; gap:8px; }
+.dl-dbtn { padding:5px 12px; border-radius:8px; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9; font-size:12px; font-weight:600; cursor:pointer; transition:.15s; }
+.dl-dbtn:hover { background:#EDE9FE; border-color:#C4B5FD; transform:translateY(-1px); }
+.dl-dbtn em { font-style:normal; color:#9CA3AF; font-weight:500; }
+.drill-empty { padding:14px; text-align:center; color:#94A3B8; font-size:12.5px; background:#F8FAFC; border:1px dashed #E2E8F0; border-radius:8px; }
+/* 报告头部·关联穿透按钮 */
+.rdr-drill-btn { flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:10px; border:1px solid #C4B5FD; background:linear-gradient(135deg,#7C3AED,#6D28D9); color:#fff; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(124,58,237,.28); transition:.15s; }
+.rdr-drill-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,58,237,.38); }
+.rdr-drill-btn.active { background:#fff; color:#6D28D9; }
+.rdr-drill-ico { font-size:14px; }
+/* 关联穿透浮层（页面 1/3） */
+.drillpanel { position:fixed; top:50%; right:24px; transform:translateY(-50%); width:34vw; max-width:560px; min-width:380px; height:66vh; z-index:9500; display:flex; flex-direction:column; background:#fff; border:1px solid #E2E8F0; border-radius:16px; box-shadow:0 18px 50px rgba(15,23,42,.28); overflow:hidden; }
+.dp-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; background:linear-gradient(135deg,#F5F3FF,#EDE9FE); border-bottom:1px solid #E9E5FB; }
+.dp-head-l { display:flex; align-items:center; gap:10px; min-width:0; }
+.dp-ico { font-size:20px; }
+.dp-head-tt { display:flex; flex-direction:column; min-width:0; }
+.dp-head-tt strong { font-size:14px; font-weight:800; color:#5B21B6; }
+.dp-head-tt span { font-size:11.5px; color:#7C6FB0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dp-close { flex-shrink:0; width:28px; height:28px; border-radius:8px; border:none; background:rgba(124,58,237,.1); color:#6D28D9; font-size:14px; cursor:pointer; transition:.15s; }
+.dp-close:hover { background:rgba(124,58,237,.2); }
+.dp-body { flex:1; overflow-y:auto; padding:16px 18px; }
+.dp-block { margin-bottom:14px; }
+.dp-block-lbl { font-size:12px; font-weight:700; color:#475569; margin-bottom:8px; }
+.dp-block-hd { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:#334155; margin-bottom:10px; padding-bottom:7px; border-bottom:1px solid #EEF1F6; }
+.dp-step { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#7C3AED; color:#fff; font-size:11px; font-weight:700; flex-shrink:0; }
+.dp-chips { display:flex; flex-wrap:wrap; gap:8px; }
+/* ① 涉及对象关系图 */
+.dp-expand { margin-left:auto; padding:1px 9px; border-radius:999px; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9; font-size:10.5px; font-weight:700; cursor:pointer; transition:.15s; }
+.dp-expand:hover { background:#EDE9FE; }
+.entity-graph-wrap { position:relative; height:150px; border:1px solid #EEF1F6; border-radius:10px; background:linear-gradient(180deg,#FCFCFF,#F8FAFC); cursor:pointer; overflow:hidden; transition:.15s; }
+.entity-graph-wrap:hover { border-color:#C4B5FD; box-shadow:0 4px 14px rgba(124,58,237,.10); }
+.entity-graph { width:100%; height:100%; }
+.entity-graph-hint { position:absolute; right:8px; bottom:6px; padding:1px 8px; border-radius:999px; background:rgba(124,58,237,.08); color:#7C3AED; font-size:10px; font-weight:700; pointer-events:none; }
+/* 整改建议·独立显著推进按钮 */
+.dp-rectify { margin:4px 0 14px; }
+.rectify-cta { width:100%; display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:12px; border:none; cursor:pointer; text-align:left;
+  background:linear-gradient(135deg,#059669,#047857); color:#fff; box-shadow:0 4px 14px rgba(5,150,105,.28); transition:.18s; }
+.rectify-cta:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 20px rgba(5,150,105,.38); }
+.rectify-cta:disabled { cursor:default; }
+.rectify-cta.loading { background:linear-gradient(135deg,#34D399,#10B981); }
+.rectify-cta.done { background:#F0FDF4; color:#047857; box-shadow:none; border:1px solid #A7F3D0; }
+.rc-ico { font-size:20px; flex-shrink:0; }
+.rc-main { display:flex; flex-direction:column; line-height:1.25; flex:1; }
+.rc-main b { font-size:14px; font-weight:800; }
+.rc-main em { font-style:normal; font-size:11px; opacity:.92; }
+.rc-arrow { font-size:18px; font-weight:800; animation:rc-bounce 1.3s ease-in-out infinite; }
+@keyframes rc-bounce { 0%,100% { transform:translateY(0);} 50% { transform:translateY(3px);} }
+/* ③ 处置闭环·揭示动画 */
+.plans-reveal-enter-active { transition:opacity .5s ease, transform .5s ease; }
+.plans-reveal-enter-from { opacity:0; transform:translateY(14px); }
+/* 涉及对象放大弹窗 */
+.ent-overlay { position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); }
+.ent-dialog { width:560px; max-width:92vw; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; display:flex; flex-direction:column; }
+.ent-head { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid #EEF1F6; }
+.ent-head h3 { margin:0; font-size:15px; font-weight:800; color:#0F172A; }
+.ent-sub { font-size:11px; color:#94A3B8; font-weight:700; }
+.ent-hint { margin-left:auto; font-size:10.5px; color:#7C3AED; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:999px; padding:2px 9px; font-weight:600; }
+.ent-close { width:28px; height:28px; border-radius:8px; border:none; background:#F1F5F9; color:#475569; font-size:14px; cursor:pointer; }
+.ent-close:hover { background:#E2E8F0; }
+.ent-graph-big { width:100%; height:380px; cursor:grab; }
+.ent-graph-big:active { cursor:grabbing; }
+.ent-btns-wrap { padding:12px 18px 18px; border-top:1px solid #EEF1F6; }
+.ent-btns-lbl { font-size:12px; font-weight:700; color:#475569; margin-bottom:9px; }
+.ent-btns { display:flex; flex-wrap:wrap; gap:8px; }
+.ent-fade-enter-active, .ent-fade-leave-active { transition:opacity .22s; }
+.ent-fade-enter-from, .ent-fade-leave-to { opacity:0; }
+.drillpanel-fade-enter-active, .drillpanel-fade-leave-active { transition:opacity .2s, transform .2s; }
+.drillpanel-fade-enter-from, .drillpanel-fade-leave-to { opacity:0; transform:translateY(-50%) translateX(20px); }
+/* 实体 chip 上的类型小标 */
+.chip-kind { font-style:normal; margin-right:5px; padding:0 5px; border-radius:4px; background:#E0E7FF; color:#4338CA; font-size:10px; font-weight:700; }
+/* AI 建议路径（可选） */
+.ai-advice { margin-bottom:10px; border:1px solid #FDE68A; background:#FFFBEB; border-radius:10px; overflow:hidden; }
+.ai-advice-head { width:100%; display:flex; align-items:center; gap:8px; padding:9px 12px; background:transparent; border:none; cursor:pointer; text-align:left; }
+.ai-advice-icon { font-size:14px; }
+.ai-advice-text { flex:1; font-size:12.5px; color:#92400E; line-height:1.5; }
+.ai-advice-text b { color:#B45309; }
+.ai-advice-tag { padding:0 7px; border-radius:999px; background:#FEF3C7; color:#B45309; font-size:10px; font-weight:700; border:1px solid #FDE68A; }
+.ai-advice-arr { color:#B45309; font-size:11px; transition:transform .2s; }
+.ai-advice-arr.open { transform:rotate(180deg); }
+.ai-advice-body { padding:0 12px 10px; }
+.ai-advice-hint { display:block; font-size:11.5px; color:#A16207; margin-bottom:6px; }
+.ai-advice-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.advice-chip { padding:3px 12px; border-radius:999px; border:1px dashed #FCD34D; background:#fff; color:#B45309; font-size:12px; font-weight:600; cursor:pointer; transition:.15s; }
+.advice-chip:hover { background:#FEF3C7; border-style:solid; }
+/* 穿透层来源标 + 建议方向 */
+.dl-srctag { margin-left:auto; padding:0 8px; border-radius:999px; font-size:10px; font-weight:700; background:#ECFDF5; color:#059669; border:1px solid #A7F3D0; }
+.dl-srctag.advice { background:#FFFBEB; color:#B45309; border-color:#FDE68A; }
+.dl-suggest { margin-top:6px; padding:9px 11px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; }
+.dl-suggest-title { font-size:11.5px; font-weight:700; color:#B45309; margin-bottom:4px; }
+.dl-suggest ul { margin:0; padding-left:18px; }
+.dl-suggest li { font-size:12px; color:#92400E; line-height:1.7; }
+
+/* ── 穿透弹窗 ── */
+.dm-overlay { position:fixed; inset:0; z-index:10000; background:rgba(15,23,42,0.5); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px; }
+.dm-dialog { width:760px; max-width:94vw; max-height:88vh; display:flex; flex-direction:column; background:#fff; border-radius:14px; box-shadow:0 24px 70px rgba(15,23,42,0.35); overflow:hidden; }
+.dm-head { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid #EEF2F7; }
+.dm-head-main { display:flex; align-items:center; gap:9px; min-width:0; flex:1; }
+.dm-type { padding:2px 8px; border-radius:6px; background:#EEF2FF; color:#6366F1; font-size:11px; font-weight:700; flex-shrink:0; }
+.dm-title { margin:0; font-size:17px; font-weight:800; color:#0F172A; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dm-badge { padding:1px 9px; border-radius:999px; background:#FEF2F2; color:#DC2626; font-size:11px; font-weight:700; border:1px solid #FECACA; flex-shrink:0; }
+.dm-srctag { padding:1px 9px; border-radius:999px; font-size:10px; font-weight:700; background:#ECFDF5; color:#059669; border:1px solid #A7F3D0; flex-shrink:0; }
+.dm-srctag.advice { background:#FFFBEB; color:#B45309; border-color:#FDE68A; }
+.dm-close { margin-left:auto; width:30px; height:30px; border-radius:8px; border:1px solid #E2E8F0; background:#F8FAFC; color:#64748B; font-size:14px; cursor:pointer; flex-shrink:0; }
+.dm-close:hover { background:#FEE2E2; color:#DC2626; border-color:#FECACA; }
+.dm-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:4px; padding:8px 18px; background:#F8FAFC; border-bottom:1px solid #EEF2F7; }
+.dm-body { padding:16px 18px; overflow-y:auto; }
+.dm-summary { margin:0 0 12px; font-size:13px; color:#475569; line-height:1.7; }
+.dm-chart-wrap { background:#FBFCFE; border:1px solid #EEF2F7; border-radius:10px; padding:8px; margin-bottom:14px; }
+.dm-chart { width:100%; height:210px; }
+.dm-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.dm-field { display:flex; flex-direction:column; gap:2px; padding:8px 11px; background:#F8FAFC; border:1px solid #EEF2F7; border-radius:8px; }
+.dm-field.danger { background:#FEF2F2; border-color:#FECACA; }
+.dm-fk { font-size:11px; color:#94A3B8; }
+.dm-fv { font-size:13.5px; color:#0F172A; font-weight:600; }
+.dm-field.danger .dm-fv { color:#DC2626; }
+.dm-table { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:12px; }
+.dm-table th { background:#F1F5F9; color:#475569; font-weight:700; padding:8px 10px; text-align:left; border:1px solid #E8EDF5; }
+.dm-table td { padding:7px 10px; border:1px solid #EEF2F7; color:#334155; }
+.dm-table tbody tr:nth-child(even) { background:#FAFCFF; }
+.dm-suggest { padding:10px 12px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:9px; margin-bottom:14px; }
+.dm-suggest-title { font-size:12px; font-weight:700; color:#B45309; margin-bottom:5px; }
+.dm-suggest ul { margin:0; padding-left:18px; }
+.dm-suggest li { font-size:12.5px; color:#92400E; line-height:1.8; }
+.dm-section-lbl { font-size:11.5px; font-weight:700; color:#64748B; margin-bottom:7px; }
+.dm-dd-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.dm-dbtn { padding:6px 13px; border-radius:8px; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9; font-size:12.5px; font-weight:600; cursor:pointer; transition:.15s; }
+.dm-dbtn:hover { background:#EDE9FE; border-color:#C4B5FD; transform:translateY(-1px); }
+.dm-dbtn em { font-style:normal; color:#9CA3AF; font-weight:500; }
+.dm-foot { padding:12px 18px 14px; border-top:1px solid #EEF2F7; background:#FAFBFD; }
+.dm-foot-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.dm-foot-lbl { font-size:12px; font-weight:800; color:#475569; }
+.dm-foot-flow { font-size:11px; color:#94A3B8; }
+.dm-foot-flow b { color:#64748B; font-weight:700; }
+.dm-act-row { display:flex; flex-wrap:wrap; gap:8px; }
+.dm-act-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:1px solid #E2E8F0; background:#fff; color:#334155; font-size:12.5px; font-weight:700; cursor:pointer; transition:.15s; }
+.dm-act-ico { font-size:14px; }
+.dm-act-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; white-space:nowrap; }
+/* 力度配色：留观→取证→核查→阻断 */
+.dm-act-btn.watch:hover    { border-color:#94A3B8; background:#F8FAFC; }
+.dm-act-btn.evidence:hover { border-color:#22D3EE; background:#ECFEFF; }
+.dm-act-btn.route:hover    { border-color:#2563EB; background:#EFF6FF; }
+.dm-act-btn.block:hover    { border-color:#EF4444; background:#FEF2F2; }
+.dm-act-btn.block { border-color:#FECACA; }
+.dm-act-tag.watch    { background:#F1F5F9; color:#64748B; }
+.dm-act-tag.evidence { background:#ECFEFF; color:#0891B2; }
+.dm-act-tag.route    { background:#EFF6FF; color:#2563EB; }
+.dm-act-tag.block    { background:#FEF2F2; color:#DC2626; }
+/* 操作已下达·确认弹窗 */
+.ad-overlay { position:fixed; inset:0; z-index:10100; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.42); backdrop-filter:blur(2px); }
+.ad-card { width:360px; max-width:90vw; background:#fff; border-radius:16px; padding:24px 22px 18px; text-align:center; box-shadow:0 24px 60px rgba(15,23,42,.35); border-top:4px solid #2563EB; }
+.ad-card.watch    { border-top-color:#94A3B8; }
+.ad-card.evidence { border-top-color:#0891B2; }
+.ad-card.route    { border-top-color:#2563EB; }
+.ad-card.block    { border-top-color:#DC2626; }
+.ad-ico { width:46px; height:46px; margin:0 auto 10px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800; color:#fff; background:linear-gradient(135deg,#10B981,#059669); box-shadow:0 6px 16px rgba(5,150,105,.35); }
+.ad-title { font-size:16px; font-weight:800; color:#0F172A; margin-bottom:12px; }
+.ad-action { display:inline-flex; align-items:center; gap:6px; font-size:14px; font-weight:700; color:#1E293B; margin-bottom:8px; }
+.ad-emoji { font-size:16px; }
+.ad-action .dm-act-tag { margin-left:2px; }
+.ad-effect { font-size:12.5px; color:#475569; line-height:1.65; margin-bottom:10px; }
+.ad-meta { font-size:11px; color:#94A3B8; margin-bottom:16px; }
+.ad-ok { width:100%; padding:9px 0; border:none; border-radius:10px; background:linear-gradient(135deg,#2563EB,#1D4ED8); color:#fff; font-size:13px; font-weight:700; cursor:pointer; transition:.15s; }
+.ad-ok:hover { box-shadow:0 4px 14px rgba(37,99,235,.4); }
+
+/* 处置闭环：A/B/C 方案 */
+.plan-grid { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+.plan-card { text-align:left; border:1.5px solid #E8EDF5; border-radius:10px; padding:10px 12px; background:#fff; cursor:pointer; transition:.15s; }
+.plan-card:hover { border-color:#CBD5E1; box-shadow:0 4px 14px rgba(15,23,42,0.07); }
+.plan-card.recommended { border-color:#A7F3D0; background:#F0FDF4; }
+.plan-card.selected { border-color:#059669; box-shadow:0 0 0 3px rgba(5,150,105,0.15); }
+.plan-top { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.plan-key { width:22px; height:22px; border-radius:6px; background:#0F172A; color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.plan-card.recommended .plan-key { background:#059669; }
+.plan-name { font-size:13.5px; font-weight:700; color:#0F172A; }
+.plan-strength { padding:0 7px; border-radius:999px; font-size:10px; font-weight:700; }
+.plan-strength.强 { background:#FEF2F2; color:#DC2626; }
+.plan-strength.中 { background:#FFF7ED; color:#C2410C; }
+.plan-strength.弱 { background:#F1F5F9; color:#64748B; }
+.plan-rec { margin-left:auto; padding:0 8px; border-radius:999px; background:#059669; color:#fff; font-size:10px; font-weight:700; }
+.plan-impact { font-size:12px; color:#475569; line-height:1.6; }
+/* AI 实施回执 */
+.exec-wrap { border-top:1px dashed #E2E8F0; padding-top:12px; }
+.exec-note { font-size:12.5px; color:#C2410C; background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; padding:10px 12px; }
+.exec-title { font-size:12px; font-weight:700; color:#64748B; margin-bottom:8px; }
+.exec-list { display:flex; flex-direction:column; gap:8px; }
+.exec-step { display:flex; gap:10px; padding:9px 11px; background:#F8FAFC; border:1px solid #E8EDF5; border-radius:8px; }
+.exec-step-no { flex-shrink:0; width:22px; height:22px; border-radius:50%; background:#059669; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.exec-step-bd { min-width:0; }
+.exec-step-text { font-size:12.5px; color:#0F172A; line-height:1.6; }
+.exec-step-meta { font-size:11px; color:#94A3B8; margin-top:3px; }
+.exec-step-meta em { font-style:normal; color:#059669; font-weight:700; }
+.exec-step-meta em.wait { color:#C2410C; }
+.exec-done { margin-top:10px; padding:10px 12px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; color:#059669; font-size:13px; font-weight:800; text-align:center; }
+.exec-fade-enter-active { transition:all .4s ease; }
+.exec-fade-enter-from { opacity:0; transform:translateY(8px); }
+.exec-reopen { width:100%; padding:9px; border-radius:9px; border:1px solid #A7F3D0; background:#ECFDF5; color:#059669; font-size:12.5px; font-weight:700; cursor:pointer; transition:.15s; }
+.exec-reopen:hover { background:#D1FAE5; }
+
+/* 处置结果弹窗 */
+.pr-overlay { position:fixed; inset:0; z-index:9900; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.42); backdrop-filter:blur(2px); }
+.pr-dialog { width:560px; max-width:92vw; max-height:84vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; border-top:4px solid #059669; }
+.pr-dialog.route { border-top-color:#2563EB; }
+.pr-dialog.watch { border-top-color:#94A3B8; }
+.pr-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; border-bottom:1px solid #EEF1F6; background:#F4FBF7; }
+.pr-dialog.route .pr-head { background:#F5F9FF; }
+.pr-dialog.watch .pr-head { background:#F8FAFC; }
+.pr-head-l { display:flex; align-items:center; gap:10px; }
+.pr-badge { padding:3px 10px; border-radius:8px; background:#059669; color:#fff; font-size:13px; font-weight:800; }
+.pr-badge.route { background:#2563EB; } .pr-badge.watch { background:#64748B; }
+.pr-head-tt { display:flex; flex-direction:column; line-height:1.3; }
+.pr-head-tt strong { font-size:14px; font-weight:800; color:#0F172A; }
+.pr-head-tt span { font-size:11.5px; color:#64748B; }
+.pr-close { width:28px; height:28px; border-radius:8px; border:none; background:#F1F5F9; color:#475569; font-size:14px; cursor:pointer; }
+.pr-close:hover { background:#E2E8F0; }
+.pr-body { padding:14px 18px 18px; overflow-y:auto; }
+.pr-sect { margin-bottom:14px; }
+.pr-sect-lbl { font-size:12px; font-weight:800; color:#475569; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #F1F5F9; }
+.pr-effects { display:flex; flex-direction:column; gap:8px; }
+.pr-effect { display:flex; gap:9px; align-items:flex-start; padding:9px 11px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:9px; }
+.pr-dialog.route .pr-effect { background:#EFF6FF; border-color:#BFDBFE; }
+.pr-dialog.watch .pr-effect { background:#F8FAFC; border-color:#E2E8F0; }
+.pr-ef-ico { font-size:16px; flex-shrink:0; }
+.pr-ef-bd { display:flex; flex-direction:column; gap:1px; }
+.pr-ef-bd b { font-size:12.5px; font-weight:700; color:#0F172A; }
+.pr-ef-bd span { font-size:12px; color:#475569; line-height:1.55; }
+.pr-drills { display:flex; flex-wrap:wrap; gap:8px; }
+.pr-drill-btn { padding:6px 12px; border-radius:8px; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9; font-size:12px; font-weight:600; cursor:pointer; transition:.15s; }
+.pr-drill-btn:hover { background:#EDE9FE; border-color:#C4B5FD; transform:translateY(-1px); }
+.pr-closing { margin-top:4px; padding:10px 12px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:9px; font-size:12px; color:#92400E; line-height:1.6; }
+/* 处置效果·逐条揭示动画 + 进行中指示 */
+.pr-eff-enter-active { transition:opacity .45s ease, transform .45s ease; }
+.pr-eff-enter-from { opacity:0; transform:translateX(-12px); }
+.pr-eff-leave-active { transition:opacity .2s ease; position:absolute; }
+.pr-eff-leave-to { opacity:0; }
+.pr-analyzing { display:flex; align-items:center; gap:8px; margin-top:8px; padding:8px 11px; border-radius:9px; background:#F5F3FF; border:1px dashed #DDD6FE; color:#6D28D9; font-size:12px; font-weight:700; }
+.pr-spin { width:14px; height:14px; border:2px solid #DDD6FE; border-top-color:#6D28D9; border-radius:50%; animation:pr-spin-kf .7s linear infinite; }
+@keyframes pr-spin-kf { to { transform:rotate(360deg); } }
+
+/* AI 小助手联动：高亮供应商行（恒通） */
+.sup-side-row.assistant-hl { outline:2px solid #7C3AED; outline-offset:1px; border-radius:8px; background:#F5F3FF; box-shadow:0 0 0 4px rgba(124,58,237,.12); animation:assist-sup-pulse 1.5s ease-in-out infinite; }
+@keyframes assist-sup-pulse { 0%,100% { box-shadow:0 0 0 3px rgba(124,58,237,.10);} 50% { box-shadow:0 0 0 6px rgba(124,58,237,.20);} }
 </style>

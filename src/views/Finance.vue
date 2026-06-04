@@ -2252,15 +2252,16 @@ const trendOption = computed(() => {
   border: 1px solid #c4b5fd; border-radius: 8px; padding: 5px 7px;
 }
 .ww-title { font-size: 9px; font-weight: 700; color: #6d28d9; text-align: center; }
-.ww-chart { flex: 1; min-height: 0; min-height: 60px; }
-.ww-rate { text-align: center; font-size: 9px; color: #475569; }
+.ww-chart { flex: 1; min-height: 40px; }   /* 允许图自适应收缩，给下方差异行让位 */
+.ww-rate { text-align: center; font-size: 9px; color: #475569; flex-shrink: 0; }
 .ww-rate strong { font-size: 16px; font-weight: 800; color: #7c3aed; line-height: 1; }
 .ww-rate em { font-size: 10px; font-style: normal; font-weight: 600; }
-.ww-diffs { display: flex; flex-direction: column; gap: 2px; }
+.ww-diffs { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .ww-diff {
   display: flex; align-items: center; gap: 4px; padding: 2px 5px;
   background: rgba(255,255,255,.7); border-radius: 4px; font-size: 9px; color: #475569;
   cursor: pointer; transition: background .15s;
+  flex-shrink: 0;
 }
 .ww-diff:hover { background: #fef2f2; }
 .ww-dd { flex: 1; font-weight: 600; }
@@ -2296,7 +2297,7 @@ const trendOption = computed(() => {
 /* ====== Body 三栏 ====== */
 .body {
   display: grid;
-  grid-template-columns: 0.9fr 3.2fr 1.2fr;
+  grid-template-columns: 0.667fr 3fr 1.333fr;  /* 左:中:右 = 2/3 : 3 : 4/3（左栏缩 1/3、右栏放大 1/3） */
   gap: 8px;
   height: 100%;
   min-height: 0;

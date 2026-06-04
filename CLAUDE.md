@@ -35,7 +35,7 @@ The **actual** scenes are:
 | `#/finance` | `views/Finance.vue` | 财务/资金穿透 |
 | `#/ai` | `views/AIAgent.vue` | AI 指挥调度中心 |
 
-> The `README.md` is partially **stale**: it references `Investment.vue` and routes `#/equity`, `#/invest`, `#/overseas` that no longer exist in `sceneMap`. Trust `App.vue`'s `sceneMap`, not the README, for the current route list. Unknown hashes fall back to `dashboard` via `normalizeScene`.
+> The `README.md` is partially **stale**: it references `Investment.vue` and routes `#/equity`, `#/invest`, `#/overseas` that no longer exist in `sceneMap`. Trust `App.vue`'s `sceneMap`, not the README, for the current route list. Unknown hashes resolve through `sceneAliasMap` in `normalizeScene` and fall back to `dashboard`. (A leftover `equity` branch in `currentPageTitle` is dead — `equity` is not a real scene.)
 
 ### Period toggle wiring
 App.vue owns two independent period toggles in the topbar and passes the value down as a `period` prop:
@@ -50,6 +50,13 @@ Period values are the strings `'30d' | '3m' | '6m'`. Views that react to period 
 - `agent-actions.js` — `AGENT_CAPABILITIES`, the action schema the LLM can emit (e.g. navigate/open). `GptChatModal` emits an `action` event that App.vue's `handleAIChatAction` turns into `navigate(...)`.
 
 `GptChatModal.vue` (bottom-right `fab-chat` button) is the **current** assistant. `FloatingAIAssistant.vue` still exists but is **no longer wired into App.vue** — treat it as legacy.
+
+The streaming bubble must **never render raw `<drp>{...}</drp>` action directives** to the user. `GptChatModal` strips them mid-stream via `renderStream()` (removes closed tags and truncates at a partial `<drp`) and on finalize via `stripActions`. Preserve this when touching the chat render path.
+
+### Scripted (no-LLM) AI demos
+Two flows are **fully hardcoded** for reliable live demos — they do *not* call DeepSeek:
+- `views/AIAgent.vue` (指挥调度中心) is driven by `src/data/agentScript.js`: `matchScript(text)` keyword-matches the user's prompt to one of the `SCRIPT` entries, then the view streams the canned `thinking` + `reply.text`, sets `steps`, and may emit `navigate` for entries with an `action`. `RECOMMENDED_CHIPS` are the suggested prompts shown until the user sends a first message. To extend the demo, add/edit `SCRIPT` entries here, not in the component.
+- `views/StoryAssociatedTransfer.vue` is a **self-contained** "故事线一：关联输送" walkthrough (own ECharts force graph, all mock data inline, no external state). A `step` (0–7) state machine + `async play()`/`sleep()` auto-advances the whole investigation; the only human interaction is one click on "采纳方案 A" (step 6→7). `runToken` cancels in-flight loops on reset. Mount with `<StoryAssociatedTransfer />`.
 
 ### Per-domain "AI 智能体" risk-analysis modal
 Contract / Finance / Funds / Procurement each have a self-contained, step-by-step agent animation modal (deep-tech styling, ~7 reasoning steps driven by a `setInterval` at 600ms, status enum `pending/running/done`). The original "open risk report" logic in each view is wrapped: the public `openReport`/`openRisk` shows the modal, and the real navigation/API logic lives in a `_open...Real` counterpart called when the animation completes (or when the user clicks "查看分析报告"). Always `clearInterval` the timers in `onBeforeUnmount`. The four implementations are intentionally near-identical — keep them in sync when changing one.

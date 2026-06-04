@@ -1,7 +1,7 @@
 <template>
   <transition name="gpt-fade">
-    <div v-if="visible" class="gpt-overlay" @click.self="close">
-      <div class="gpt-modal" :class="{ collapsed: sidebarCollapsed }">
+    <div v-if="visible" class="gpt-overlay">
+      <div class="gpt-modal" :class="{ collapsed: sidebarCollapsed }" :style="modalStyle">
 
         <!-- 左侧栏 -->
         <aside class="gpt-sidebar" v-show="!sidebarCollapsed">
@@ -39,11 +39,12 @@
 
         <!-- 右侧 -->
         <div class="gpt-main">
-          <div class="gpt-header">
+          <div class="gpt-header gpt-drag-handle" @mousedown="startDrag">
             <div class="gpt-header-left">
               <button v-if="sidebarCollapsed" class="gpt-side-expand" @click="sidebarCollapsed = false">▶</button>
               <div class="gpt-avatar">🤖</div>
               <strong>AI 小助手</strong>
+              <span class="gpt-drag-hint" title="按住可拖动">⠿</span>
               <span v-if="agentToast" class="agent-toast">{{ agentToast }}</span>
             </div>
             <div class="gpt-header-right">
@@ -68,7 +69,41 @@
                 <div v-if="msg.thinking && thinkLevel!=='off'" class="gpt-msg"><div class="gpt-msg-avatar">🤖</div><div class="gpt-msg-body"><div class="gpt-thinking"><button class="gt-toggle" @click="msg._thinkOpen=!msg._thinkOpen">💭 思考完成 {{ msg._thinkOpen?'▾':'▸' }}</button><div v-if="msg._thinkOpen" class="gt-body">{{ msg.thinking }}</div></div></div></div>
                 <div class="gpt-msg" :class="{ 'gt-no-avatar': msg.thinking && thinkLevel!=='off' }">
                   <div v-if="!msg.thinking || thinkLevel==='off'" class="gpt-msg-avatar">🤖</div>
-                  <div class="gpt-msg-body" :style="(msg.thinking && thinkLevel!=='off')?{paddingLeft:'48px'}:{}"><div class="gpt-msg-bubble"><div class="gpt-msg-text" v-html="renderMsg(msg.display || msg.content)"></div></div><div class="gpt-msg-meta"><span class="gpt-msg-time">{{ msg.time }}</span></div></div>
+                  <div class="gpt-msg-body" :style="(msg.thinking && thinkLevel!=='off')?{paddingLeft:'48px'}:{}">
+                  <div class="gpt-msg-bubble">
+                    <div class="gpt-msg-text" v-html="renderMsg(msg.display || msg.content)"></div>
+
+                    <!-- 路线三：研判卡片 -->
+                    <div v-for="(c, ci) in (msg.cards || [])" :key="'c'+ci" class="r3-card" :class="'r3-'+c.type">
+                      <div class="r3-card-title">{{ c.title }}</div>
+                      <div class="r3-card-rows">
+                        <div v-for="(r, ri) in c.rows" :key="ri" class="r3-card-row">
+                          <span class="r3-k">{{ r.k }}</span><span class="r3-v">{{ r.v }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 路线三：处置方案 A/B/C -->
+                    <div v-if="msg.options" class="r3-options">
+                      <div v-for="opt in msg.options" :key="opt.key" class="r3-opt">
+                        <button class="r3-opt-btn" :class="'opt-'+opt.key" @click="r3ChoosePlan(opt)">
+                          <span class="r3-opt-key">{{ opt.key }}</span>
+                          <span class="r3-opt-main"><b>{{ opt.label }}</b><em>预计影响：{{ opt.impact }}</em></span>
+                        </button>
+                        <button class="r3-basis-toggle" @click="r3ToggleBasis(msg, opt.key)">{{ msg._basisKey === opt.key ? '收起依据 ▲' : '查看依据 ▼' }}</button>
+                        <div v-if="msg._basisKey === opt.key" class="r3-basis">{{ opt.basis }}</div>
+                      </div>
+                    </div>
+
+                    <!-- 路线三：执行回执 -->
+                    <div v-if="msg.receipts" class="r3-receipts">
+                      <div v-if="msg._revealed < msg.receipts.length" class="r3-exec-running"><span class="r3-spin"></span>执行中…（{{ msg._revealed }}/{{ msg.receipts.length }}）</div>
+                      <div v-for="(rc, ri) in msg.receipts" :key="ri" v-show="ri < msg._revealed" class="r3-receipt"><span class="r3-check">✓</span><span>{{ rc }}</span></div>
+                      <div v-if="msg._revealed >= msg.receipts.length" class="r3-exec-done">✓ 处置闭环完成（演示）</div>
+                    </div>
+                  </div>
+                  <div class="gpt-msg-meta"><span class="gpt-msg-time">{{ msg.time }}</span></div>
+                </div>
                 </div>
               </div>
             </template>
@@ -105,11 +140,39 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { chatWithDeepSeekStream, loadConversations, saveConversations } from '../api/deepseek.js'
 import { actionExecutors, deriveActionsFromPrompt, mergeActions, parseActions, stripActions } from '../api/agent-actions.js'
+import { applyPresetByText } from '../layout.js'
 
 const props = defineProps({ visible: Boolean, scene: String })
 const emit = defineEmits(['close', 'action'])
 
-const input = ref(''), msgContainer = ref(null), activeHistory = ref(''), sidebarCollapsed = ref(false)
+const input = ref(''), msgContainer = ref(null), activeHistory = ref(''), sidebarCollapsed = ref(true)
+
+// 面板拖动（始终以「右边距」锚定 → 打开历史/侧边栏时向左扩展，而非向右）
+const dragPos = reactive({ right: null, top: null })
+let dragOff = { x: 0, y: 0 }
+let dragging = false
+const modalStyle = computed(() => dragPos.right == null ? {} : { right: dragPos.right + 'px', top: dragPos.top + 'px', left: 'auto', bottom: 'auto' })
+function startDrag(e) {
+  if (e.target.closest('button, select, input, textarea, .gsi-edit')) return
+  const modal = e.currentTarget.closest('.gpt-modal'); if (!modal) return
+  const rect = modal.getBoundingClientRect()
+  dragPos.right = Math.max(0, window.innerWidth - rect.right)
+  dragPos.top = rect.top
+  dragOff = { x: e.clientX - rect.left, y: e.clientY - rect.top, w: rect.width }
+  dragging = true
+  window.addEventListener('mousemove', onDrag)
+  window.addEventListener('mouseup', endDrag)
+  e.preventDefault()
+}
+function onDrag(e) {
+  if (!dragging) return
+  const w = window.innerWidth, h = window.innerHeight
+  const newLeft = e.clientX - dragOff.x
+  // 用右边距锚定：右边距 = 视口宽 - (左 + 宽)；这样宽度变化（开侧边栏）时右边固定、向左扩展
+  dragPos.right = Math.max(0, Math.min(w - (newLeft + dragOff.w), w - 120))
+  dragPos.top = Math.max(0, Math.min(e.clientY - dragOff.y, h - 60))
+}
+function endDrag() { dragging = false; window.removeEventListener('mousemove', onDrag); window.removeEventListener('mouseup', endDrag) }
 const menuOpen = ref(''), editingId = ref(''), renameText = ref('')
 const thinkLevel = ref(localStorage.getItem('drp_think_level') || 'low')
 const thinkLevels = [{ value:'max',label:'💭 最大' },{ value:'high',label:'💭 高' },{ value:'medium',label:'💭 中' },{ value:'low',label:'💭 低' },{ value:'off',label:'💤 关' }]
@@ -341,6 +404,123 @@ function toggleMic() {
   }
 }
 
+// ═══ 路线三：采购页脚本化研判演示（关键词命中固定卡片，未命中走真模型） ═══
+const ROUTE3_QUICK = [
+  '调出今日高风险研判报告',
+  '第一条未验收付款，说说依据',
+  '这家供应商还有别的问题吗',
+  '把和这家供应商相关的都集中给我看',
+  '这笔未验收付款该怎么处置',
+  '恢复默认',
+]
+const showRoute3Quick = computed(() => props.scene === 'procurement')
+const R3_REPORT = {
+  reply: '已为您生成《今日高风险研判报告》，今日共 4 条高风险线索，按严重度排列。需要我对哪一条深入研判？',
+  cards: [{ type: 'summary', title: '今日高风险研判报告（4条）', rows: [
+    { k: '1 · 未验收付款', v: 'CG-2026001 · 鼎信建设一公司 · ¥40万 · 经办张伟' },
+    { k: '2 · 围标串标', v: 'CG-2026005 · 恒通供应链等3家 · ¥280万 · 经办孙磊' },
+    { k: '3 · 未验收付款(二期)', v: 'CG-2026012 · 鼎信建设一公司 · ¥40万 · 经办张伟' },
+    { k: '4 · 融资性贸易', v: 'CG-2026033 · 鼎信物资贸易有限公司 · ¥150万 · 经办吴明' },
+  ] }],
+}
+const R3 = {
+  evidence: {
+    reply: '第一条 CG-2026001 的核心问题：¥40万工程款已申请待付，但系统中验收单缺失、无验收人签字——属于未验收付款。AI 穿透发现承接方鼎信建设一公司与集团供应商鼎信建设有限公司同受王建国控制，疑为关联输送。',
+    cards: [
+      { type: 'evidence', title: '① 调依据', rows: [
+        { k: '资金', v: '合同 HT-2026-0312 约定验收后付 80%（¥40万），工程未验收即申请付款；近6月鼎信建设有限公司向鼎信建设一公司回流 ¥120万（3笔）' },
+        { k: '投标行为', v: '两家公司 3 场招标同一投标IP(116.62.45.21)、同一制单设备(MAC 00-1B-44-11-3A-B7)' },
+        { k: '工商', v: '王建国持鼎信建设有限公司 65%，实际控制鼎信建设一公司（其弟王建军代持法人），未申报关联关系' },
+      ] },
+      { type: 'risk', title: '② 关联风险', rows: [
+        { k: '风险类型', v: '未验收付款 + 关联输送（资金风险）' },
+        { k: '命中红线', v: '十不准：不准未经验收支付款项' },
+      ] },
+      { type: 'project', title: '③ 具体项目', rows: [
+        { k: '项目', v: '二号车间维修工程' },
+        { k: '合同号', v: 'HT-2026-0312' },
+        { k: '金额', v: '¥40万' },
+      ] },
+      { type: 'doc', title: '④ 穿透单据·责任人', rows: [
+        { k: '采购单', v: 'CG-2026001' },
+        { k: '经办', v: '张伟（采购部）' },
+        { k: '审批', v: '李强（采购部主管）' },
+        { k: '缺失节点', v: '验收单（YS-2026-0312）、验收人签字' },
+      ] },
+    ],
+  },
+  supplier: {
+    reply: '鼎信建设一公司问题集中——健康评分仅 58、共 8 个风险标记，近年密集中标本集团 5 个项目（合计 ¥860万），中标集中度异常。除这笔未验收付款外，还涉未验收付款（二期）和资质挂靠。',
+    cards: [{ type: 'supplier', title: '鼎信建设一公司 · 供应商画像', rows: [
+      { k: '健康评分', v: '58（偏低）' },
+      { k: '风险标记(8)', v: '关联交易未披露 / 未验收付款 / 实控人代持(王建军代持·王建国实控) / 同源投标(同IP·同MAC) / 资金回流(¥120万·3笔) / 中标集中度异常 / 验收单缺失 / 资质挂靠' },
+      { k: '其他关联', v: 'CG-2026012 未验收付款·二期(¥40万) · CG-2026025 资质挂靠(¥85万)' },
+    ] }],
+  },
+  aggregate: {
+    reply: '已把与鼎信系相关的四块要点汇总如下（本阶段在对话内呈现，页面布局重组为下一阶段功能）：',
+    cards: [
+      { type: 'summary', title: '① 实时风险（鼎信系在途3条·合计¥360万）', rows: [
+        { k: '未验收付款', v: 'CG-2026001 · ¥40万' },
+        { k: '围标串标(同源/陪标)', v: 'CG-2026005 · ¥280万' },
+        { k: '未验收付款(二期)', v: 'CG-2026012 · ¥40万' },
+      ] },
+      { type: 'summary', title: '② 供应商画像', rows: [
+        { k: '评分/标记', v: '鼎信建设一公司 58分 · 8个风险标记' },
+        { k: '中标', v: '本集团5个项目/¥860万 · 集中度异常' },
+      ] },
+      { type: 'summary', title: '③ 资金闭环（CG-2026001）', rows: [
+        { k: '付款', v: '¥40万待付' },
+        { k: '断点', v: '验收凭证缺失（YS-2026-0312）' },
+      ] },
+      { type: 'summary', title: '④ 网络图链路', rows: [
+        { k: '异常', v: '同IP(116.62.45.21)/同MAC 投标；近6月回流 ¥120万(3笔)' },
+        { k: '推断', v: '王建国实控鼎信建设有限公司(65%)+鼎信建设一公司(王建军代持)' },
+      ] },
+    ],
+  },
+  plan: {
+    reply: '建议：立即冻结付款并启动关联输送专项审查，倒查同类未验收付款。需联动财务（冻结付款节点）、采购部（限期补验收）、纪检监察室（牵头核查）。理由：无验收即付款违反资金闭环与红线，供应商高风险，存在资金损失与利益输送风险。请选择处置方案：',
+    options: [
+      { key: 'A', label: '立即冻结付款 + 补验收 + 立案核查', impact: '资金保全；流程中断约2周；触发纪检介入', basis: '无验收即付款违反资金闭环，鼎信建设一公司高风险(评分58)；历史同类案例3起，平均挽回损失 ¥86万' },
+      { key: 'B', label: '暂不冻结，限期补验收 + 整改', impact: '资金暂留风险；对流程影响小；7个工作日内补齐', basis: '若项目确已完工可先补验收闭环——本例供应商风险偏高(评分58)，需谨慎' },
+      { key: 'C', label: '列入观察名单，下一付款节点拦截', impact: '当前风险不即时处置，仅监控', basis: '本例金额虽小但叠加关联输送，证据已较充分，不建议仅观察' },
+    ],
+  },
+  receipts: {
+    reply: '已采纳方案A，开始执行（演示环境仅前端联动、不实际落库）：',
+    receipts: [
+      'SRM 已将鼎信建设一公司标记“待核查”，并冻结采购单 CG-2026001 付款节点（¥40万）',
+      '生成《关联输送核查任务单》(RW-2026-0501)，附工商/资金/投标证据链，派发纪检监察室核查组',
+      '向经办张伟及主管李强推送整改通知，要求补充关联披露与验收材料，回执截止 2026-05-28，逾期自动升级',
+    ],
+  },
+}
+function matchRoute3(text) {
+  if (props.scene !== 'procurement') return null
+  const t = (text || '').trim()
+  if (/恢复默认|回到报告|初始视图/.test(t)) return R3_REPORT
+  if (/我选方案\s*A|采纳方案\s*A|方案A|执行方案/.test(t)) return R3.receipts
+  if (/处置|怎么办|如何处理|该怎么/.test(t)) return R3.plan
+  if (/集中|相关的都|汇总|都给我看|一起看/.test(t)) return R3.aggregate
+  if (/供应商|这家|别的问题|还有.*问题/.test(t)) return R3.supplier
+  if (/依据|第一条|未验收|为什么|为何/.test(t)) return R3.evidence
+  if (/今日.*报告|高风险研判|研判报告|调出.*报告/.test(t)) return R3_REPORT
+  return null
+}
+function pushRoute3(hist, resp) {
+  const msg = { role: 'assistant', content: resp.reply, display: resp.reply, time: now(),
+    cards: resp.cards || null, options: resp.options || null, receipts: resp.receipts || null, _revealed: 0, _basisKey: null }
+  hist.msgs.push(msg)
+  scrollBottom(); persist()
+  if (resp.receipts && resp.receipts.length) {
+    const idx = hist.msgs.length - 1
+    resp.receipts.forEach((_, i) => queueAction(() => { const m = hist.msgs[idx]; if (m) m._revealed = i + 1; scrollBottom() }, 700 * (i + 1)))
+  }
+}
+function r3ChoosePlan(opt) { if (streamingWait.value || stream.active) return; input.value = `我选方案${opt.key}：${opt.label}`; send() }
+function r3ToggleBasis(msg, key) { msg._basisKey = msg._basisKey === key ? null : key }
+
 // ═══ 发送 ═══
 function send() {
   const q = input.value.trim(); if (!q || streamingWait.value || stream.active) return
@@ -348,9 +528,30 @@ function send() {
 
   if (!hist.msgs.length) { hist.title = q.slice(0,18)+(q.length>18?'…':''); hist._named = false }
   hist.time = now()
-  const promptActions = deriveActionsFromPrompt(q)
-  hist.msgs.push({ role: 'user', content: q, time: now(), _promptActions: promptActions })
+  hist.msgs.push({ role: 'user', content: q, time: now() })
   input.value = ''
+
+  // 布局重组：采购页按用户话术关键词命中 preset，对话驱动页面动态重组（§6 前端兜底）
+  if (props.scene === 'procurement') applyPresetByText(q)
+
+  // 路线三：采购页脚本化命中 → 直接出固定卡片，不调用真模型；并联动页面组件高亮
+  const scripted = matchRoute3(q)
+  if (scripted) {
+    let focus = 'report'
+    if (/恢复默认|回到报告|初始视图/.test(q)) focus = 'reset'
+    else if (/我选方案\s*A|采纳方案\s*A|方案A|执行方案/.test(q)) focus = 'receipts'
+    else if (/处置|怎么办|如何处理|该怎么/.test(q)) focus = 'plan'
+    else if (/集中|相关的都|汇总|都给我看|一起看/.test(q)) focus = 'aggregate'
+    else if (/供应商|这家|别的问题|还有.*问题/.test(q)) focus = 'supplier'
+    else if (/依据|第一条|未验收|为什么|为何/.test(q)) focus = 'evidence'
+    try { window.dispatchEvent(new CustomEvent('drp-assistant-focus', { detail: { key: focus } })) } catch {}
+    streamingWait.value = true; scrollBottom(); persist()
+    queueAction(() => { streamingWait.value = false; pushRoute3(hist, scripted) }, 500)
+    return
+  }
+
+  const promptActions = deriveActionsFromPrompt(q)
+  const lastUser = hist.msgs[hist.msgs.length - 1]; if (lastUser) lastUser._promptActions = promptActions
 
   stream.active = false; stream.thinking = ''; stream.content = ''; stream.thinkOpen = true
   streamingWait.value = true; scrollBottom(); persist()
@@ -435,9 +636,14 @@ function close() { emit('close') }
 </script>
 
 <style scoped>
-.gpt-overlay{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.35);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center}
-.gpt-modal{width:92vw;max-width:1200px;height:92vh;max-height:900px;background:#fff;border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.16);display:flex;overflow:hidden;border:1px solid #e2e8f0;transition:all .25s}
-.gpt-modal.collapsed{width:72vw;max-width:960px}
+/* 不虚化背景、不挡页面：遮罩层穿透点击，仅面板可交互 */
+.gpt-overlay{position:fixed;inset:0;z-index:9999;background:transparent;pointer-events:none}
+.gpt-modal{position:fixed;right:20px;top:8vh;pointer-events:auto;width:720px;height:84vh;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(15,23,42,.28);display:flex;overflow:hidden;border:1px solid #e2e8f0;resize:both;min-width:340px;min-height:340px;max-width:96vw;max-height:94vh}
+.gpt-modal.collapsed{width:480px}
+/* 右下角拉伸把手视觉提示（原生 resize 句柄叠加） */
+.gpt-modal::after{content:'';position:absolute;right:2px;bottom:2px;width:14px;height:14px;pointer-events:none;background:linear-gradient(135deg,transparent 0 50%,#cbd5e1 50% 60%,transparent 60% 70%,#cbd5e1 70% 80%,transparent 80%);opacity:.8;border-bottom-right-radius:14px}
+.gpt-drag-handle{cursor:move;user-select:none}
+.gpt-drag-hint{color:#cbd5e1;font-size:14px;letter-spacing:-2px;cursor:move}
 
 .gpt-sidebar{width:280px;flex-shrink:0;background:#f8fafc;border-right:1px solid #e2e8f0;display:flex;flex-direction:column}
 .gpt-side-head{display:flex;gap:6px;padding:12px}
@@ -525,4 +731,44 @@ function close() { emit('close') }
 .gpt-send:disabled{opacity:.4;cursor:default}
 .gpt-fade-enter-active,.gpt-fade-leave-active{transition:opacity .2s}
 .gpt-fade-enter-from,.gpt-fade-leave-to{opacity:0}
+
+/* ═══ 路线三：研判卡片 / 方案 / 回执 ═══ */
+.r3-card{margin-top:10px;border:1px solid #e9edf5;border-radius:10px;overflow:hidden;background:#fcfdff}
+.r3-card-title{padding:7px 11px;font-size:12.5px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.r3-card.r3-evidence .r3-card-title{background:linear-gradient(135deg,#0891b2,#0e7490)}
+.r3-card.r3-risk .r3-card-title{background:linear-gradient(135deg,#dc2626,#b91c1c)}
+.r3-card.r3-project .r3-card-title{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.r3-card.r3-doc .r3-card-title{background:linear-gradient(135deg,#475569,#334155)}
+.r3-card.r3-supplier .r3-card-title{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+.r3-card-rows{padding:7px 11px}
+.r3-card-row{display:flex;gap:10px;padding:5px 0;border-bottom:1px dashed #eef1f6}
+.r3-card-row:last-child{border-bottom:none}
+.r3-k{flex-shrink:0;width:104px;font-size:12px;color:#94a3b8;font-weight:700}
+.r3-v{flex:1;font-size:12.5px;color:#1e293b;line-height:1.6}
+.r3-options{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.r3-opt{border:1px solid #e9edf5;border-radius:10px;padding:9px;background:#fcfdff}
+.r3-opt-btn{width:100%;display:flex;gap:10px;align-items:flex-start;text-align:left;border:none;background:transparent;cursor:pointer;padding:2px}
+.r3-opt-key{flex-shrink:0;width:24px;height:24px;border-radius:6px;background:#4f46e5;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.r3-opt-btn.opt-A .r3-opt-key{background:#dc2626}
+.r3-opt-btn.opt-B .r3-opt-key{background:#f59e0b}
+.r3-opt-btn.opt-C .r3-opt-key{background:#64748b}
+.r3-opt-main{display:flex;flex-direction:column;gap:2px}
+.r3-opt-main b{font-size:13px;font-weight:700;color:#0f172a}
+.r3-opt-main em{font-style:normal;font-size:11.5px;color:#64748b;line-height:1.5}
+.r3-opt-btn:hover .r3-opt-main b{color:#4f46e5}
+.r3-basis-toggle{margin-top:7px;padding:3px 9px;border-radius:6px;border:1px solid #ddd6fe;background:#f5f3ff;color:#6d28d9;font-size:11.5px;font-weight:700;cursor:pointer}
+.r3-basis-toggle:hover{background:#ede9fe}
+.r3-basis{margin-top:7px;padding:9px 11px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;line-height:1.65}
+.r3-receipts{margin-top:10px;display:flex;flex-direction:column;gap:7px}
+.r3-exec-running{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6d28d9;font-weight:700}
+.r3-spin{width:14px;height:14px;border:2px solid #ddd6fe;border-top-color:#6d28d9;border-radius:50%;animation:r3-spin .7s linear infinite}
+@keyframes r3-spin{to{transform:rotate(360deg)}}
+.r3-receipt{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12.5px;color:#166534;line-height:1.6;animation:r3-in .3s ease}
+@keyframes r3-in{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.r3-check{flex-shrink:0;width:17px;height:17px;border-radius:50%;background:#22c55e;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.r3-exec-done{margin-top:2px;padding:9px;text-align:center;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;color:#059669;font-size:13px;font-weight:800}
+.r3-quick-bar{display:flex;gap:8px;overflow-x:auto;padding:10px 22px 0;background:#fafbfc}
+.r3-quick-chip{flex-shrink:0;padding:5px 12px;border-radius:999px;border:1px solid #ddd6fe;background:#f5f3ff;color:#6d28d9;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s}
+.r3-quick-chip:hover:not(:disabled){background:#ede9fe;border-color:#c4b5fd}
+.r3-quick-chip:disabled{opacity:.5;cursor:default}
 </style>

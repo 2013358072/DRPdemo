@@ -1488,9 +1488,9 @@ onUnmounted(() => {
   gap: 7px;
 }
 
-/* Left column: equal split, both panels scroll independently */
+/* Left column: 十大重点领域稍矮，下方穿透 panel 占更多高度 */
 .left {
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 10px;
 }
 .left > .panel {
