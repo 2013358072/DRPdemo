@@ -496,18 +496,33 @@ const R3 = {
     ],
   },
 }
+// 采购穿透问答脚本（A~H 全角度问法）：采购页与首页（dashboard）均可触发。
+// 返回 { key, resp }，key 同时用于页面联动高亮（drp-assistant-focus）。
+// 顺序即优先级：先匹配最具体的（执行/处置/汇总），最后才是总览，避免关键词互相吞并。
+const R3_RESP_MAP = () => ({
+  reset: R3_REPORT, report: R3_REPORT,
+  receipts: R3.receipts, plan: R3.plan, aggregate: R3.aggregate, supplier: R3.supplier, evidence: R3.evidence,
+})
 function matchRoute3(text) {
-  // 采购穿透问答脚本：采购页与首页（dashboard）均可触发，首页询问也能给出同样的研判答复
   if (props.scene !== 'procurement' && props.scene !== 'dashboard') return null
   const t = (text || '').trim()
-  if (/恢复默认|回到报告|初始视图/.test(t)) return R3_REPORT
-  if (/我选方案\s*A|采纳方案\s*A|方案A|执行方案/.test(t)) return R3.receipts
-  if (/处置|怎么办|如何处理|该怎么/.test(t)) return R3.plan
-  if (/集中|相关的都|汇总|都给我看|一起看/.test(t)) return R3.aggregate
-  if (/供应商|这家|别的问题|还有.*问题/.test(t)) return R3.supplier
-  if (/依据|第一条|未验收|为什么|为何/.test(t)) return R3.evidence
-  if (/今日.*报告|高风险研判|研判报告|调出.*报告/.test(t)) return R3_REPORT
-  return null
+  let key = null
+  // H 恢复 / 重置
+  if (/恢复默认|回到报告|初始视图|重置|复位|还原|重新开始/.test(t)) key = 'reset'
+  // F 执行回执（采纳/我选 方案A、执行方案）
+  else if (/我选方案\s*A|采纳方案\s*A|方案\s*A|执行方案|采纳方案|开始执行|按方案\s*A|就用方案\s*A/.test(t)) key = 'receipts'
+  // E 处置决策（怎么处置 / 给几个方案 / 每个方案的依据）
+  else if (/处置|怎么办|怎么处理|如何处理|如何处置|该怎么|几个方案|给.*方案|方案.*依据|有哪些方案|处理建议|拿出.*方案|提个方案/.test(t)) key = 'plan'
+  // D 关联专题汇总（集中 / 相关的都 / 汇总 / 专题 / 关联链路）
+  else if (/集中|相关的都|汇总|都给我看|一起看|专题|关联链路|串起来|关联.*情况|相关.*都/.test(t)) key = 'aggregate'
+  // C 供应商画像（供应商 / 鼎信建设一公司 / 健康分 / 风险标记 / 还涉及哪些）
+  else if (/供应商|这家|别的问题|还有.*问题|鼎信建设一公司|健康分|健康评分|风险标记|还涉及|涉及哪些|几个风险|供应商背景|供应商画像/.test(t)) key = 'supplier'
+  // B 单据依据穿透（依据 / 未验收 / 为什么 / 证据 / 红线 / 哪个项目·哪份合同·谁经办）
+  else if (/依据|第一条|未验收|为什么|为何|证据|红线|哪个项目|哪份合同|谁经办|命中.*线|这笔.*风险|凭证/.test(t)) key = 'evidence'
+  // A 总览研判
+  else if (/今日.*报告|今天.*高风险|今天有哪些|高风险研判|研判报告|调出.*报告|高风险线索|有哪些高风险|高风险.*报告/.test(t)) key = 'report'
+  if (!key) return null
+  return { key, resp: R3_RESP_MAP()[key] }
 }
 function pushRoute3(hist, resp) {
   const msg = { role: 'assistant', content: resp.reply, display: resp.reply, time: now(),
@@ -560,16 +575,9 @@ function send() {
   // 路线三：采购页脚本化命中 → 直接出固定卡片，不调用真模型；并联动页面组件高亮
   const scripted = matchRoute3(q)
   if (scripted) {
-    let focus = 'report'
-    if (/恢复默认|回到报告|初始视图/.test(q)) focus = 'reset'
-    else if (/我选方案\s*A|采纳方案\s*A|方案A|执行方案/.test(q)) focus = 'receipts'
-    else if (/处置|怎么办|如何处理|该怎么/.test(q)) focus = 'plan'
-    else if (/集中|相关的都|汇总|都给我看|一起看/.test(q)) focus = 'aggregate'
-    else if (/供应商|这家|别的问题|还有.*问题/.test(q)) focus = 'supplier'
-    else if (/依据|第一条|未验收|为什么|为何/.test(q)) focus = 'evidence'
-    try { window.dispatchEvent(new CustomEvent('drp-assistant-focus', { detail: { key: focus } })) } catch {}
+    try { window.dispatchEvent(new CustomEvent('drp-assistant-focus', { detail: { key: scripted.key } })) } catch {}
     streamingWait.value = true; scrollBottom(); persist()
-    queueAction(() => { streamingWait.value = false; pushRoute3(hist, scripted) }, 500)
+    queueAction(() => { streamingWait.value = false; pushRoute3(hist, scripted.resp) }, 500)
     return
   }
 
