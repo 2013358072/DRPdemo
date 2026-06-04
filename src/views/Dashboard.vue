@@ -974,8 +974,8 @@ onUnmounted(() => {
 }
 
 .kpi {
-  min-height: 46px;
-  padding: 6px 10px;
+  min-height: 32px;
+  padding: 3px 10px;
 }
 
 .kpi-label {
@@ -988,7 +988,7 @@ onUnmounted(() => {
 }
 
 .kpi-value {
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 15px;
 }
 
@@ -997,8 +997,10 @@ onUnmounted(() => {
 }
 
 .mini-chart {
-  min-height: 14px;
-  margin: 2px 0 1px;
+  flex: none;
+  height: 16px;
+  min-height: 16px;
+  margin: 1px 0 0;
 }
 
 .kpi .small {
@@ -1012,12 +1014,12 @@ onUnmounted(() => {
 }
 
 .value-kpi {
-  min-height: 52px;
-  padding: 8px 12px;
+  min-height: 30px;
+  padding: 3px 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
+  gap: 1px;
   background: linear-gradient(135deg, var(--bg, #f8fafc) 0%, #fff 65%);
   border-left: 3px solid var(--c, #2563eb);
   border-radius: 10px;
@@ -1031,10 +1033,10 @@ onUnmounted(() => {
 }
 
 .value-kpi-value {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 800;
   color: #0f172a;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .value-kpi-value small {
@@ -1146,18 +1148,16 @@ onUnmounted(() => {
 .area-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-content: start;
+  grid-template-rows: repeat(5, minmax(0, 1fr));   /* 5 行平分可用高度，按比例铺满，10 个领域全展示 */
+  gap: 6px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148,163,184,0.25) transparent;
+  overflow: hidden;   /* 不滚动，自适应缩放铺满（适配不同屏高，整体布局不变） */
 }
 
 .area {
   position: relative;
-  padding: 9px 10px;
+  padding: 6px 9px;
   overflow: hidden;
   border: 1px solid #dbe4ee;
   background: #fff;
@@ -1165,7 +1165,9 @@ onUnmounted(() => {
   transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease, transform .14s ease;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
   cursor: pointer;
   text-align: left;
 }
@@ -1249,7 +1251,7 @@ onUnmounted(() => {
 .area-level-tag.red { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
 
 .area-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: #0f172a;
   flex-shrink: 0;
@@ -1274,13 +1276,13 @@ onUnmounted(() => {
 .area-alerts.yellow { border-color: #fde68a; color: #a16207; }
 .area-alerts.orange { border-color: #fed7aa; color: #c2410c; }
 .area-alerts.red { border-color: #fca5a5; color: #dc2626; }
-.area-alerts-num { font-size: 12px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-.area-alerts-lbl { font-size: 9px; opacity: 0.75; }
+.area-alerts-num { font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+.area-alerts-lbl { font-size: 8.5px; opacity: 0.75; }
 
 /* 第二行：风险分进度条 */
 .area-row-2 { display: flex; align-items: center; }
 .area-score-bar { display: flex; align-items: center; gap: 6px; flex: 1; }
-.area-score-lbl { font-size: 10px; color: #64748b; flex-shrink: 0; }
+.area-score-lbl { font-size: 9.5px; color: #64748b; flex-shrink: 0; }
 .area-bar { flex: 1; height: 4px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
 .area-bar-fill { height: 100%; border-radius: 999px; transition: width .4s ease; }
 .area-bar.green .area-bar-fill { background: linear-gradient(90deg, #86efac, #16a34a); }
@@ -1288,7 +1290,7 @@ onUnmounted(() => {
 .area-bar.orange .area-bar-fill { background: linear-gradient(90deg, #fdba74, #ea580c); }
 .area-bar.red .area-bar-fill { background: linear-gradient(90deg, #fca5a5, #dc2626); }
 .area-score-val {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   font-family: 'JetBrains Mono', monospace;
   color: #334155;
@@ -1301,7 +1303,7 @@ onUnmounted(() => {
 .area.yellow.active, .area.yellow:hover { box-shadow: 0 6px 16px rgba(250, 204, 21, 0.14); }
 .area.orange.active, .area.orange:hover { box-shadow: 0 6px 16px rgba(249, 115, 22, 0.18); }
 .area.red.active, .area.red:hover { box-shadow: 0 6px 16px rgba(239, 68, 68, 0.22); }
-.area.active { border-width: 2px; padding: 8px 9px; }
+.area.active { border-width: 2px; padding: 5px 8px; }
 
 /* 旧 area-score 兼容（已不再使用，保留避免引用错误） */
 .area-score {

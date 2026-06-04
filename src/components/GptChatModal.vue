@@ -497,7 +497,8 @@ const R3 = {
   },
 }
 function matchRoute3(text) {
-  if (props.scene !== 'procurement') return null
+  // 采购穿透问答脚本：采购页与首页（dashboard）均可触发，首页询问也能给出同样的研判答复
+  if (props.scene !== 'procurement' && props.scene !== 'dashboard') return null
   const t = (text || '').trim()
   if (/恢复默认|回到报告|初始视图/.test(t)) return R3_REPORT
   if (/我选方案\s*A|采纳方案\s*A|方案A|执行方案/.test(t)) return R3.receipts
@@ -521,6 +522,19 @@ function pushRoute3(hist, resp) {
 function r3ChoosePlan(opt) { if (streamingWait.value || stream.active) return; input.value = `我选方案${opt.key}：${opt.label}`; send() }
 function r3ToggleBasis(msg, key) { msg._basisKey = msg._basisKey === key ? null : key }
 
+// 业务域跳转：对话里说「看一下采购域 / 跳转到资金域 / 到财务域 / 切到合同域」→ 页面跳转到对应域
+const DOMAIN_NAV = [
+  { re: /采购域|采购管理域/, scene: 'procurement', label: '采购管理域' },
+  { re: /资金域/, scene: 'funds', label: '资金域' },
+  { re: /财务域/, scene: 'finance', label: '财务域' },
+  { re: /合同域/, scene: 'contract', label: '合同域' },
+]
+function matchDomainNav(text) {
+  const t = (text || '').trim()
+  if (!/(看|查看|瞧|跳转|切换|切到|打开|进入|前往|去|到|导航)/.test(t)) return null
+  return DOMAIN_NAV.find(d => d.re.test(t)) || null
+}
+
 // ═══ 发送 ═══
 function send() {
   const q = input.value.trim(); if (!q || streamingWait.value || stream.active) return
@@ -533,6 +547,15 @@ function send() {
 
   // 布局重组：采购页按用户话术关键词命中 preset，对话驱动页面动态重组（§6 前端兜底）
   if (props.scene === 'procurement') applyPresetByText(q)
+
+  // 业务域跳转：说「看一下采购域 / 跳转到资金域 / 财务域 / 合同域」→ 页面跳转
+  const domainNav = matchDomainNav(q)
+  if (domainNav) {
+    hist.msgs.push({ role: 'assistant', content: `好的，正在为您跳转到「${domainNav.label}」…`, time: now() })
+    scrollBottom(); persist()
+    emit('action', { type: 'navigate', scene: domainNav.scene })
+    return
+  }
 
   // 路线三：采购页脚本化命中 → 直接出固定卡片，不调用真模型；并联动页面组件高亮
   const scripted = matchRoute3(q)

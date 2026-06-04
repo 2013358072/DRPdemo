@@ -13,8 +13,37 @@
 
       <!-- ========== 左列 1.5 : 3 : 2 ========== -->
       <div class="col col-left">
+        <!-- 专题视图：对话「相关的都集中 / 专题 / 关联链路」时，左列改为纵向呈现该风险的可视化 -->
+        <section v-if="layoutState.preset === 'relatedTopic'" class="glass-panel topic-panel">
+          <div class="ph">
+            <h3>专题视图 · 关联链路聚焦</h3>
+            <span class="gpill warn">CG-2026001</span>
+          </div>
+          <div class="topic-stack">
+            <div class="topic-viz timeline">
+              <div class="topic-viz-title">📅 项目时间线 · 二号车间维修工程</div>
+              <div class="topic-timeline">
+                <div v-for="(e,i) in topicTimelineEvents" :key="i" class="ttl-item" :class="e.lv">
+                  <div class="ttl-dot"></div>
+                  <div class="ttl-body">
+                    <span class="ttl-date">2026-{{ e.date }}</span>
+                    <span class="ttl-label">{{ e.label }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="topic-viz radar">
+              <div class="topic-viz-title">🏢 鼎信建设一公司 · 风险画像
+                <span class="topic-viz-meta">评分 58 · 风险标记 8 · 本集团中标 5 项 / ¥860万</span>
+              </div>
+              <EChart class="topic-chart" :option="topicSupplierRadarOption" />
+            </div>
+          </div>
+        </section>
+
+        <!-- 常规左列（非专题视图时显示，逐块 v-if 切换） -->
         <!-- A1 雷达 60% + 74号文看板 40% -->
-        <section class="glass-panel a1-panel" :class="lm('a1')">
+        <section v-if="layoutState.preset !== 'relatedTopic'" class="glass-panel a1-panel" :class="lm('a1')">
           <div class="ph">
             <h3>采购六维评分</h3>
             <span class="gpill ice">综合 {{ pd.radarScore }} 分</span>
@@ -39,7 +68,7 @@
         </section>
 
         <!-- B1 采购十大风险域 -->
-        <section class="glass-panel b1-panel" :class="[{ linked: penetrationContext.active }, lm('b1')]">
+        <section v-if="layoutState.preset !== 'relatedTopic'" class="glass-panel b1-panel" :class="[{ linked: penetrationContext.active }, lm('b1')]">
           <div class="ph">
             <h3>采购十大风险域</h3>
             <div class="b1-head-right">
@@ -69,7 +98,7 @@
         </section>
 
         <!-- C1 两类穿透概览（总分折叠形式）-->
-        <section class="glass-panel c1-panel" :class="lm('c1')">
+        <section v-if="layoutState.preset !== 'relatedTopic'" class="glass-panel c1-panel" :class="lm('c1')">
           <div class="ph">
             <h3>两类穿透概览</h3>
             <span class="gpill warn">异常 {{ pd.penetAnomTotal }}</span>
@@ -321,11 +350,26 @@
                 <span class="risk-tag" :class="r.level">{{ r.no }}</span>
                 <span class="risk-level-badge" :class="r.level">{{ r.levelLabel }}</span>
                 <span class="risk-status" :class="r.statusCode">{{ r.status }}</span>
-                <span v-if="r.storyFocus && penetrationContext.active && focusOrderId === r.no" class="risk-focus-flag">● 关联输送·已联动</span>
                 <span class="risk-time">⏱ {{ formatTime(r.warningTime) }}</span>
               </div>
-              <div class="risk-title-row">
-                <div class="risk-title">{{ r.name }}</div>
+              <div class="risk-main-row">
+                <div class="risk-info-col">
+                  <div class="risk-title">{{ r.name }}</div>
+                  <div class="risk-body">
+                    <div class="risk-entity">
+                      <span class="risk-label">涉及主体</span>
+                      <span>{{ r.entity }}</span>
+                    </div>
+                    <div v-if="r.amount" class="risk-amount-row">
+                      <span class="risk-label">金额</span>
+                      <span class="risk-amount">¥{{ r.amount }}{{ r.amountUnit }}</span>
+                    </div>
+                    <div class="risk-meta">
+                      <span class="risk-handler">{{ r.handler }}</span>
+                      <span class="risk-deadline">期限 {{ r.deadline }}</span>
+                    </div>
+                  </div>
+                </div>
                 <div class="risk-actions-row">
                   <button class="risk-ai-btn" @click.stop="openReport(r)">
                     <span class="ai-btn-icon">✨</span>
@@ -336,20 +380,6 @@
                     <span>📄</span>
                     <span>查看报告</span>
                   </button>
-                </div>
-              </div>
-              <div class="risk-body">
-                <div class="risk-entity">
-                  <span class="risk-label">涉及主体</span>
-                  <span>{{ r.entity }}</span>
-                </div>
-                <div v-if="r.amount" class="risk-amount-row">
-                  <span class="risk-label">金额</span>
-                  <span class="risk-amount">¥{{ r.amount }}{{ r.amountUnit }}</span>
-                </div>
-                <div class="risk-meta">
-                  <span class="risk-handler">{{ r.handler }}</span>
-                  <span class="risk-deadline">期限 {{ r.deadline }}</span>
                 </div>
               </div>
             </div>
@@ -814,8 +844,7 @@
     </template>
 
     <!-- ══════════ 关联穿透浮层（页面 1/3，悬浮于页面） ══════════ -->
-    <transition name="drillpanel-fade">
-      <div v-if="drillPanelOpen && activeRisk" class="drillpanel">
+      <div v-if="drillPanelOpen && activeRisk" class="drillpanel" :class="{ expanded: plansVisible }">
         <div class="dp-head">
           <div class="dp-head-l">
             <span class="dp-ico">🔎</span>
@@ -878,6 +907,9 @@
               </button>
             </div>
 
+            <!-- 三个方案对比（可视化数表弹窗） -->
+            <button class="plan-compare-btn" @click="planCompareOpen = true">📊 查看三个方案对比 · 不同派发方式的结果推演</button>
+
             <!-- 已选方案 → 处置结果以弹窗呈现，这里提供再次查看入口 -->
             <div v-if="selectedPlan" class="exec-wrap">
               <button class="exec-reopen" @click="reopenPlanResult">📋 查看方案 {{ selectedPlan }} 处置结果与初步成效</button>
@@ -886,7 +918,6 @@
           </transition>
         </div>
       </div>
-    </transition>
 
     <!-- ══════════ 涉及对象·关系图放大弹窗（图 + 对象按钮） ══════════ -->
     <div v-if="entityModalOpen && activeRisk" class="ent-overlay" @click.self="entityModalOpen = false">
@@ -967,6 +998,47 @@
       </div>
     </div>
 
+    <!-- ══════════ 三个处置方案对比·可视化数表弹窗（数据依 CG-2026001 当前案情演进） ══════════ -->
+    <div v-if="planCompareOpen" class="pc-overlay" @click.self="planCompareOpen = false">
+      <div class="pc-dialog">
+        <div class="pc-head">
+          <div class="pc-head-tt">
+            <strong>📊 三个处置方案对比 · 不同派发方式的结果推演</strong>
+            <span>CG-2026001 · 未验收即付款·关联输送 · 鼎信建设一公司</span>
+          </div>
+          <button class="pc-close" @click="planCompareOpen = false">✕</button>
+        </div>
+        <div class="pc-body">
+          <table class="pc-table">
+            <thead>
+              <tr>
+                <th class="pc-dim-h">对比维度</th>
+                <th v-for="c in planCompareCols" :key="c.key" class="pc-col-h" :class="{ rec: c.key === 'A' }">
+                  <span class="pc-col-key">方案 {{ c.key }}</span>
+                  <span class="pc-col-name">{{ c.name }}</span>
+                  <span class="pc-col-tag" :class="{ rec: c.key === 'A' }">{{ c.tag }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in planCompareRows" :key="i">
+                <td class="pc-dim">{{ r.dim }}</td>
+                <td v-for="c in planCompareCols" :key="c.key" class="pc-cell" :class="[r[c.key].tone, { rec: c.key === 'A' }]">
+                  <i class="pc-dot" :class="r[c.key].tone"></i><span>{{ r[c.key].v }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pc-foot">
+            <span class="pc-legend"><i class="pc-dot good"></i>有利 / 风险低</span>
+            <span class="pc-legend"><i class="pc-dot warn"></i>需权衡</span>
+            <span class="pc-legend"><i class="pc-dot bad"></i>风险高 / 不利</span>
+            <span class="pc-foot-note">说明：数据依据 CG-2026001 当前案情（¥40万付款、¥360万在途关联敞口、整改截止 2026-05-28）推演，仅作处置决策参考。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══════════ 穿透弹窗（可视化图表 + 明细表 + 核查处置表单/按钮） ══════════ -->
     <div v-if="drillModalOpen && currentLayer" class="dm-overlay" @click.self="closeDrillModal">
         <div class="dm-dialog">
@@ -981,7 +1053,7 @@
             <button class="dm-close" @click="closeDrillModal">✕</button>
           </div>
           <div class="dm-breadcrumb">
-            <button class="dbc-item" @click="backToReport">报告</button>
+            <button class="dbc-item" @click="backToReport">{{ cameFromEntityModal ? '🔍 放大图' : '报告' }}</button>
             <template v-for="(d, i) in drillNodes" :key="i">
               <span class="dbc-sep">›</span>
               <button class="dbc-item" :class="{ active: i === drillNodes.length - 1 }" @click="drillTo(i)">{{ d.title }}</button>
@@ -1267,6 +1339,7 @@ function applyDrillContext(ctx) {
 }
 // openDrill 既接 AI建议路径(字符串=penetrationGraph key) 也接真实实体(对象)
 function openDrill(arg) {
+  if (!drillStack.value.length) cameFromEntityModal.value = false   // 顶层新穿透默认非来自放大图（嵌套穿透保留来源标记）
   if (typeof arg === 'string') {
     const g = penetrationGraph[arg]
     if (!g) return
@@ -1279,8 +1352,12 @@ function openDrill(arg) {
 }
 function drillTo(index) { drillStack.value = drillStack.value.slice(0, index + 1) }
 function backOneLevel() { drillStack.value.pop(); if (!drillStack.value.length) drillModalOpen.value = false }
-function backToReport() { drillStack.value = []; drillModalOpen.value = false }
-function closeDrillModal() { drillModalOpen.value = false; drillStack.value = [] }
+function backToReport() {
+  drillStack.value = []; drillModalOpen.value = false
+  // 若本次穿透是从「涉及对象放大图」进入，则回退到放大图，而非直接回报告
+  if (cameFromEntityModal.value) { cameFromEntityModal.value = false; entityModalOpen.value = true }
+}
+function closeDrillModal() { drillModalOpen.value = false; drillStack.value = []; cameFromEntityModal.value = false }
 
 // 从真实报告字段动态构造穿透层；无真实明细时只给"建议穿透方向"，绝不写死假数据
 function liveLayerFor(ent) {
@@ -1498,6 +1575,35 @@ const planResults = {
   },
 }
 const currentPlanResult = computed(() => (selectedPlan.value && planResults[selectedPlan.value]) || null)
+
+// ── 三个处置方案对比（可视化数表）——数据依当前案例 CG-2026001 演进 ──
+const planCompareOpen = ref(false)
+const planCompareCols = [
+  { key: 'A', name: '立即冻结付款 + 专项审查', tag: '强 · 推荐' },
+  { key: 'B', name: '暂不冻结 · 先约谈核实', tag: '中' },
+  { key: 'C', name: '列入观察名单 · 持续监控', tag: '弱' },
+]
+const planCompareRows = [
+  { dim: '当前付款（CG-2026001 ¥40万）',
+    A: { v: '当日止付，资金不流出', tone: 'good' }, B: { v: '保留付款，约5个工作日风险窗口', tone: 'warn' }, C: { v: '不干预，可能照常付款', tone: 'bad' } },
+  { dim: '在途关联敞口（¥360万 / 3单）',
+    A: { v: '一并阻断 CG-005 / 012', tone: 'good' }, B: { v: '暂不阻断，持续盯办', tone: 'warn' }, C: { v: '仅节点拦截复核', tone: 'warn' } },
+  { dim: '供应商（鼎信建设一公司）',
+    A: { v: '列入待核查，暂停准入与付款', tone: 'good' }, B: { v: '约谈，限7个工作日补验收/披露', tone: 'warn' }, C: { v: '列入重点观察名单', tone: 'warn' } },
+  { dim: '响应时效',
+    A: { v: '当日处置', tone: 'good' }, B: { v: '7 个工作日', tone: 'warn' }, C: { v: '持续监控', tone: 'warn' } },
+  { dim: '资金损失风险',
+    A: { v: '低（预计避免 ¥40万）', tone: 'good' }, B: { v: '中（窗口期已付风险）', tone: 'warn' }, C: { v: '高（叠加关联输送）', tone: 'bad' } },
+  { dim: '对正常业务影响',
+    A: { v: '较大（冻结 / 暂停）', tone: 'warn' }, B: { v: '较小（仅约谈）', tone: 'good' }, C: { v: '无', tone: 'good' } },
+  { dim: '供应商申诉 / 阻力',
+    A: { v: '较高', tone: 'warn' }, B: { v: '中', tone: 'warn' }, C: { v: '低', tone: 'good' } },
+  { dim: '合规闭环（截止 2026-05-28）',
+    A: { v: '快，待纪检回执即闭环', tone: 'good' }, B: { v: '限期整改，逾期升级', tone: 'warn' }, C: { v: '慢，仅留痕', tone: 'bad' } },
+  { dim: '适用前提 / 建议',
+    A: { v: '证据充分 → 推荐', tone: 'good' }, B: { v: '需补证后判定', tone: 'warn' }, C: { v: '本案证据已充分，不建议', tone: 'bad' } },
+]
+
 function reopenPlanResult() {
   if (!selectedPlan.value) return
   // 重看：直接显示全部（不重新逐条动画）
@@ -1592,7 +1698,8 @@ function buildEntityGraphOption(big) {
 const entityGraphOption = computed(() => buildEntityGraphOption(false))
 const entityGraphOptionBig = computed(() => buildEntityGraphOption(true))
 const entityModalOpen = ref(false)
-function openEntityFromModal(e) { entityModalOpen.value = false; openDrill(e) }
+const cameFromEntityModal = ref(false)   // 标记：穿透弹窗是否从「涉及对象放大图」进入，便于「报告」按钮回退到放大图
+function openEntityFromModal(e) { entityModalOpen.value = false; openDrill(e); cameFromEntityModal.value = true }
 
 // 整改建议 → 延迟 1s 揭示「处置闭环」并播放动画
 const dpBodyEl = ref(null)
@@ -2609,6 +2716,50 @@ const b1ChartMode = computed(() => layoutState.b1Chart || 'bar')
 const b1ChartOption = computed(() => b1ChartMode.value === 'trend' ? riskTrendOption.value : riskBarOption.value)
 function setB1Chart(mode) { layoutState.b1Chart = mode }
 
+// ── 专题视图（对话「相关的都集中/专题/关联链路」时左列纵向呈现的可视化）──────────
+// 1) 该风险（CG-2026001 未验收即付款·关联输送）项目时间线
+const topicTimelineEvents = [
+  { date:'03-12', label:'合同签订 HT-2026-0312', lv:'safe' },
+  { date:'04-18', label:'鼎信建设一公司中标', lv:'warn' },
+  { date:'05-10', label:'提交付款申请 ¥40万', lv:'warn' },
+  { date:'05-16', label:'未验收即付款预警', lv:'danger' },
+  { date:'05-22', label:'关联输送·回流¥120万', lv:'danger' },
+  { date:'05-28', label:'整改期限', lv:'warn' },
+]
+// 时间线改为纵向时间轴（HTML 渲染，见模板 .topic-timeline），不再用图表
+// 2) 鼎信建设一公司 · 风险画像（该项目供应商风险专题，雷达图）
+const topicSupplierRadarOption = computed(() => {
+  const indicator = [
+    { name:'关联输送', max:100 },
+    { name:'资金回流', max:100 },
+    { name:'未验收付款', max:100 },
+    { name:'围标串标', max:100 },
+    { name:'中标集中度', max:100 },
+    { name:'资质合规', max:100 },
+  ]
+  const val = [92, 85, 88, 78, 80, 62]
+  return {
+    animation:true, animationDuration:700, backgroundColor:'transparent',
+    tooltip:{ trigger:'item', backgroundColor:'rgba(255,255,255,0.97)', borderColor:'#E2E8F0',
+      textStyle:{color:'#334155',fontSize:11}, extraCssText:'box-shadow:0 4px 20px rgba(15,23,42,0.1)' },
+    radar:{
+      center:['50%','55%'], radius:'64%', indicator,
+      axisName:{ color:'#475569', fontSize:9.5 },
+      splitNumber:4,
+      splitLine:{ lineStyle:{ color:'#E8EDF5' } },
+      splitArea:{ areaStyle:{ color:['rgba(241,245,249,0.6)','rgba(255,255,255,0)'] } },
+      axisLine:{ lineStyle:{ color:'#E8EDF5' } },
+    },
+    series:[{
+      type:'radar', symbol:'circle', symbolSize:4,
+      data:[{ value:val, name:'鼎信建设一公司 风险指数',
+        lineStyle:{ color:'#2563EB', width:2 }, itemStyle:{ color:'#2563EB' },
+        areaStyle:{ color:'rgba(37,99,235,0.16)' },
+        label:{ show:true, fontSize:9, color:'#1D4ED8', formatter:(p)=>p.value } }],
+    }],
+  }
+})
+
 const darkTrendOption = computed(() => {
   const d = pd.value
   return {
@@ -2729,7 +2880,7 @@ const darkNetworkOption = computed(() => {
       formatter:({data})=>data?.name?`<b>${data.name}</b><br/>层级：${data.tier||'-'}<br/>采购金额：${data.amount||'-'} 亿<br/>风险：${data.riskLabel||'-'}`:''
     },
     series:[{
-      type:'graph',layout:'none',roam:false,draggable:false,
+      type:'graph',layout:'none',roam:true,draggable:true,
       edgeSymbol:['none','arrow'],edgeSymbolSize:[0,5],
       lineStyle:{color:'#CBD5E1',width:1.1,curveness:0.12},
       label:{show:true,position:'right',fontSize:8,color:'#475569',fontWeight:600,distance:3},
@@ -2989,6 +3140,39 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .col-left  .a1-panel { flex:1.5; }
 .col-left  .b1-panel { flex:3;   }
 .col-left  .c1-panel { flex:2;   }
+/* 专题视图：左列整列纵向呈现 2 个可视化 */
+.col-left  .topic-panel { flex:1; }
+.topic-panel { animation: topic-in .4s ease; }
+@keyframes topic-in { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:none; } }
+.topic-stack { display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; }
+/* 白底 + 蓝色描边 + 常规阴影，无红色/闪动 */
+.topic-viz { display:flex; flex-direction:column; min-height:0;
+  background:#FFF; border:1px solid #93C5FD; border-radius:10px; padding:8px 8px 4px;
+  box-shadow:0 1px 4px rgba(37,99,235,0.06),0 4px 16px rgba(37,99,235,0.10);
+  /* 仅保留入场时从下向上滑入，无持续闪烁 */
+  opacity:0; transform:translateY(34px);
+  animation:topic-rise .62s cubic-bezier(.22,.9,.3,1) forwards; }
+.topic-viz.timeline { flex:1.5; animation-delay:0s; }
+.topic-viz.radar    { flex:1;   animation-delay:.22s; }
+@keyframes topic-rise { from { opacity:0; transform:translateY(34px); } to { opacity:1; transform:translateY(0); } }
+.topic-viz-title { font-size:11.5px; font-weight:700; color:#334155; margin-bottom:2px; flex-shrink:0; }
+.topic-viz-meta { font-weight:500; font-size:9px; color:#94A3B8; margin-left:6px; }
+.topic-chart { flex:1; min-height:150px; width:100%; }
+
+/* 纵向时间轴：清爽、不重叠（替代原蛇形横向图） */
+/* 纵向时间轴整体放大约 1/3（在框内放大，超出可滚动） */
+.topic-timeline { flex:1; min-height:0; overflow-y:auto; padding:9px 4px 2px 6px; }
+.ttl-item { position:relative; display:flex; gap:12px; padding-bottom:15px; }
+.ttl-item:last-child { padding-bottom:3px; }
+.ttl-item:not(:last-child)::before { content:''; position:absolute; left:7px; top:18px; bottom:-2px; width:2px; background:#E2E8F0; }
+.ttl-dot { width:16px; height:16px; border-radius:50%; flex-shrink:0; margin-top:3px; z-index:1;
+  background:#94A3B8; border:2px solid #fff; box-shadow:0 0 0 2px #CBD5E1; }
+.ttl-item.danger .ttl-dot { background:#EF4444; box-shadow:0 0 0 2px #FCA5A5; }
+.ttl-item.warn   .ttl-dot { background:#F59E0B; box-shadow:0 0 0 2px #FCD34D; }
+.ttl-item.safe   .ttl-dot { background:#10B981; box-shadow:0 0 0 2px #6EE7B7; }
+.ttl-body { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ttl-date { font-size:13px; font-weight:800; color:#1E293B; font-family:'JetBrains Mono',monospace; }
+.ttl-label { font-size:13px; color:#475569; line-height:1.35; }
 /* 中列 核心指标 +1/6 高 ≈ 0.72 : 2.38 : 1.5 */
 .col-center .a2-panel { flex:0.72; }
 .col-center .b2-panel { flex:2.38; }
@@ -3228,11 +3412,14 @@ async function callFlowInstanceStreamRun(riskId, action) {
   font-weight: 700; color: #2563eb;
 }
 .risk-meta { display: flex; gap: 10px; color: #64748b; margin-top: 4px; }
-.risk-title-row {
-  display: flex; align-items: center; gap: 8px;
+/* 两栏布局：左侧风险信息（标题+涉及主体+金额+经办/期限），右侧两个按钮纵向堆叠 */
+.risk-main-row {
+  display: flex; align-items: flex-start; gap: 10px;
   justify-content: space-between;
 }
-.risk-title-row .risk-title { flex: 1; min-width: 0; }
+.risk-info-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+/* 标题与第一个按钮（AI 分析，高 26px）同行对齐 */
+.risk-info-col .risk-title { min-height: 26px; display: flex; align-items: center; }
 .risk-actions-row {
   display: flex; flex-direction: column; align-items: stretch; gap: 4px;
   justify-content: center; flex-shrink: 0;
@@ -3960,7 +4147,12 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .rdr-drill-btn.active { background:#fff; color:#6D28D9; }
 .rdr-drill-ico { font-size:14px; }
 /* 关联穿透浮层（页面 1/3） */
-.drillpanel { position:fixed; top:50%; right:24px; transform:translateY(-50%); width:34vw; max-width:560px; min-width:380px; height:66vh; z-index:9500; display:flex; flex-direction:column; background:#fff; border:1px solid #E2E8F0; border-radius:16px; box-shadow:0 18px 50px rgba(15,23,42,.28); overflow:hidden; }
+.drillpanel { position:fixed; top:50%; right:24px; transform:translateY(-50%); width:36vw; max-width:600px; min-width:400px; height:74vh; z-index:9500; display:flex; flex-direction:column; background:#fff; border:1px solid #E2E8F0; border-radius:16px; box-shadow:0 18px 50px rgba(15,23,42,.28); overflow:hidden; transition:width .35s ease, height .35s ease, opacity .2s ease, transform .2s ease; }
+/* 点「整改建议」出现处置闭环后：弹窗变大、内容可滚动看到 A/B/C */
+.drillpanel.expanded { width:40vw; max-width:680px; height:88vh; }
+/* 初始（未出方案）：第一部分(涉及对象图) : 第二部分(推荐方向) ≈ 2:1，图更大更突出；出方案后图收小，腾出空间给 A/B/C */
+.drillpanel:not(.expanded) .entity-graph-wrap { height:36vh !important; }
+.drillpanel.expanded .entity-graph-wrap { height:20vh !important; }
 .dp-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; background:linear-gradient(135deg,#F5F3FF,#EDE9FE); border-bottom:1px solid #E9E5FB; }
 .dp-head-l { display:flex; align-items:center; gap:10px; min-width:0; }
 .dp-ico { font-size:20px; }
@@ -3978,7 +4170,7 @@ async function callFlowInstanceStreamRun(riskId, action) {
 /* ① 涉及对象关系图 */
 .dp-expand { margin-left:auto; padding:1px 9px; border-radius:999px; border:1px solid #DDD6FE; background:#F5F3FF; color:#6D28D9; font-size:10.5px; font-weight:700; cursor:pointer; transition:.15s; }
 .dp-expand:hover { background:#EDE9FE; }
-.entity-graph-wrap { position:relative; height:150px; border:1px solid #EEF1F6; border-radius:10px; background:linear-gradient(180deg,#FCFCFF,#F8FAFC); cursor:pointer; overflow:hidden; transition:.15s; }
+.entity-graph-wrap { position:relative; height:150px; border:1px solid #EEF1F6; border-radius:10px; background:linear-gradient(180deg,#FCFCFF,#F8FAFC); cursor:pointer; overflow:hidden; transition:height .35s ease, border-color .15s ease, box-shadow .15s ease; }
 .entity-graph-wrap:hover { border-color:#C4B5FD; box-shadow:0 4px 14px rgba(124,58,237,.10); }
 .entity-graph { width:100%; height:100%; }
 .entity-graph-hint { position:absolute; right:8px; bottom:6px; padding:1px 8px; border-radius:999px; background:rgba(124,58,237,.08); color:#7C3AED; font-size:10px; font-weight:700; pointer-events:none; }
@@ -3999,6 +4191,41 @@ async function callFlowInstanceStreamRun(riskId, action) {
 /* ③ 处置闭环·揭示动画 */
 .plans-reveal-enter-active { transition:opacity .5s ease, transform .5s ease; }
 .plans-reveal-enter-from { opacity:0; transform:translateY(14px); }
+/* 方案对比按钮 */
+.plan-compare-btn { width:100%; margin-top:10px; padding:9px 12px; border-radius:10px; border:1px solid #C7D2FE; background:linear-gradient(135deg,#EEF2FF,#E0E7FF); color:#4338CA; font-size:12.5px; font-weight:800; cursor:pointer; transition:.15s; }
+.plan-compare-btn:hover { background:#E0E7FF; transform:translateY(-1px); box-shadow:0 4px 14px rgba(99,102,241,.2); }
+/* 方案对比·可视化数表弹窗 */
+.pc-overlay { position:fixed; inset:0; z-index:9850; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); }
+.pc-dialog { width:780px; max-width:94vw; max-height:88vh; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; display:flex; flex-direction:column; }
+.pc-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; background:linear-gradient(135deg,#EEF2FF,#E0E7FF); border-bottom:1px solid #E2E8F0; }
+.pc-head-tt { display:flex; flex-direction:column; min-width:0; }
+.pc-head-tt strong { font-size:15px; font-weight:800; color:#3730A3; }
+.pc-head-tt span { font-size:11.5px; color:#6366F1; margin-top:1px; }
+.pc-close { flex-shrink:0; width:28px; height:28px; border-radius:8px; border:none; background:rgba(99,102,241,.12); color:#4338CA; font-size:14px; cursor:pointer; transition:.15s; }
+.pc-close:hover { background:rgba(99,102,241,.22); }
+.pc-body { padding:14px 16px 16px; overflow:auto; }
+.pc-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
+.pc-table th, .pc-table td { padding:8px 10px; text-align:left; vertical-align:top; border-bottom:1px solid #EEF1F6; }
+.pc-dim-h, .pc-col-h { position:sticky; top:0; background:#F8FAFC; z-index:1; }
+.pc-dim-h { width:160px; font-size:11px; color:#64748B; font-weight:700; }
+.pc-col-key { display:block; font-size:12.5px; font-weight:800; color:#334155; }
+.pc-col-name { display:block; font-size:10.5px; color:#475569; font-weight:600; margin-top:1px; }
+.pc-col-tag { display:inline-block; margin-top:4px; font-size:9.5px; padding:1px 7px; border-radius:999px; background:#E0E7FF; color:#4338CA; font-weight:700; }
+.pc-col-tag.rec { background:#D1FAE5; color:#047857; }
+.pc-col-h.rec { background:#ECFDF5; }
+.pc-dim { font-size:11.5px; color:#475569; font-weight:600; background:#FCFDFF; width:160px; }
+.pc-cell { color:#334155; line-height:1.4; }
+.pc-cell.rec { background:rgba(16,185,129,0.06); }
+.pc-cell.good { color:#0F766E; }
+.pc-cell.warn { color:#92400E; }
+.pc-cell.bad { color:#B91C1C; }
+.pc-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle; background:#94A3B8; }
+.pc-dot.good { background:#10B981; }
+.pc-dot.warn { background:#F59E0B; }
+.pc-dot.bad { background:#EF4444; }
+.pc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:12px; padding-top:10px; border-top:1px solid #EEF1F6; }
+.pc-legend { display:inline-flex; align-items:center; font-size:10.5px; color:#64748B; }
+.pc-foot-note { flex-basis:100%; font-size:10.5px; color:#94A3B8; line-height:1.5; }
 /* 涉及对象放大弹窗 */
 .ent-overlay { position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); }
 .ent-dialog { width:560px; max-width:92vw; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; display:flex; flex-direction:column; }

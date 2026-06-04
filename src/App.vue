@@ -122,6 +122,7 @@ const topbarAppName = computed(() => '智能穿透监管平台')
 const currentPageTitle = computed(() => {
   if (current.value === 'ai') return '指挥调度中心'
   if (current.value === 'equity') return '合同智联仓库'
+  if (current.value === 'procurement') return '采购管理域'
   return '智能穿透监管平台'
 })
 
