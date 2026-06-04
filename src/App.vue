@@ -229,6 +229,13 @@ function handleHashChange() {
   syncSceneFromLocation()
 }
 
+// 路线③：页面（两类穿透概览 路线③ 条目）请求打开 AI 小助手并自动发问
+function handleOpenAssistant(e) {
+  aiChatOpen.value = true
+  const text = e?.detail?.text
+  if (text) setTimeout(() => { try { window.dispatchEvent(new CustomEvent('agent-voice-query', { detail: { text } })) } catch {} }, 500)
+}
+
 onMounted(() => {
   if (!window.location.hash) {
     navigate(DEFAULT_SCENE, { replace: true })
@@ -236,10 +243,12 @@ onMounted(() => {
     syncSceneFromLocation()
   }
   window.addEventListener('hashchange', handleHashChange)
+  window.addEventListener('drp-open-assistant', handleOpenAssistant)
 })
 
 onUnmounted(() => {
   window.removeEventListener('hashchange', handleHashChange)
+  window.removeEventListener('drp-open-assistant', handleOpenAssistant)
 })
 </script>
 

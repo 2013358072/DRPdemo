@@ -140,7 +140,7 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { chatWithDeepSeekStream, loadConversations, saveConversations } from '../api/deepseek.js'
 import { actionExecutors, deriveActionsFromPrompt, mergeActions, parseActions, stripActions } from '../api/agent-actions.js'
-import { applyPresetByText } from '../layout.js'
+import { applyPresetByText, applyModuleCommands } from '../layout.js'
 
 const props = defineProps({ visible: Boolean, scene: String })
 const emit = defineEmits(['close', 'action'])
@@ -550,6 +550,17 @@ function matchDomainNav(text) {
   return DOMAIN_NAV.find(d => d.re.test(t)) || null
 }
 
+// 故事线二：复合风险联查（恒通供应链 围标串标 + 未验收付款）对话触发
+// 返回 'story2'(联动页面/网络) 或 'story2_panel'(并打开 AI 研判面板)；通过 drp-assistant-focus 广播给页面
+function matchStory2(text) {
+  if (props.scene !== 'procurement' && props.scene !== 'dashboard') return null
+  const t = (text || '').trim()
+  const isStory2 = /恒通|围标串标|串标|复合风险|并案|(设备采购.*询价)|(询价.*设备采购)/.test(t)
+  if (!isStory2) return null
+  if (/研判|面板|处置|方案|怎么办|怎么处理|建议/.test(t)) return 'story2_panel'
+  return 'story2'
+}
+
 // ═══ 发送 ═══
 function send() {
   const q = input.value.trim(); if (!q || streamingWait.value || stream.active) return
@@ -560,8 +571,37 @@ function send() {
   hist.msgs.push({ role: 'user', content: q, time: now() })
   input.value = ''
 
-  // 布局重组：采购页按用户话术关键词命中 preset，对话驱动页面动态重组（§6 前端兜底）
-  if (props.scene === 'procurement') applyPresetByText(q)
+  // 布局重组 / 图表形式切换：采购页按用户话术关键词命中（§6 前端兜底）
+  if (props.scene === 'procurement') {
+    const layoutRes = applyPresetByText(q)
+    // 「把采购十大风险域用趋势图/流程图展示」→ 切换 B1 图表形式 + 即时回执（不走后端）
+    if (layoutRes && layoutRes.type === 'b1chart') {
+      hist.msgs.push({ role: 'assistant', content: layoutRes.mode === 'trend'
+        ? '已将「采购十大风险域」切换为趋势图展示，并适配该区域布局。'
+        : '已将「采购十大风险域」恢复为柱状图展示。', time: now() })
+      scrollBottom(); persist(); return
+    }
+    // 模块级布局调整：「不显示六维评分 / 把十大风险域上移 / 展开两类穿透概览」等
+    const modCmd = applyModuleCommands(q)
+    if (modCmd) {
+      const verb = { hide: '已隐藏', up: '已上移放大', down: '已淡化', show: '已展开' }
+      const desc = modCmd.ops.map(o => `${verb[o.action]}「${o.label}」`).join('，')
+      hist.msgs.push({ role: 'assistant', content: `已按指令重组页面布局：${desc}。可说「恢复默认」复位。`, time: now() })
+      if (modCmd.expandPenet) { try { window.dispatchEvent(new CustomEvent('drp-module-cmd', { detail: { expandPenet: true } })) } catch {} }
+      scrollBottom(); persist(); return
+    }
+  }
+
+  // 故事线二：复合风险联查（恒通供应链）→ 联动页面（热力图/TOP6/实时风险/中部穿透网络）+ 可打开研判面板
+  const s2 = matchStory2(q)
+  if (s2) {
+    hist.msgs.push({ role: 'assistant', content: s2 === 'story2_panel'
+      ? '已为您打开「恒通供应链」复合风险 AI 研判面板（围标串标 ¥280万 + 未验收付款 ¥40万 · 合计 ¥320万 · 评分 62）。'
+      : '已联动定位「恒通供应链」复合风险：并案 CG-2026005 围标串标 + CG-2026041 未验收付款，并高亮中部穿透网络链路。', time: now() })
+    scrollBottom(); persist()
+    try { window.dispatchEvent(new CustomEvent('drp-assistant-focus', { detail: { key: s2 } })) } catch {}
+    return
+  }
 
   // 业务域跳转：说「看一下采购域 / 跳转到资金域 / 财务域 / 合同域」→ 页面跳转
   const domainNav = matchDomainNav(q)

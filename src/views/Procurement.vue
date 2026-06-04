@@ -147,7 +147,7 @@
                     </button>
                     <transition name="acc-expand">
                       <div v-if="penetOpen.has('bid')" class="pv3-sub-list">
-                        <button v-for="b in bidAnomalies" :key="b.code" class="pv3-item" @click="openPenetModal('bid')">
+                        <button v-for="b in bidAnomalies" :key="b.code" class="pv3-item" :class="b.route ? 'route-on r'+b.route : ''" @click="b.route ? openRouteClue(b.route) : openPenetModal('bid')">
                           <span class="pi-dot" :class="b.lvClass"></span>
                           <span class="pi-name">{{ b.project }}</span>
                           <span class="pi-tag" :class="b.lvClass">{{ b.level }}</span>
@@ -165,7 +165,7 @@
                     </button>
                     <transition name="acc-expand">
                       <div v-if="penetOpen.has('accept')" class="pv3-sub-list">
-                        <button v-for="a in acceptAnomalies" :key="a.contract" class="pv3-item" @click="openPenetModal('accept')">
+                        <button v-for="a in acceptAnomalies" :key="a.contract" class="pv3-item" :class="a.route ? 'route-on r'+a.route : ''" @click="a.route ? openRouteClue(a.route) : openPenetModal('accept')">
                           <span class="pi-dot warn"></span>
                           <span class="pi-name">{{ a.project }}</span>
                           <span class="pi-amt">¥{{ a.amount }}</span>
@@ -219,7 +219,7 @@
                     </button>
                     <transition name="acc-expand">
                       <div v-if="penetOpen.has('approval')" class="pv3-sub-list">
-                        <button v-for="r in approvalAnomalies" :key="r.item+r.approver" class="pv3-item" @click="openPenetModal('approval')">
+                        <button v-for="r in approvalAnomalies" :key="r.item+r.approver" class="pv3-item" :class="r.route ? 'route-on r'+r.route : ''" @click="r.route ? openRouteClue(r.route) : openPenetModal('approval')">
                           <span class="pi-dot" :class="r.lvClass"></span>
                           <span class="pi-name">{{ r.item }}</span>
                           <span class="pi-tag" :class="r.lvClass">{{ r.level }}</span>
@@ -265,15 +265,19 @@
         </section>
 
         <!-- B2 穿透网络图 -->
-        <section class="glass-panel b2-panel" :class="[{ linked: penetrationContext.active }, lm('b2')]">
+        <section class="glass-panel b2-panel" :class="[{ linked: penetrationContext.active || story2.clueOpen }, lm('b2')]">
           <div class="ph">
             <h3>采购主体穿透网络图</h3>
             <transition name="linkbadge-fade">
               <span v-if="penetrationContext.active" class="link-badge">
                 <i class="link-dot"></i>联动中 · 关联链路 {{ penetrationContext.highlightNodes.length }} 主体
               </span>
+              <span v-else-if="story2.clueOpen" class="link-badge">
+                <i class="link-dot"></i>联动中 · 恒通复合风险链路 {{ STORY2_NET_NODES.length }} 主体
+              </span>
             </transition>
             <button v-if="penetrationContext.active" class="net-reset-btn" @click="resetPenetration">⟲ 恢复默认</button>
+            <button v-else-if="story2.clueOpen" class="net-reset-btn" @click="resetStory2">⟲ 恢复默认</button>
             <div class="legend-mini">
               <span><i class="ld ld-safe"></i>低风险</span>
               <span><i class="ld ld-warn"></i>中风险</span>
@@ -294,17 +298,21 @@
             </div>
           </div>
           <div class="c2-body">
-            <EChart class="heatmap-chart" :option="heatmapOption" />
+            <EChart class="heatmap-chart" :option="heatmapOption" @chart-click="onHeatmapClick" />
             <div class="sup-side">
               <div class="sup-side-title">供应商 TOP 6</div>
               <div class="sup-side-rows">
                 <div v-for="s in supplierRanking" :key="s.rank"
-                     class="sup-side-row" :class="{ 'sup-alert': s.riskCount >= 5, 'assistant-hl': assistantSupplierHl && s.name.includes('鼎信建设一公司') }">
+                     class="sup-side-row" :class="{ 'sup-alert': s.riskCount >= 5, 'assistant-hl': assistantSupplierHl && s.name.includes('鼎信建设一公司'), 'story2-hl': story2.supplierHl && s.story2, 'story2-clickable': story2.supplierHl && s.story2 }"
+                     @click="onSupplierRowClick(s)">
                   <span class="ssr-rank" :class="rankClass(s.rank)">{{ s.rank }}</span>
                   <div class="ssr-info">
                     <div class="ssr-name">{{ s.name }}</div>
                     <div class="ssr-meta">{{ s.category }}
                       <span :style="{ color: s.white ? '#059669' : '#DC2626' }">{{ s.white ? ' ✓' : ' ⚠' }}</span>
+                    </div>
+                    <div v-if="story2.supplierHl && s.story2 && s.riskFlags" class="ssr-flags">
+                      <span v-for="f in s.riskFlags" :key="f" class="ssr-flag">{{ f }}</span>
                     </div>
                   </div>
                   <div class="ssr-right">
@@ -343,9 +351,21 @@
             <h3>实时采购风险</h3>
             <span class="gpill danger">高 {{ highRiskCount }} 条</span>
           </div>
+          <!-- 故事线二：复合风险线索（点恒通行后并案拉起两条风险） -->
+          <div v-if="story2.clueOpen" class="story2-clue">
+            <div class="s2c-main">
+              <span class="s2c-tag">复合风险</span>
+              <div class="s2c-tt">
+                <strong>恒通供应链 · 围标串标 + 履约不符</strong>
+                <span>并案 CG-2026005(¥280万) + CG-2026041(¥40万) · 合计 ¥320万 · 评分 62</span>
+              </div>
+              <button class="s2c-close" @click="resetStory2" title="收起">✕</button>
+            </div>
+            <button class="s2c-open" @click="openStory2Panel">打开 AI 研判面板 →</button>
+          </div>
           <div class="risk-stack">
             <div v-for="r in riskList" :key="r.id" class="risk-card"
-                 :class="[r.level, { 'story-focus': r.storyFocus && penetrationContext.active && focusOrderId === r.no }]">
+                 :class="[r.level, { 'story-focus': r.storyFocus && penetrationContext.active && focusOrderId === r.no, 'story2-focus': r.story2Focus && story2.clueOpen }]">
               <div class="risk-header">
                 <span class="risk-tag" :class="r.level">{{ r.no }}</span>
                 <span class="risk-level-badge" :class="r.level">{{ r.levelLabel }}</span>
@@ -998,6 +1018,177 @@
       </div>
     </div>
 
+    <!-- ══════════ 故事线二：复合风险 AI 研判面板（12 环 + A/B/C + 查看依据 + 选A 回执） ══════════ -->
+    <div v-if="story2PanelOpen" class="s2p-overlay" @click.self="story2PanelOpen = false">
+      <div class="s2p-dialog">
+        <div class="s2p-head">
+          <div class="s2p-head-l">
+            <span class="s2p-badge">复合风险研判</span>
+            <div class="s2p-head-tt">
+              <strong>{{ story2Judge.supplier }}</strong>
+              <span>围标串标 + 履约不符（复合） · 涉 {{ story2Judge.amount }} · 健康评分 {{ story2Judge.score }} · {{ story2Judge.flags }} 个风险标记</span>
+            </div>
+          </div>
+          <button class="s2p-close" @click="story2PanelOpen = false">✕</button>
+        </div>
+        <div class="s2p-body">
+          <!-- 并案两条线索 -->
+          <div class="s2p-sect-lbl">并案线索（2 条）</div>
+          <div class="s2p-items">
+            <div v-for="it in story2Judge.items" :key="it.no" class="s2p-item" :class="it.type === '围标串标' ? 'tone-bid' : 'tone-pay'">
+              <div class="s2p-item-h"><span class="s2p-item-no">{{ it.no }}</span><span class="s2p-item-type">{{ it.type }}</span><span class="s2p-item-amt">{{ it.amount }}</span></div>
+              <div class="s2p-item-proj">{{ it.proj }} · {{ it.handler }}</div>
+              <div class="s2p-item-extra">{{ it.extra }}</div>
+            </div>
+          </div>
+
+          <!-- 12 环 AI 研判 -->
+          <div class="s2p-sect-lbl">AI 研判 · 12 环穿透</div>
+          <div class="s2p-rings">
+            <div v-for="r in story2Judge.rings" :key="r.k" class="s2p-ring">
+              <span class="s2p-ring-k">{{ r.k }}</span>
+              <span class="s2p-ring-v">{{ r.v }}</span>
+            </div>
+          </div>
+
+          <!-- 处置方案：点「AI 建议」加载 A/B/C -->
+          <div class="s2p-sect-lbl">处置方案（人判断 + AI 实施）</div>
+          <!-- 未生成：AI 建议入口 -->
+          <button v-if="!story2AdviceReady" class="s2p-advice-btn" :class="{ loading: story2AdviceLoading }" :disabled="story2AdviceLoading" @click="story2AskAdvice">
+            <span v-if="story2AdviceLoading" class="s2p-advice-spin"></span>
+            <span class="s2p-advice-ico" v-else>🤖</span>
+            {{ story2AdviceLoading ? 'AI 正在生成处置建议…' : '让 AI 给出处置建议（A / B / C）' }}
+          </button>
+          <!-- 已生成：对比入口 + A/B/C -->
+          <template v-else>
+            <button class="s2p-compare-btn" @click="story2CompareOpen = true">📊 查看三个方案对比</button>
+            <div class="s2p-plans">
+              <div v-for="p in story2Judge.plans" :key="p.key" class="s2p-plan" :class="{ chosen: story2Plan === p.key }">
+                <button class="s2p-plan-btn" :class="'opt-'+p.key" @click="chooseStory2Plan(p.key)">
+                  <span class="s2p-plan-key">{{ p.key }}</span>
+                  <span class="s2p-plan-main">
+                    <b>{{ p.label }}<em v-if="p.recommended" class="s2p-rec">推荐</em></b>
+                    <span class="s2p-plan-impact">预计影响：{{ p.impact }}</span>
+                  </span>
+                </button>
+                <button class="s2p-basis-toggle" @click="toggleStory2Basis(p.key)">{{ story2BasisKey === p.key ? '收起依据 ▲' : '查看依据 ▼' }}</button>
+                <div v-if="story2BasisKey === p.key" class="s2p-basis">
+                  <p>{{ p.basis }}</p>
+                  <div class="s2p-basis-figs">
+                    <span class="s2p-fig">📈 报价曲线（占位）</span>
+                    <span class="s2p-fig">⚖️ 同类判例（占位）</span>
+                    <span class="s2p-fig">📉 供应商风险趋势（占位）</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 故事线二：三方案对比·可视化数表弹窗（数据依 CG-2026005/CG-2026041 演进） ══════════ -->
+    <div v-if="story2CompareOpen" class="pc-overlay s2-top" @click.self="story2CompareOpen = false">
+      <div class="pc-dialog">
+        <div class="pc-head">
+          <div class="pc-head-tt">
+            <strong>📊 三个处置方案对比 · 不同处置方式的结果推演</strong>
+            <span>恒通供应链 · 围标串标 + 履约不符（复合）· CG-2026005 + CG-2026041 · ¥320万</span>
+          </div>
+          <button class="pc-close" @click="story2CompareOpen = false">✕</button>
+        </div>
+        <div class="pc-body">
+          <table class="pc-table">
+            <thead>
+              <tr>
+                <th class="pc-dim-h">对比维度</th>
+                <th v-for="c in story2CompareCols" :key="c.key" class="pc-col-h" :class="{ rec: c.key === 'A' }">
+                  <span class="pc-col-key">方案 {{ c.key }}</span>
+                  <span class="pc-col-name">{{ c.name }}</span>
+                  <span class="pc-col-tag" :class="{ rec: c.key === 'A' }">{{ c.tag }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in story2CompareRows" :key="i">
+                <td class="pc-dim">{{ r.dim }}</td>
+                <td v-for="c in story2CompareCols" :key="c.key" class="pc-cell" :class="[r[c.key].tone, { rec: c.key === 'A' }]">
+                  <i class="pc-dot" :class="r[c.key].tone"></i><span>{{ r[c.key].v }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pc-foot">
+            <span class="pc-legend"><i class="pc-dot good"></i>有利 / 风险低</span>
+            <span class="pc-legend"><i class="pc-dot warn"></i>需权衡</span>
+            <span class="pc-legend"><i class="pc-dot bad"></i>风险高 / 不利</span>
+            <span class="pc-foot-note">说明：数据依本案（围标串标 ¥280万 + 履约不符 ¥40万 · 合计 ¥320万 · 恒通评分 62）推演，仅作处置决策参考。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 故事线二：选中方案后自动弹出·AI 实施回执 ══════════ -->
+    <div v-if="story2ResultOpen && story2CurrentResult" class="pr-overlay s2-top" @click.self="story2ResultOpen = false">
+      <div class="pr-dialog" :class="story2CurrentResult.tone">
+        <div class="pr-head">
+          <div class="pr-head-l">
+            <span class="pr-badge" :class="story2CurrentResult.tone">方案 {{ story2Plan }}</span>
+            <div class="pr-head-tt">
+              <strong>{{ story2Judge.plans.find(p => p.key === story2Plan)?.label }}</strong>
+              <span>已下达 · {{ story2CurrentResult.status }}</span>
+            </div>
+          </div>
+          <button class="pr-close" @click="story2ResultOpen = false">✕</button>
+        </div>
+        <div class="pr-body">
+          <div class="pr-sect">
+            <div class="pr-sect-lbl">AI 实施回执</div>
+            <transition-group name="exec-fade" tag="div" class="s2p-exec">
+              <div v-for="(e, i) in story2ExecVisible" :key="i" class="s2p-exec-step">
+                <span class="s2p-exec-no">✓</span><span>{{ e }}</span>
+              </div>
+            </transition-group>
+            <div v-if="!story2ExecDone" class="pr-analyzing"><span class="pr-spin"></span>AI 正在逐条执行…（{{ story2ExecVisible.length }}/{{ story2CurrentResult.receipts.length }}）</div>
+          </div>
+          <transition name="pr-eff">
+            <div v-if="story2ExecDone">
+              <div class="s2p-exec-done">✓ 处置闭环已启动</div>
+              <div class="pr-closing">{{ story2CurrentResult.closing }}</div>
+            </div>
+          </transition>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 两类穿透概览 → 路线①②③ 联动弹窗 ══════════ -->
+    <div v-if="routeClueOpen && routeClueData" class="rc-overlay" @click.self="routeClueOpen = false">
+      <div class="rc-dialog" :class="routeClueData.tone">
+        <div class="rc-head">
+          <span class="rc-tag" :class="routeClueData.tone">{{ routeClueData.tag }}</span>
+          <div class="rc-head-tt">
+            <strong>{{ routeClueData.name }}</strong>
+            <span>{{ routeClueData.sub }}</span>
+          </div>
+          <button class="rc-close" @click="routeClueOpen = false">✕</button>
+        </div>
+        <div class="rc-body">
+          <div class="rc-sect-lbl">关联链路（已联动中部穿透网络）</div>
+          <div class="rc-chain">
+            <div v-for="(c, i) in routeClueData.chain" :key="i" class="rc-chain-row"><span class="rc-chain-dot"></span>{{ c }}</div>
+          </div>
+          <div class="rc-grid">
+            <div class="rc-kv"><span>资金闭环</span><strong>{{ routeClueData.fund }}</strong></div>
+            <div class="rc-kv"><span>决策责任</span><strong>{{ routeClueData.resp }}</strong></div>
+          </div>
+        </div>
+        <div class="rc-foot">
+          <button class="rc-btn ghost" @click="routeClueOpen = false">关闭</button>
+          <button class="rc-btn" :class="routeClueData.tone" @click="runRouteClue">{{ routeClueData.cta }} →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══════════ 三个处置方案对比·可视化数表弹窗（数据依 CG-2026001 当前案情演进） ══════════ -->
     <div v-if="planCompareOpen" class="pc-overlay" @click.self="planCompareOpen = false">
       <div class="pc-dialog">
@@ -1130,7 +1321,7 @@
           <em class="dm-act-tag" :class="actionDone.tone">{{ actionDone.stage }}·{{ actionDone.strength }}</em>
         </div>
         <div class="ad-effect">{{ actionDone.effect }}</div>
-        <div class="ad-meta">承办：核查中心 · 状态：已下达待执行（演示）</div>
+        <div class="ad-meta">承办：核查中心 · 状态：已下达待执行</div>
         <button class="ad-ok" @click="actionDone = null">确定</button>
       </div>
     </div>
@@ -1285,13 +1476,204 @@ function resetPenetration() {
   assistantSupplierHl.value = false
 }
 
+// ══════════ 故事线二：复合风险联查（围标串标 + 履约不符 → 恒通供应链） ══════════
+// 点击穿透驱动：热力图深红格(设备采购×询价采购) → TOP6 恒通高亮 → 点恒通并案两条实时风险 → AI 研判 → A/B/C → 选A 回执
+const STORY2_HEAT = { mi: 3, ci: 2 }   // 询价采购(列idx3) × 设备采购(行idx2)
+const STORY2_ORDERS = ['CG-2026005', 'CG-2026041']
+// 故事线二联动中部穿透网络要高亮的节点（与 netNodes 实名一致）
+// 仅高亮「恒通供应链 → 智能设备采购项目」2 个节点（由红色围标承接链相连）：
+// 既聚焦本案两个核心主体、避免与故事线一共用「华东建设集团」造成高亮冲突，也不再闪烁第三个节点。
+const STORY2_NET_NODES = ['恒通供应链管理有限公司', '智能设备采购项目']
+const story2 = reactive({ heatHl: false, supplierHl: false, clueOpen: false })
+const story2PanelOpen = ref(false)     // AI 研判面板弹窗
+const story2AdviceLoading = ref(false) // 点「AI 建议」加载中
+const story2AdviceReady = ref(false)   // A/B/C 三方案已生成
+const story2CompareOpen = ref(false)   // 三方案对比弹窗
+const story2ResultOpen = ref(false)    // 选中方案后自动弹出·实施回执
+const story2Plan = ref('')             // 选中方案 A/B/C
+const story2BasisKey = ref('')         // 展开「查看依据」的方案
+const story2ExecVisible = ref([])      // 选A 后逐条揭示的回执
+let story2ExecTimer = null
+let story2AdviceTimer = null
+// 研判面板固定文案（§6 自洽假数据；执行仅前端模拟、不接后端、不落库）
+const story2Judge = {
+  supplier: '恒通供应链管理有限公司', amount: '¥320万', score: 62, flags: 8,
+  rings: [
+    { k: '依据', v: '中标集中度异常 + 3 家投标单位报价规律；同源制单：投标文件雷同度 92%、报价固定差 1.5%、保证金同一账户、同一 MAC 地址上传。' },
+    { k: '风险与项目', v: '围标串标 + 履约不符（复合）；定位「智能设备采购项目」(¥280万) 与「三号厂房改造工程」(¥40万)。' },
+    { k: '单据 · 责任人', v: 'CG-2026005 经办孙磊（采购部，期限 05-25）+ 评标专家 3 人；CG-2026041 经办马涛（工程部），交付以次充好 / 工程量缺口约 18%、验收却判合格并已付款。' },
+    { k: '建议', v: '废标重招 + 暂停投标资格 + 追回扣款并重新验收 + 启动专项核查。' },
+    { k: '协调', v: '招投标办 + 纪检牵头、财务冻结、评标专家库复核。' },
+    { k: '理由', v: '串标抬价损害公平竞争，复合违规涉 ¥320万 且供应商健康评分仅 62。' },
+  ],
+  items: [
+    { no: 'CG-2026005', type: '围标串标', proj: '智能设备采购项目', amount: '¥280万', handler: '孙磊（采购部）', extra: '评标专家 3 人 · 投标 3 家 · 文件雷同度 92% · 报价固定差 1.5% · 同一账户 / 同一 MAC' },
+    { no: 'CG-2026041', type: '履约不符', proj: '三号厂房改造工程', amount: '¥40万', handler: '马涛（工程部）', extra: '交付：钢材以次充好(Q345B→Q235) · 工程量缺口约 18% · 验收判合格并已全额付款' },
+  ],
+  plans: [
+    { key: 'A', label: '废标重招 + 立案', recommended: true, impact: '3 家投标单位暂停投标资格；CG-2026005 废标待重招；CG-2026041 ¥40万 追回扣款并重新验收整改；移交纪检立案。',
+      basis: '报价曲线高度趋同（固定差 1.5%）、同类判例已认定串标、供应商风险趋势上升（评分 62 / 8 标记）。' },
+    { key: 'B', label: '保留结果但强化履约监管', recommended: false, impact: '暂留中标结果，加挂履约保证金与过程审计；资金按节点放行、保留追溯。',
+      basis: '若履约确可控可暂留结果——本例评分偏低、证据较充分，需谨慎。' },
+    { key: 'C', label: '约谈限期补正', recommended: false, impact: '约谈经办与供应商，限期补齐验收与披露材料后再议。',
+      basis: '适用于轻微瑕疵；本例为复合违规、证据已较充分，不建议仅补正。' },
+  ],
+  exec: [
+    '招标平台将 3 家投标单位置为「暂停投标」，CG-2026005 标记「废标待重招」。',
+    '生成《围标串标核查任务》附证据链（工商 / 报价 / IP·MAC 三类），派发纪检 + 招投标办。',
+    '对 CG-2026041 已付 ¥40万 启动追回 / 扣款并组织第三方复检与重新验收整改，向马涛推送，到期未回执自动升级上级监管。',
+  ],
+}
+// 三方案对比数表（数据依本案 CG-2026005/CG-2026041 演进；tone：good 有利 / warn 权衡 / bad 不利）
+const story2CompareCols = [
+  { key: 'A', name: '废标重招 + 立案', tag: '推荐' },
+  { key: 'B', name: '保留结果强化监管', tag: '谨慎' },
+  { key: 'C', name: '约谈限期补正', tag: '不建议' },
+]
+const story2CompareRows = [
+  { dim: '围标处置', A: { v: '废标重招 + 3家暂停投标', tone: 'good' }, B: { v: '保留中标结果', tone: 'bad' }, C: { v: '仅约谈、结果不变', tone: 'bad' } },
+  { dim: '资金处置(¥40万)', A: { v: '追回扣款 + 重新验收', tone: 'good' }, B: { v: '扣保证金后放行', tone: 'warn' }, C: { v: '限期整改后核付', tone: 'warn' } },
+  { dim: '涉案金额覆盖', A: { v: '¥320万 全覆盖', tone: 'good' }, B: { v: '仅 ¥40万', tone: 'warn' }, C: { v: '基本未覆盖', tone: 'bad' } },
+  { dim: '公平竞争修复', A: { v: '恢复公开竞争', tone: 'good' }, B: { v: '存疑、受损未修复', tone: 'bad' }, C: { v: '仍受损', tone: 'bad' } },
+  { dim: '供应商(评分62)', A: { v: '暂停准入 + 立案', tone: 'good' }, B: { v: '加保证金留用', tone: 'warn' }, C: { v: '约谈警示', tone: 'warn' } },
+  { dim: '纪检介入', A: { v: '立案移交', tone: 'good' }, B: { v: '不介入', tone: 'warn' }, C: { v: '不介入', tone: 'warn' } },
+  { dim: '处置时效', A: { v: '即时生效', tone: 'good' }, B: { v: '约 5 个工作日', tone: 'warn' }, C: { v: '限期补正周期长', tone: 'bad' } },
+  { dim: '业务影响', A: { v: '采购周期延后约 2 周', tone: 'warn' }, B: { v: '影响小', tone: 'good' }, C: { v: '影响小', tone: 'good' } },
+  { dim: '风险残留', A: { v: '低', tone: 'good' }, B: { v: '中', tone: 'warn' }, C: { v: '高', tone: 'bad' } },
+]
+// 选中方案后弹窗渲染的结果（A 走逐条实施回执；B/C 给要点）
+const story2PlanResults = {
+  A: { tone: 'block', status: '处置中 · 待闭环', receipts: story2Judge.exec,
+    closing: '处置闭环已启动；待纪检 + 招投标办核查回执确认后转「已闭环」。' },
+  B: { tone: 'route', status: '留用 · 强化监管', receipts: [
+      '中标结果暂予保留，加挂履约保证金并启动全过程审计跟踪。',
+      'CG-2026041 履约偏差挂账并扣减履约保证金，整改重验合格后再核付尾款。',
+      '将恒通供应链列入重点监控，评分回升至 75 前不予新单准入。' ],
+    closing: '保留结果但强化监管；如审计发现履约异常即升级为废标处置。' },
+  C: { tone: 'watch', status: '约谈 · 待补正', receipts: [
+      '约谈恒通供应链与经办孙磊 / 马涛，下达限期补正通知。',
+      '要求补齐履约整改、第三方复检与报价说明，期限 5 个工作日。',
+      '列入观察名单，逾期未补正自动升级核查。' ],
+    closing: '本例为复合违规、证据较充分，仅补正风险残留偏高，建议审慎采用。' },
+}
+const story2CurrentResult = computed(() => story2Plan.value ? story2PlanResults[story2Plan.value] : null)
+function clearStory2Exec() { if (story2ExecTimer) { clearTimeout(story2ExecTimer); story2ExecTimer = null } }
+function clearStory2Advice() { if (story2AdviceTimer) { clearTimeout(story2AdviceTimer); story2AdviceTimer = null } }
+// 步① 点热力图深红格：提示供应商高度集中 → 步② 定位并高亮 TOP6 恒通 + 联动中部网络
+function onHeatmapClick(params) {
+  const v = params?.value || params?.data
+  if (!Array.isArray(v) || v[0] !== STORY2_HEAT.mi || v[1] !== STORY2_HEAT.ci) return
+  story2.heatHl = true
+  story2.supplierHl = true
+  nextTick(() => { const el = document.querySelector('.sup-side-row.story2-hl'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+}
+// 步③ 点恒通行：并案拉起两条实时风险，成一条复合风险线索 + 联动中部穿透网络高亮
+function onSupplierRowClick(s) {
+  if (!s?.story2) return
+  story2.supplierHl = true
+  story2.clueOpen = true   // → darkNetworkOption 据此高亮 STORY2_NET_NODES（中部网络联动）
+  nextTick(() => { const el = document.querySelector('.risk-card.story2-focus'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+}
+// 对话联动：小助手触发故事线二（联动热力图/TOP6/实时风险/中部网络）
+function startStory2FromAssistant() {
+  story2.heatHl = true; story2.supplierHl = true; story2.clueOpen = true
+  nextTick(() => { const el = document.querySelector('.risk-card.story2-focus') || document.querySelector('.sup-side-row.story2-hl'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+}
+// 步④ 打开复合风险 AI 研判面板（初始仅出研判，A/B/C 需点「AI 建议」再加载）
+function openStory2Panel() {
+  story2PanelOpen.value = true
+  story2AdviceReady.value = false; story2AdviceLoading.value = false
+  story2Plan.value = ''; story2BasisKey.value = ''; story2ExecVisible.value = []
+  story2CompareOpen.value = false; story2ResultOpen.value = false
+  clearStory2Exec(); clearStory2Advice()
+}
+// 点「AI 建议」→ 加载动画 → 生成 A/B/C
+function story2AskAdvice() {
+  if (story2AdviceReady.value || story2AdviceLoading.value) return
+  story2AdviceLoading.value = true
+  clearStory2Advice()
+  story2AdviceTimer = setTimeout(() => { story2AdviceLoading.value = false; story2AdviceReady.value = true }, 1200)
+}
+function toggleStory2Basis(k) { story2BasisKey.value = story2BasisKey.value === k ? '' : k }
+// 步⑤ 人选方案 → 自动弹出处置结果弹窗，逐条渲染 AI 实施回执（仅前端模拟）
+function chooseStory2Plan(key) {
+  story2Plan.value = key
+  story2ResultOpen.value = true   // 选中后自动弹窗
+  story2ExecVisible.value = []
+  clearStory2Exec()
+  const res = story2PlanResults[key]
+  const steps = res ? res.receipts : []
+  let i = 0
+  const tick = () => { if (i >= steps.length) return; story2ExecVisible.value = [...story2ExecVisible.value, steps[i]]; i++; story2ExecTimer = setTimeout(tick, 800) }
+  tick()
+}
+const story2ExecDone = computed(() => !!story2CurrentResult.value && story2ExecVisible.value.length === story2CurrentResult.value.receipts.length)
+function resetStory2() {
+  story2.heatHl = false; story2.supplierHl = false; story2.clueOpen = false
+  story2PanelOpen.value = false; story2AdviceLoading.value = false; story2AdviceReady.value = false
+  story2CompareOpen.value = false; story2ResultOpen.value = false
+  story2Plan.value = ''; story2BasisKey.value = ''; story2ExecVisible.value = []
+  clearStory2Exec(); clearStory2Advice()
+  routeClueOpen.value = false
+}
+
+// ── 两类穿透概览 ↔ 路线①②③ 数据对应（点击穿透联动 + 弹窗） ──
+const routeClueOpen = ref(false)
+const routeClueKey = ref('')
+const ROUTE_CLUE = {
+  '1': { tag: '关联输送', cn: '①', name: '关联输送穿透（点击式）', tone: 'rt',
+    sub: 'CG-2026001 · 鼎信建设一公司 · 未验收即付款 ¥40万',
+    chain: ['华东建设集团 → 鼎信建设有限公司 → 鼎信建设一公司 → 二号车间维修工程', '王建国实控（持股65% + 代持）· 近6月资金回流 ¥120万/3笔', '验收单 YS-2026-0312 缺失，未验收即申请付款'],
+    fund: '¥40万 待付（验收凭证缺失）', resp: '经办 张伟 / 审批 李强（关联未披露）',
+    cta: '联动网络图 + 定位实时风险' },
+  '2': { tag: '复合风险', cn: '②', name: '复合风险研判（点击式）', tone: 's2',
+    sub: 'CG-2026005 + CG-2026041 · 恒通供应链 · 围标串标 + 履约不符 ¥320万',
+    chain: ['华东建设集团 → 恒通供应链管理有限公司 → 智能设备采购项目', '3 家同源投标（同 IP 116.62.45.21 / 同 MAC）· 报价固定差 1.5%', '三号厂房改造工程 交付以次充好 / 工程量缺口约 18%，验收却判合格并已付款'],
+    fund: '¥280万 中标待废 + ¥40万 已付待追', resp: '经办 孙磊 / 马涛 · 评标专家 3 人',
+    cta: '打开复合风险 AI 研判面板' },
+  '3': { tag: '对话研判', cn: '③', name: '对话式研判（AI 小助手）', tone: 'r3',
+    sub: 'CG-2026001 · 经 AI 小助手逐环对话穿透',
+    chain: ['依据 → 风险与项目 → 单据·责任人 → 建议·协调·理由', '12 环对话穿透 · A/B/C 处置方案', '定标审批：关联关系未要求披露（审批 李强）'],
+    fund: '¥40万 待付', resp: '经办 张伟 / 审批 李强',
+    cta: '用 AI 对话研判' },
+}
+const routeClueData = computed(() => ROUTE_CLUE[routeClueKey.value] || null)
+function routeCn(r) { return ({ '1': '①', '2': '②', '3': '③' })[r] || r }
+// 点击 两类穿透概览 中的「路线」条目 → 打开联动弹窗 + 中部网络高亮
+function openRouteClue(key) {
+  routeClueKey.value = key
+  routeClueOpen.value = true
+  if (key === '1') activateRelatedTransfer('drill')
+  else if (key === '2') { story2.heatHl = true; story2.supplierHl = true; story2.clueOpen = true }
+  else if (key === '3') { activeRiskDomain.value = '关联输送'; activateRelatedTransfer('drill') }
+}
+// 弹窗内主操作：跳到对应路线的处置入口
+function runRouteClue() {
+  const k = routeClueKey.value
+  routeClueOpen.value = false
+  if (k === '1') {
+    activateRelatedTransfer('drill')
+    nextTick(() => { const el = document.querySelector('.b2-panel'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+  } else if (k === '2') {
+    startStory2FromAssistant(); openStory2Panel()
+  } else if (k === '3') {
+    try { window.dispatchEvent(new CustomEvent('drp-open-assistant', { detail: { text: '第一条未验收付款，说说依据' } })) } catch {}
+  }
+}
+
 // ── AI 小助手 ↔ 页面组件联动：小助手研判时高亮页面对应模块 ──
 const assistantSupplierHl = ref(false)   // 供应商画像 → 高亮鼎信建设一公司行（CG-2026001 供应商）
 let supplierHlTimer = null
 function onAssistantFocus(e) {
   const key = e?.detail?.key
   if (!key) return
-  if (key === 'reset') { resetPenetration(); return }
+  if (key === 'reset') { resetPenetration(); resetStory2(); return }
+  // 故事线二：对话联动复合风险（含中部穿透网络）；story2_panel 额外打开研判面板
+  if (key === 'story2' || key === 'story2_panel') {
+    startStory2FromAssistant()
+    if (key === 'story2_panel') openStory2Panel()
+    return
+  }
   if (key === 'supplier') {
     assistantSupplierHl.value = true
     nextTick(() => { const el = document.querySelector('.sup-side-row.assistant-hl'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
@@ -1302,10 +1684,24 @@ function onAssistantFocus(e) {
   // report / evidence / aggregate / plan / receipts → 点亮三栏联动 + 定位 CG-2026001
   activateRelatedTransfer('assistant')
 }
-onMounted(() => { if (typeof window !== 'undefined') window.addEventListener('drp-assistant-focus', onAssistantFocus) })
+// 对话「展开两类穿透概览」→ 展开 c1 手风琴内容
+function onModuleCmd(e) {
+  if (e?.detail?.expandPenet) {
+    // 展开两类穿透概览的全部分组与子项，并滚动到可视区，确保变化明显
+    penetOpen.value = new Set(['capital', 'resp', 'bid', 'accept', 'approval'])
+    nextTick(() => { const el = document.querySelector('.c1-panel'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+  }
+}
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('drp-assistant-focus', onAssistantFocus)
+    window.addEventListener('drp-module-cmd', onModuleCmd)
+  }
+})
 onBeforeUnmount(() => {
-  if (typeof window !== 'undefined') window.removeEventListener('drp-assistant-focus', onAssistantFocus)
+  if (typeof window !== 'undefined') { window.removeEventListener('drp-assistant-focus', onAssistantFocus); window.removeEventListener('drp-module-cmd', onModuleCmd) }
   if (supplierHlTimer) clearTimeout(supplierHlTimer)
+  clearStory2Exec(); clearStory2Advice()
 })
 
 // ── 报告后穿透：穿透栈 + 面包屑 ──
@@ -2485,11 +2881,12 @@ const supplierRanking = [
   { rank:3, name:'华东能源科技有限公司', amount:198.5, riskCount:1, health:92, trend: 1, white:true,  category:'设备采购' },
   { rank:4, name:'鼎信建设一公司',       amount:168.8, riskCount:8, health:58, trend:-1, white:false, category:'服务采购' },
   { rank:5, name:'华建信息技术有限公司', amount:125.3, riskCount:0, health:95, trend: 0, white:true,  category:'IT采购' },
-  { rank:6, name:'恒通供应链管理有限公司',amount: 98.6, riskCount:1, health:88, trend: 0, white:true,  category:'设备采购' },
+  { rank:6, name:'恒通供应链管理有限公司',amount: 98.6, riskCount:8, health:62, trend:-1, white:false, category:'设备采购', story2:true,
+    riskFlags:['围标串标','履约不符','单一来源滥用','中标集中度异常','报价规律雷同(固定差1.5%)','保证金同一账户','投标文件同一MAC上传','材料以次充好'] },
 ]
 
 const riskList = [
-  { id:'R-CG-001', no:'CG-2026001', name:'未验收即付款预警', level:'red', levelLabel:'高风险',
+  { id:'R-CG-001', no:'CG-2026001', name:'未验收即付款预警 · 关联输送', level:'red', levelLabel:'高风险',
     storyFocus:true, domain:'未验收付款',
     warningTime:'2026-05-21 09:40', entity:'采购部 / 鼎信建设一公司',
     status:'待整改', statusCode:'rectifying', amount:'40', amountUnit:'万',
@@ -2519,11 +2916,41 @@ const riskList = [
     },
   },
   { id:'R-CG-002', no:'CG-2026005', name:'围标串标预警', level:'red', levelLabel:'高风险',
-    domain:'围标串标',
+    domain:'围标串标', story2Focus:true,
     warningTime:'2026-05-20 14:20', entity:'采购部 / 恒通供应链管理有限公司',
     status:'核查中', statusCode:'investigating', amount:'280', amountUnit:'万',
     handler:'孙磊（采购部）', deadline:'2026-05-25',
     summary:'AI 检测到 3 家投标单位的 IP / MAC 地址、报价节奏存在串通嫌疑。' },
+  { id:'R-CG-007', no:'CG-2026041', name:'履约不符预警', level:'red', levelLabel:'高风险',
+    domain:'履约不符', story2Focus:true,
+    warningTime:'2026-05-20 16:05', entity:'工程部 / 恒通供应链管理有限公司',
+    status:'核查中', statusCode:'investigating', amount:'40', amountUnit:'万',
+    handler:'马涛（工程部）', deadline:'2026-05-26',
+    summary:'三号厂房改造工程，恒通供应链交付与合同约定不符（材料以次充好、工程量缺口约 18%），却已通过验收并全额付款 ¥40万；与 CG-2026005 围标串标同属恒通，并案复合核查。',
+    detail:{
+      riskItem:'三号厂房改造工程（合同 HT-2026-0341，¥40万）由恒通供应链管理有限公司承接，AI 履约穿透发现实际交付与合同约定严重不符：钢材规格以次充好、工程量较结算量缺口约 18%，但验收记录全部判定「合格」并已全额付款。结合 CG-2026005「智能设备采购」围标串标线索，两单同属恒通供应链，并案为复合风险。',
+      causeAnalysis:[
+        '履约穿透：合同 HT-2026-0341 约定 Q345B 钢材，实际进场抽检为 Q235 替代（以次充好）；竣工结算工程量较现场复核缺口约 18%。',
+        '验收穿透：验收记录 YS-2026-0341 各项均判「合格」，与现场抽检结论矛盾，验收把关流于形式。',
+        '资金穿透：付款申请 FK-2026041 已按「验收合格」全额放行 ¥40万，履约不符却未触发任何扣款或追责。',
+        '主体穿透：与 CG-2026005 围标串标同属恒通供应链管理有限公司（健康评分 62 / 8 个风险标记），由「设备采购 × 询价采购」热力深红格穿透定位 TOP6 并案。',
+        '采购方式穿透：恒通在「设备采购 × 询价采购」格中标高度集中，规避公开招标迹象明显，履约监管同步缺位。',
+      ],
+      penetrationLinks:[
+        { domain:'采购域', data:'采购单 CG-2026041（履约不符）/ 并案 CG-2026005（围标串标）' },
+        { domain:'采购域', data:'验收记录 YS-2026-0341（判合格，与抽检矛盾）' },
+        { domain:'合同域', data:'合同 HT-2026-0341（三号厂房改造工程 ¥40万）' },
+        { domain:'质量域', data:'进场抽检：钢材 Q345B→Q235 以次充好 · 工程量缺口约 18%' },
+        { domain:'财务域', data:'付款申请 FK-2026041（已全额支付 ¥40万）' },
+      ],
+      rectificationSuggestions:[
+        '立即追回 / 扣减 CG-2026041 已付款，按履约不符重新核算并扣履约保证金。',
+        '组织第三方复检与重新验收，整改不合格部位，问责原验收人。',
+        '与 CG-2026005 围标串标并案，将恒通供应链列入重点监控，评分回升前不予新单准入。',
+        '系统设置「验收抽检留痕 + 履约偏差预警」校验，结算与验收不一致即拦截付款。',
+      ],
+    },
+  },
   { id:'R-CG-003', no:'CG-2026012', name:'未验收付款预警（二期）', level:'red', levelLabel:'高风险',
     domain:'未验收付款',
     warningTime:'2026-05-19 11:00', entity:'采购部 / 鼎信建设一公司',
@@ -2588,8 +3015,8 @@ const drawerAccordions = [
 
 // ── 穿透弹窗数据 ────────────────────────────────────────────────────────
 const bidAnomalies = [
-  { project:'二号车间维修工程',   code:'CG-2026001', winner:'鼎信建设一公司',   type:'同源投标/关联未披露', level:'高', lvClass:'high', status:'待整改' },
-  { project:'智能设备采购项目',   code:'CG-2026005', winner:'恒通供应链管理有限公司', type:'三家投标同源',     level:'高', lvClass:'high', status:'核查中' },
+  { project:'二号车间维修工程',   code:'CG-2026001', winner:'鼎信建设一公司',   type:'同源投标/关联未披露', level:'高', lvClass:'high', status:'待整改', route:'1' },
+  { project:'智能设备采购项目',   code:'CG-2026005', winner:'恒通供应链管理有限公司', type:'三家投标同源',     level:'高', lvClass:'high', status:'核查中', route:'2' },
   { project:'厂区绿化养护',       code:'CG-2026025', winner:'绿源园林工程有限公司', type:'评分标准不一致',     level:'中', lvClass:'mid',  status:'待整改' },
   { project:'厂区道路修缮工程',   code:'CG-2026031', winner:'华路路桥有限公司',     type:'评标时间异常',       level:'中', lvClass:'mid',  status:'待核查' },
   { project:'办公装修项目',       code:'CG-2026038', winner:'雅居装饰有限公司',     type:'围标串标嫌疑',       level:'高', lvClass:'high', status:'核查中' },
@@ -2598,13 +3025,14 @@ const bidAnomalies = [
   { project:'仓储物流外包项目',   code:'CG-2026061', winner:'华东仓储物流公司',     type:'专家资质存疑',       level:'中', lvClass:'mid',  status:'核查中' },
 ]
 const acceptAnomalies = [
-  { contract:'HT-2026-0312', project:'二号车间维修工程',     supplier:'鼎信建设一公司', amount:'40万',  time:'2026-05-21', acceptStatus:'未验收',   requirement:'冻结付款并启动关联输送审查' },
+  { contract:'HT-2026-0312', project:'二号车间维修工程',     supplier:'鼎信建设一公司', amount:'40万',  time:'2026-05-21', acceptStatus:'未验收',   requirement:'冻结付款并启动关联输送审查', route:'1' },
+  { contract:'HT-2026-0341', project:'三号厂房改造工程',     supplier:'恒通供应链管理有限公司', amount:'40万',  time:'2026-05-20', acceptStatus:'验收不实',   requirement:'履约不符·追回扣款并重新验收，与围标并案处置', route:'2' },
   { contract:'HT-2026-0301', project:'二号车间维修工程（二期）', supplier:'鼎信建设一公司', amount:'40万',  time:'2026-05-19', acceptStatus:'未验收',   requirement:'付款已走，补验收并并案核查' },
   { contract:'HT-2026-0318', project:'外墙翻新工程',         supplier:'宏达建材有限公司', amount:'28万',  time:'2026-05-18', acceptStatus:'部分验收', requirement:'完成全部验收后付余款' },
 ]
 const approvalAnomalies = [
-  { item:'二号车间维修工程定标', approver:'李强', time:'2026-05-21', reason:'关联关系未要求披露', level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-28' },
-  { item:'智能设备采购定标',     approver:'李强', time:'2026-05-20', reason:'同源投标未识别',     level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-25' },
+  { item:'二号车间维修工程定标', approver:'李强', time:'2026-05-21', reason:'关联关系未要求披露', level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-28', route:'3' },
+  { item:'智能设备采购定标',     approver:'李强', time:'2026-05-20', reason:'同源投标未识别',     level:'高', lvClass:'high', responsible:'李强', deadline:'2026-05-25', route:'2' },
   { item:'材料采购定标',         approver:'陈晓', time:'2026-05-15', reason:'审批依据不充分',     level:'低', lvClass:'low',  responsible:'陈晓', deadline:'2026-05-28' },
   { item:'服务采购定标',         approver:'赵刚', time:'2026-05-17', reason:'利益冲突未回避',     level:'中', lvClass:'mid',  responsible:'赵刚', deadline:'2026-05-26' },
 ]
@@ -2823,7 +3251,7 @@ const netLinks = [
       {source:'华东建设集团',target:'华建工程监理公司',lineStyle:{width:1.2,color:'#10B981'}},
       /* 集团→下方 */
       {source:'华东建设集团',target:'华东仓储物流公司',lineStyle:{width:1.2,color:'#FBBF24'}},
-      {source:'华东建设集团',target:'恒通供应链管理有限公司',lineStyle:{width:1.8,color:'#EF4444',opacity:0.6}},
+      {source:'华东建设集团',target:'恒通供应链管理有限公司',relation:'设备采购·询价（中标集中）',lineStyle:{width:1.8,color:'#EF4444',opacity:0.6}},
       /* 集团→左侧 */
       {source:'华东建设集团',target:'华东能源公司',lineStyle:{width:1.8,color:'#F97316',opacity:0.8}},
       {source:'华东建设集团',target:'宏达建材公司',lineStyle:{width:1.2,color:'#F59E0B'}},
@@ -2837,7 +3265,7 @@ const netLinks = [
       {source:'华建工程监理公司',target:'厂区安防改造项目'},
       /* 下方延伸→项目 */
       {source:'华东仓储物流公司',target:'仓储建设项目'},
-      {source:'恒通供应链管理有限公司',target:'智能设备采购项目'},
+      {source:'恒通供应链管理有限公司',target:'智能设备采购项目',relation:'中标承接 CG-2026005（围标串标·3家同源）',lineStyle:{width:2.2,color:'#EF4444',opacity:0.9}},
       /* 左侧延伸→项目 */
       {source:'华东能源公司',target:'光伏发电项目'},
       {source:'宏达建材公司',target:'厂区管网改造'},
@@ -2859,7 +3287,8 @@ const darkNetworkOption = computed(() => {
   const ctxStory = penetrationContext.active && penetrationContext.highlightNodes.length
   const hi = ctxStory
     ? new Set([...penetrationContext.highlightNodes, '华东建设集团'])
-    : (activeRiskDomain.value ? new Set([...(riskDomainNodes[activeRiskDomain.value] || []), '华东建设集团']) : null)
+    : (story2.clueOpen ? new Set(STORY2_NET_NODES)
+    : (activeRiskDomain.value ? new Set([...(riskDomainNodes[activeRiskDomain.value] || []), '华东建设集团']) : null))
   const data = netNodes.map(n => {
     if (!hi) return n
     if (hi.has(n.name)) return { ...n, itemStyle:{ ...(n.itemStyle||{}), borderColor:'#2563EB', borderWidth:3, shadowColor:'rgba(37,99,235,0.55)', shadowBlur:18, opacity:1 }, label:{ ...(n.label||{}), opacity:1 } }
@@ -2891,11 +3320,18 @@ const darkNetworkOption = computed(() => {
 })
 
 const heatmapOption = computed(() => {
-  const data=[];heatmapBaseValues.value.forEach((row,ci)=>{row.forEach((v,mi)=>{data.push([mi,ci,v])})})
+  // 故事线二入口：标注「设备采购 × 询价采购」深红格（虚线红框提示可点；选中后实线高亮）
+  const data=[];heatmapBaseValues.value.forEach((row,ci)=>{row.forEach((v,mi)=>{
+    if (mi===STORY2_HEAT.mi && ci===STORY2_HEAT.ci) {
+      data.push({ value:[mi,ci,v], itemStyle: story2.heatHl
+        ? { borderColor:'#7F1D1D', borderWidth:3, shadowBlur:12, shadowColor:'rgba(185,28,28,0.55)' }
+        : { borderColor:'#DC2626', borderWidth:1.6, borderType:'dashed' } })
+    } else data.push([mi,ci,v])
+  })})
   return {
     animation:false,backgroundColor:'transparent',
     tooltip:{position:'top',backgroundColor:'rgba(255,255,255,0.97)',borderColor:'#E2E8F0',textStyle:{color:'#334155',fontSize:11},
-      formatter:(p)=>`${heatmapCategories[p.data[1]]} × ${heatmapMethods[p.data[0]]}<br/>数量: ${p.data[2]}`},
+      formatter:(p)=>`${heatmapCategories[p.value[1]]} × ${heatmapMethods[p.value[0]]}<br/>数量: ${p.value[2]}`},
     grid:{left:52,right:6,top:4,bottom:52,containLabel:false},
     xAxis:{type:'category',data:heatmapMethods,axisLabel:{color:'#64748B',fontSize:8,rotate:28,interval:0},
       axisLine:{lineStyle:{color:'#E2E8F0'}},splitArea:{show:true,areaStyle:{color:['#F8FAFC','#FFF']}}},
@@ -2903,7 +3339,7 @@ const heatmapOption = computed(() => {
       axisLine:{lineStyle:{color:'#E2E8F0'}},splitArea:{show:true,areaStyle:{color:['#F8FAFC','#FFF']}}},
     visualMap:{min:0,max:45,show:false,inRange:{color:['#F1F5F9','#DBEAFE','#93C5FD','#FDE68A','#FDBA74','#F87171','#B91C1C']}},
     series:[{name:'热力',type:'heatmap',data,
-      label:{show:true,fontSize:9,formatter:(p)=>p.data[2]?String(p.data[2]):'',color:(p)=>p.data[2]>25?'#FFF':'#374151'},
+      label:{show:true,fontSize:9,formatter:(p)=>p.value[2]?String(p.value[2]):'',color:(p)=>p.value[2]>25?'#FFF':'#374151'},
       emphasis:{itemStyle:{shadowBlur:10,shadowColor:'rgba(239,68,68,0.35)'}}}],
   }
 })
@@ -2924,6 +3360,9 @@ function openReport(r) {
     executionVisible.value = []
     resetDisposition()
   }
+  // 故事线二：点恒通复合预警（CG-2026005 / CG-2026041）「AI 分析」即拉起故事线二联动
+  // （热力深红格高亮 + TOP6 恒通 + 并案复合线索 + 中部穿透网络「恒通→智能设备采购项目」2 节点高亮）
+  if (r.story2Focus) startStory2FromAssistant()
   reportFailed.value = false
   // 已分析过：直接看报告，不再弹加载窗
   if (analyzedReportIds.value.has(r.no)) { viewReport(r.no); return }
@@ -3217,7 +3656,7 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .layout-chip-reset { padding:1px 9px; border-radius:999px; border:none; background:rgba(255,255,255,0.22); color:#fff; font-size:11px; font-weight:700; cursor:pointer; }
 .layout-chip-reset:hover { background:rgba(255,255,255,0.34); }
 .ph { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px; flex-shrink:0; }
-.ph h3 { margin:0; font-size:11px; font-weight:700; color:#0F172A; letter-spacing:0.02em; }
+.ph h3 { margin:0; font-size:14px; font-weight:800; color:#0F172A; letter-spacing:0.02em; }
 
 /* ── 联动态：被联动的面板柔和高亮（突出但不突兀） ─────────────────── */
 .glass-panel.linked { border-color:#FBD5DD; transition:border-color .4s ease; }
@@ -4417,4 +4856,124 @@ async function callFlowInstanceStreamRun(riskId, action) {
 /* AI 小助手联动：高亮供应商行（恒通） */
 .sup-side-row.assistant-hl { outline:2px solid #7C3AED; outline-offset:1px; border-radius:8px; background:#F5F3FF; box-shadow:0 0 0 4px rgba(124,58,237,.12); animation:assist-sup-pulse 1.5s ease-in-out infinite; }
 @keyframes assist-sup-pulse { 0%,100% { box-shadow:0 0 0 3px rgba(124,58,237,.10);} 50% { box-shadow:0 0 0 6px rgba(124,58,237,.20);} }
+
+/* ══════════ 故事线二：复合风险联查 ══════════ */
+/* TOP6 恒通高亮 + 可点 */
+.sup-side-row.story2-clickable { cursor:pointer; }
+.sup-side-row.story2-hl { outline:2px solid #DC2626; outline-offset:1px; border-radius:8px; background:#FEF2F2; box-shadow:0 0 0 4px rgba(220,38,38,.12); animation:assist-sup-pulse 1.5s ease-in-out infinite; }
+.ssr-flags { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+.ssr-flag { font-size:9px; line-height:1.3; padding:1px 5px; border-radius:4px; background:#FEE2E2; color:#B91C1C; font-weight:700; white-space:nowrap; }
+/* 复合风险线索条 */
+.story2-clue { margin-bottom:8px; border:1px solid #FCA5A5; border-radius:10px; background:linear-gradient(135deg,#FEF2F2,#FFF1F2); padding:8px 10px; box-shadow:0 4px 16px rgba(220,38,38,.10); }
+.s2c-main { display:flex; align-items:center; gap:8px; }
+.s2c-tag { flex-shrink:0; padding:2px 8px; border-radius:999px; background:#DC2626; color:#fff; font-size:10px; font-weight:800; }
+.s2c-tt { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.s2c-tt strong { font-size:12.5px; color:#0F172A; }
+.s2c-tt span { font-size:10.5px; color:#64748B; }
+.s2c-close { flex-shrink:0; width:20px; height:20px; border:none; background:transparent; color:#94A3B8; font-size:13px; cursor:pointer; border-radius:5px; }
+.s2c-close:hover { background:#FEE2E2; color:#DC2626; }
+.s2c-open { width:100%; margin-top:7px; padding:7px 0; border:none; border-radius:8px; background:linear-gradient(135deg,#DC2626,#B91C1C); color:#fff; font-size:12px; font-weight:800; cursor:pointer; transition:.15s; }
+.s2c-open:hover { box-shadow:0 4px 14px rgba(220,38,38,.4); }
+/* 实时风险卡 story2 高亮（复用 story-pulse 动画） */
+.risk-stack .risk-card.story2-focus { background:#FEF2F2; border:1px solid #FCA5A5 !important; box-shadow:0 4px 16px rgba(220,38,38,0.12); animation:story-pulse 1.9s ease-in-out infinite; }
+
+/* AI 研判面板弹窗 */
+.s2p-overlay { position:fixed; inset:0; z-index:10120; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.46); backdrop-filter:blur(3px); }
+/* 故事线二：对比 / 实施回执弹窗需盖在研判面板(10120)之上，否则被遮挡看不到动画 */
+.pc-overlay.s2-top, .pr-overlay.s2-top { z-index:10200; }
+.s2p-dialog { width:680px; max-width:94vw; max-height:90vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 28px 70px rgba(15,23,42,.4); border-top:4px solid #DC2626; }
+.s2p-head { display:flex; align-items:flex-start; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #F1F5F9; background:#FEFCFC; }
+.s2p-head-l { display:flex; align-items:center; gap:10px; }
+.s2p-badge { padding:4px 10px; border-radius:8px; background:#DC2626; color:#fff; font-size:12px; font-weight:800; white-space:nowrap; }
+.s2p-head-tt { display:flex; flex-direction:column; gap:2px; }
+.s2p-head-tt strong { font-size:15px; color:#0F172A; }
+.s2p-head-tt span { font-size:11.5px; color:#64748B; }
+.s2p-close { width:30px; height:30px; border-radius:50%; border:1px solid #E2E8F0; background:#fff; color:#64748B; font-size:14px; cursor:pointer; }
+.s2p-close:hover { background:#FEE2E2; color:#DC2626; }
+.s2p-body { padding:14px 18px 18px; overflow-y:auto; }
+.s2p-sect-lbl { font-size:12px; font-weight:800; color:#475569; margin:14px 0 8px; }
+.s2p-sect-lbl:first-child { margin-top:0; }
+.s2p-items { display:flex; gap:10px; }
+.s2p-item { flex:1; min-width:0; border:1px solid #E9EDF5; border-radius:10px; padding:9px 11px; background:#FCFDFF; }
+.s2p-item.tone-bid { border-color:#FECACA; background:#FEF6F6; }
+.s2p-item.tone-pay { border-color:#FED7AA; background:#FFFBF5; }
+.s2p-item-h { display:flex; align-items:center; gap:7px; margin-bottom:3px; }
+.s2p-item-no { font-size:12px; font-weight:800; color:#0F172A; font-family:'JetBrains Mono',monospace; }
+.s2p-item-type { padding:1px 7px; border-radius:999px; font-size:10px; font-weight:800; background:#DC2626; color:#fff; }
+.s2p-item.tone-pay .s2p-item-type { background:#EA580C; }
+.s2p-item-amt { margin-left:auto; font-size:12.5px; font-weight:800; color:#B91C1C; }
+.s2p-item-proj { font-size:12px; color:#334155; font-weight:600; margin-bottom:2px; }
+.s2p-item-extra { font-size:11px; color:#64748B; line-height:1.55; }
+.s2p-rings { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.s2p-ring { display:flex; gap:8px; padding:8px 10px; border:1px solid #EEF1F6; border-radius:9px; background:#fff; }
+.s2p-ring-k { flex-shrink:0; width:74px; font-size:11.5px; font-weight:800; color:#DC2626; }
+.s2p-ring-v { flex:1; font-size:11.5px; color:#1E293B; line-height:1.55; }
+.s2p-plans { display:flex; flex-direction:column; gap:9px; }
+.s2p-plan { border:1px solid #E9EDF5; border-radius:10px; padding:9px; background:#FCFDFF; transition:.15s; }
+.s2p-plan.chosen { border-color:#059669; box-shadow:0 0 0 3px rgba(5,150,105,.14); }
+.s2p-plan-btn { width:100%; display:flex; gap:10px; align-items:flex-start; text-align:left; border:none; background:transparent; cursor:pointer; padding:2px; }
+.s2p-plan-key { flex-shrink:0; width:24px; height:24px; border-radius:6px; color:#fff; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.s2p-plan-btn.opt-A .s2p-plan-key { background:#DC2626; }
+.s2p-plan-btn.opt-B .s2p-plan-key { background:#F59E0B; }
+.s2p-plan-btn.opt-C .s2p-plan-key { background:#64748B; }
+.s2p-plan-main { display:flex; flex-direction:column; gap:2px; }
+.s2p-plan-main b { font-size:13px; font-weight:700; color:#0F172A; display:flex; align-items:center; gap:6px; }
+.s2p-rec { font-style:normal; font-size:10px; font-weight:800; padding:0 7px; border-radius:999px; background:#059669; color:#fff; }
+.s2p-plan-impact { font-size:11.5px; color:#64748B; line-height:1.5; }
+.s2p-basis-toggle { margin-top:7px; padding:3px 9px; border-radius:6px; border:1px solid #FECACA; background:#FEF2F2; color:#B91C1C; font-size:11.5px; font-weight:700; cursor:pointer; }
+.s2p-basis-toggle:hover { background:#FEE2E2; }
+.s2p-basis { margin-top:7px; padding:9px 11px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; }
+.s2p-basis p { font-size:12px; color:#92400E; line-height:1.6; margin:0 0 7px; }
+.s2p-basis-figs { display:flex; flex-wrap:wrap; gap:6px; }
+.s2p-fig { font-size:11px; padding:4px 9px; border-radius:7px; background:#fff; border:1px dashed #FCD34D; color:#B45309; }
+.s2p-advice-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:11px 0; border:1px dashed #FCA5A5; border-radius:10px; background:linear-gradient(135deg,#FEF2F2,#FFF7ED); color:#B91C1C; font-size:13px; font-weight:800; cursor:pointer; transition:.15s; }
+.s2p-advice-btn:hover:not(:disabled) { border-style:solid; box-shadow:0 4px 14px rgba(220,38,38,.16); }
+.s2p-advice-btn.loading { cursor:default; color:#9A3412; }
+.s2p-advice-ico { font-size:16px; }
+.s2p-advice-spin { width:15px; height:15px; border:2px solid #FECACA; border-top-color:#DC2626; border-radius:50%; animation:pr-spin-kf .7s linear infinite; }
+.s2p-compare-btn { width:100%; margin-bottom:9px; padding:8px 0; border:1px solid #BFDBFE; border-radius:9px; background:#EFF6FF; color:#1D4ED8; font-size:12.5px; font-weight:800; cursor:pointer; transition:.15s; }
+.s2p-compare-btn:hover { background:#DBEAFE; box-shadow:0 3px 12px rgba(37,99,235,.18); }
+.s2p-exec { display:flex; flex-direction:column; gap:7px; }
+.s2p-exec-step { display:flex; gap:9px; align-items:flex-start; padding:9px 11px; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; font-size:12.5px; color:#166534; line-height:1.6; }
+.s2p-exec-no { flex-shrink:0; width:17px; height:17px; border-radius:50%; background:#22C55E; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.s2p-exec-done { margin-top:9px; padding:9px; text-align:center; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; color:#059669; font-size:12.5px; font-weight:800; }
+.s2p-other-note { margin-top:9px; padding:9px 11px; background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; color:#C2410C; font-size:12px; line-height:1.6; }
+
+/* 两类穿透概览 → 路线①②③ 标签 + 联动条目 */
+.pv3-item.route-on { background:linear-gradient(90deg,rgba(37,99,235,.05),transparent); }
+.pv3-item.route-on:hover { background:linear-gradient(90deg,rgba(37,99,235,.10),transparent); }
+.pi-route { flex-shrink:0; margin-left:auto; padding:1px 6px; border-radius:999px; font-size:9px; font-weight:800; color:#fff; }
+.pi-route.r1 { background:#DC2626; }
+.pi-route.r2 { background:#EA580C; }
+.pi-route.r3 { background:#7C3AED; }
+.pv3-item.route-on .pi-tag { margin-left:6px; }
+/* 路线联动弹窗 */
+.rc-overlay { position:fixed; inset:0; z-index:10120; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.46); backdrop-filter:blur(3px); }
+.rc-dialog { width:520px; max-width:92vw; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 28px 70px rgba(15,23,42,.4); border-top:4px solid #DC2626; }
+.rc-dialog.r3 { border-top-color:#7C3AED; }
+.rc-dialog.s2 { border-top-color:#EA580C; }
+.rc-head { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid #F1F5F9; background:#FEFCFC; }
+.rc-tag { flex-shrink:0; padding:4px 10px; border-radius:8px; background:#DC2626; color:#fff; font-size:12px; font-weight:800; }
+.rc-tag.r3 { background:#7C3AED; } .rc-tag.s2 { background:#EA580C; }
+.rc-head-tt { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+.rc-head-tt strong { font-size:15px; color:#0F172A; }
+.rc-head-tt span { font-size:11.5px; color:#64748B; }
+.rc-close { width:30px; height:30px; border-radius:50%; border:1px solid #E2E8F0; background:#fff; color:#64748B; font-size:14px; cursor:pointer; }
+.rc-close:hover { background:#FEE2E2; color:#DC2626; }
+.rc-body { padding:14px 18px; }
+.rc-sect-lbl { font-size:12px; font-weight:800; color:#475569; margin-bottom:8px; }
+.rc-chain { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.rc-chain-row { position:relative; padding-left:16px; font-size:12px; color:#1E293B; line-height:1.55; }
+.rc-chain-dot { position:absolute; left:2px; top:6px; width:7px; height:7px; border-radius:50%; background:#DC2626; }
+.rc-dialog.r3 .rc-chain-dot { background:#7C3AED; } .rc-dialog.s2 .rc-chain-dot { background:#EA580C; }
+.rc-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.rc-kv { border:1px solid #EEF1F6; border-radius:9px; padding:8px 11px; background:#FCFDFF; display:flex; flex-direction:column; gap:3px; }
+.rc-kv span { font-size:11px; color:#94A3B8; font-weight:700; }
+.rc-kv strong { font-size:12px; color:#0F172A; line-height:1.45; }
+.rc-foot { display:flex; gap:10px; padding:12px 18px 16px; }
+.rc-btn { flex:1; padding:9px 0; border:none; border-radius:10px; font-size:13px; font-weight:800; cursor:pointer; color:#fff; background:#DC2626; transition:.15s; }
+.rc-btn.r3 { background:#7C3AED; } .rc-btn.s2 { background:#EA580C; }
+.rc-btn:hover { box-shadow:0 4px 14px rgba(220,38,38,.35); }
+.rc-btn.ghost { flex:0 0 88px; background:#F1F5F9; color:#475569; }
+.rc-btn.ghost:hover { background:#E2E8F0; box-shadow:none; }
 </style>

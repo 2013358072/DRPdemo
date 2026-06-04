@@ -73,13 +73,66 @@ export const KEYWORD_TO_PRESET = {
   '研判报告': 'default',
 }
 
+// 若当前预设把 B1 折叠/隐藏（如专题视图），先切回默认布局让 B1 重新显示，再切换图表形式
+function ensureB1Visible() {
+  const p = PRESETS[layoutState.preset]
+  if (p && (p.collapsed || []).includes('b1')) applyPreset('default')
+}
 // 由一段文本命中并应用 preset / 模块表现形式（供 AI 小助手 send() 调用）
+// 返回值：{ type:'b1chart', mode } 表示切换了「采购十大风险域」图表形式；否则返回 applyPreset 结果或 null
 export function applyPresetByText(text) {
   const t = String(text || '')
-  // 模块表现形式切换（写死示例）：把「十大风险域」用趋势图/柱状图展示
-  if (/(趋势|折线)/.test(t) && /(风险域|风险领域|十大|风险大类)/.test(t)) layoutState.b1Chart = 'trend'
-  else if (/(柱状|条形|条状)/.test(t) && /(风险域|风险领域|十大|风险大类)/.test(t)) layoutState.b1Chart = 'bar'
+  // 模块表现形式切换：把「采购十大风险域」用 趋势图/流程图/图 展示；或回到柱状图
+  const domainKw = /(风险域|风险领域|十大风险|十大重点|风险大类)/.test(t)
+  if (domainKw) {
+    const wantsBar = /(柱状|条形|条状)/.test(t)
+    const wantsChart = /(趋势|折线|流程图|示意图|图表|用图|画图|展示|呈现|切换|换成|改成|变成)/.test(t)
+    if (wantsBar) { ensureB1Visible(); layoutState.b1Chart = 'bar'; return { type: 'b1chart', mode: 'bar' } }
+    if (wantsChart) { ensureB1Visible(); layoutState.b1Chart = 'trend'; return { type: 'b1chart', mode: 'trend' } }
+  }
   const key = Object.keys(KEYWORD_TO_PRESET).find(k => t.includes(k))
   if (key) return applyPreset(KEYWORD_TO_PRESET[key])
   return null
+}
+
+// 模块名 → id 别名（供「不显示六维评分 / 把十大风险域上移 / 展开两类穿透概览」等自由话术）
+const MODULE_ALIASES = [
+  { id: 'a1', re: /(六维评分|合规看板|采购评分|六维)/ },
+  { id: 'b1', re: /(十大风险域|十大风险|十大域|风险领域|风险大类|风险域|十大重点)/ },
+  { id: 'c1', re: /(两类穿透|穿透概览|穿透预览)/ },
+  { id: 'a2', re: /(核心指标)/ },
+  { id: 'b2', re: /(主体穿透网络|穿透网络|网络图)/ },
+  { id: 'c2', re: /(热力图|品类|供应商\s*top|供应商排行|供应商榜)/i },
+  { id: 'a3', re: /(趋势数据|趋势图谱|趋势)/ },
+  { id: 'b3', re: /(实时采购风险|实时风险)/ },
+  { id: 'c3', re: /(ai\s*建议|系统入口|智能监管)/i },
+]
+// 自由话术 → 模块级表现形式调整（显示/隐藏/上移放大/淡化）。返回 { type:'modulecmd', ops, expandPenet } 或 null
+export function applyModuleCommands(text) {
+  const t = String(text || '')
+  const hits = MODULE_ALIASES.filter(m => m.re.test(t)).map(m => m.id)
+  if (!hits.length) return null
+  const hide = /(不显示|不展示|别显示|别展示|隐藏|去掉|去除|收起|折叠|关闭|撤掉)/.test(t)
+  const up   = /(上移|置顶|提前|靠前|突出|放大|重点|强调|上浮|凸显|高亮)/.test(t)
+  const down = /(下移|靠后|缩小|淡化|弱化|次要)/.test(t)
+  const show = /(显示|展开|打开|呈现|放出|展示|拉开|铺开)/.test(t)
+  let action = null
+  if (hide) action = { collapsed: true, faded: false, emphasis: false, center: false }
+  else if (up) action = { emphasis: true, collapsed: false, faded: false }
+  else if (down) action = { faded: true, emphasis: false, center: false }
+  else if (show) action = { collapsed: false, faded: false }
+  if (!action) return null
+  const expandPenet = hits.includes('c1') && (show || up)
+  const partial = {}
+  hits.forEach(id => { partial[id] = { ...action } })
+  // 「展开两类穿透概览」：除展开手风琴外，折叠同列的 六维评分(a1)/十大风险域(b1)，
+  // 让 两类穿透概览(c1) 上移并铺满整个左栏，同时放大高亮使变化明显
+  if (expandPenet) {
+    partial['a1'] = { collapsed: true, faded: false, emphasis: false, center: false }
+    partial['b1'] = { collapsed: true, faded: false, emphasis: false, center: false }
+    partial['c1'] = { collapsed: false, faded: false, emphasis: true }
+  }
+  applyModules(partial)
+  const ops = hits.map(id => ({ id, label: MODULE_LABELS[id], action: hide ? 'hide' : up ? 'up' : down ? 'down' : 'show' }))
+  return { type: 'modulecmd', ops, expandPenet }
 }
