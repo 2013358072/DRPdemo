@@ -550,7 +550,7 @@ function matchDomainNav(text) {
   return DOMAIN_NAV.find(d => d.re.test(t)) || null
 }
 
-// 故事线二：复合风险联查（恒通供应链 围标串标 + 未验收付款）对话触发
+// 故事线二：复合风险联查（恒通供应链 围标串标 + 履约不符）对话触发
 // 返回 'story2'(联动页面/网络) 或 'story2_panel'(并打开 AI 研判面板)；通过 drp-assistant-focus 广播给页面
 function matchStory2(text) {
   if (props.scene !== 'procurement' && props.scene !== 'dashboard') return null
@@ -559,6 +559,16 @@ function matchStory2(text) {
   if (!isStory2) return null
   if (/研判|面板|处置|方案|怎么办|怎么处理|建议/.test(t)) return 'story2_panel'
   return 'story2'
+}
+
+// 「采购高风险有哪些 / 采购有哪些高风险 / 采购风险有哪些」→ 跳转采购域 + 高亮闪烁实时风险列表
+function matchHighRisk(text) {
+  const t = (text || '').trim()
+  if (/恒通|围标|串标|复合|并案/.test(t)) return false   // 让位给故事线二
+  const askList = /(有哪些|哪些|是哪些|有什么|列出|列举|清单|列表|看一下|看看|查一下|展示|显示)/.test(t)
+  const hiRisk  = /(高风险|高危|重大风险|严重风险)/.test(t)
+  const procRisk = /采购/.test(t) && /风险/.test(t)
+  return askList && (hiRisk || procRisk)
 }
 
 // ═══ 发送 ═══
@@ -592,12 +602,23 @@ function send() {
     }
   }
 
+  // 「采购高风险有哪些」→ 跳转到采购管理域并高亮闪烁实时采购风险列表（闪 5 下）
+  if (matchHighRisk(q)) {
+    hist.msgs.push({ role: 'assistant', content:
+      '采购域当前高风险预警共 4 条：① 围标串标 CG-2026005（恒通供应链 · ¥280万）；② 履约不符 CG-2026041（恒通供应链 · ¥40万）；③ 未验收即付款·关联输送 CG-2026001（鼎信建设一公司 · ¥40万）；④ 未验收付款（二期）CG-2026012（鼎信建设一公司 · ¥40万）。已为您跳转到采购管理域并高亮「实时采购风险」列表。', time: now() })
+    scrollBottom(); persist()
+    emit('action', { type: 'navigate', scene: 'procurement' })
+    // 等采购页挂载/激活后再触发列表闪烁（闪 5 下）
+    setTimeout(() => { try { window.dispatchEvent(new CustomEvent('drp-flash-risklist')) } catch {} }, 680)
+    return
+  }
+
   // 故事线二：复合风险联查（恒通供应链）→ 联动页面（热力图/TOP6/实时风险/中部穿透网络）+ 可打开研判面板
   const s2 = matchStory2(q)
   if (s2) {
     hist.msgs.push({ role: 'assistant', content: s2 === 'story2_panel'
-      ? '已为您打开「恒通供应链」复合风险 AI 研判面板（围标串标 ¥280万 + 未验收付款 ¥40万 · 合计 ¥320万 · 评分 62）。'
-      : '已联动定位「恒通供应链」复合风险：并案 CG-2026005 围标串标 + CG-2026041 未验收付款，并高亮中部穿透网络链路。', time: now() })
+      ? '已为您打开「恒通供应链」复合风险 AI 研判面板（围标串标 ¥280万 + 履约不符 ¥40万 · 合计 ¥320万 · 评分 62）。'
+      : '已联动定位「恒通供应链」复合风险：并案 CG-2026005 围标串标 + CG-2026041 履约不符，并高亮中部穿透网络链路。', time: now() })
     scrollBottom(); persist()
     try { window.dispatchEvent(new CustomEvent('drp-assistant-focus', { detail: { key: s2 } })) } catch {}
     return

@@ -346,7 +346,7 @@
         </section>
 
         <!-- B3 实时采购风险 -->
-        <section class="glass-panel b3-panel" :class="[{ linked: penetrationContext.active }, lm('b3')]">
+        <section class="glass-panel b3-panel" :class="[{ linked: penetrationContext.active, 'rl-flash': riskListFlash }, lm('b3')]">
           <div class="ph">
             <h3>实时采购风险</h3>
             <span class="gpill danger">高 {{ highRiskCount }} 条</span>
@@ -1118,6 +1118,24 @@
               </tr>
             </tbody>
           </table>
+
+          <!-- 点击指标模块 → 展示三方案随处置周期演化的对比曲线 -->
+          <div class="pc-charts">
+            <div class="pcc-cap">📈 结果推演 · 点击指标查看三方案随处置周期的变化曲线</div>
+            <div class="pcc-tabs">
+              <button v-for="mt in story2Metrics" :key="mt.key"
+                      :class="['pcc-tab', { active: story2ChartMetric === mt.key }]"
+                      @click="story2ChartMetric = mt.key">
+                <span class="pcc-ic">{{ mt.icon }}</span>
+                <span class="pcc-lb">{{ mt.label }}</span>
+                <span class="pcc-delta">A {{ mt.series.A[mt.series.A.length-1] }}{{ mt.unit }} · C {{ mt.series.C[mt.series.C.length-1] }}{{ mt.unit }}</span>
+              </button>
+            </div>
+            <div class="pcc-desc">{{ story2ChartData.desc }}</div>
+            <EChart class="pcc-chart" :option="story2TrendOption" />
+            <div class="pcc-insight"><span class="pcc-insight-ic">💡</span><span>{{ story2ChartData.insight }}</span></div>
+          </div>
+
           <div class="pc-foot">
             <span class="pc-legend"><i class="pc-dot good"></i>有利 / 风险低</span>
             <span class="pc-legend"><i class="pc-dot warn"></i>需权衡</span>
@@ -1220,6 +1238,24 @@
               </tr>
             </tbody>
           </table>
+
+          <!-- 点击指标模块 → 展示三方案随处置周期演化的对比曲线 -->
+          <div class="pc-charts">
+            <div class="pcc-cap">📈 结果推演 · 点击指标查看三方案随处置周期的变化曲线</div>
+            <div class="pcc-tabs">
+              <button v-for="mt in planMetrics" :key="mt.key"
+                      :class="['pcc-tab', { active: planChartMetric === mt.key }]"
+                      @click="planChartMetric = mt.key">
+                <span class="pcc-ic">{{ mt.icon }}</span>
+                <span class="pcc-lb">{{ mt.label }}</span>
+                <span class="pcc-delta">A {{ mt.series.A[mt.series.A.length-1] }}{{ mt.unit }} · C {{ mt.series.C[mt.series.C.length-1] }}{{ mt.unit }}</span>
+              </button>
+            </div>
+            <div class="pcc-desc">{{ planChartData.desc }}</div>
+            <EChart class="pcc-chart" :option="planTrendOption" />
+            <div class="pcc-insight"><span class="pcc-insight-ic">💡</span><span>{{ planChartData.insight }}</span></div>
+          </div>
+
           <div class="pc-foot">
             <span class="pc-legend"><i class="pc-dot good"></i>有利 / 风险低</span>
             <span class="pc-legend"><i class="pc-dot warn"></i>需权衡</span>
@@ -1541,6 +1577,86 @@ const story2CompareRows = [
   { dim: '业务影响', A: { v: '采购周期延后约 2 周', tone: 'warn' }, B: { v: '影响小', tone: 'good' }, C: { v: '影响小', tone: 'good' } },
   { dim: '风险残留', A: { v: '低', tone: 'good' }, B: { v: '中', tone: 'warn' }, C: { v: '高', tone: 'bad' } },
 ]
+// 三方案结果推演·四类指标随处置周期演化（点对比弹窗的指标模块切换图表）
+// A 废标重招+立案（强处置）/ B 保留结果强化监管（中）/ C 约谈限期补正（弱）
+const STORY2_TREND_TL = ['处置前', 'T+3天', 'T+1周', 'T+2周', 'T+4周', 'T+8周']
+const story2Metrics = [
+  { key:'fund', label:'采购资金敞口', icon:'💰', unit:'万', better:'low', desc:'涉案/在途资金敞口随处置推进的变化（越低越好）',
+    series:{ A:[320,120,40,10,0,0], B:[320,280,210,150,110,90], C:[320,318,305,290,275,255] },
+    insight:'方案A 经止付追回 + 废标，T+4周 将 ¥320万 敞口清零；方案C 几乎不动，T+8周 仍占压 ¥255万。' },
+  { key:'risk', label:'复合风险指数', icon:'⚠️', unit:'', better:'low', desc:'围标串标 + 履约不符复合风险指数 0–100（越低越好）',
+    series:{ A:[88,66,42,24,13,7], B:[88,80,68,56,47,42], C:[88,86,82,79,76,73] },
+    insight:'方案A 处置后风险快速回落至 7；方案B 收敛有限、稳于 42；方案C 长期高位（>70），隐患未除。' },
+  { key:'loss', label:'累计预计损失', icon:'📉', unit:'万', better:'low', desc:'累计已发生 + 预计损失（越低越好）',
+    series:{ A:[0,6,9,11,12,12], B:[0,18,38,58,74,84], C:[0,32,72,116,156,196] },
+    insight:'方案A 把损失锁定在 ¥12万；方案C 损失持续扩大至 ¥196万，约为方案A 的 16 倍。' },
+  { key:'sla', label:'处置闭环进度', icon:'⏱', unit:'%', better:'high', desc:'响应时效·处置闭环完成度（越快越好）',
+    series:{ A:[0,62,86,96,100,100], B:[0,30,50,70,86,96], C:[0,12,26,42,56,70] },
+    insight:'方案A T+4周 即达成 100% 闭环；方案B 需至 T+8周 近闭环；方案C 进度迟缓，T+8周 仅 70%。' },
+]
+const story2ChartMetric = ref('fund')
+const story2ChartData = computed(() => story2Metrics.find(m => m.key === story2ChartMetric.value) || story2Metrics[0])
+const story2TrendCols = [
+  { key:'A', name:'方案A · 废标重招+立案', color:'#10B981', area:true,  dash:false },
+  { key:'B', name:'方案B · 保留强化监管', color:'#F59E0B', area:false, dash:false },
+  { key:'C', name:'方案C · 约谈限期补正', color:'#EF4444', area:false, dash:true  },
+]
+// 三方案结果推演图通用构造器（资金/风险/损失/时效；A 绿实心面积·B 橙·C 红虚线）
+function makeTrendOption(m, cols, timeline) {
+  const u = m.unit
+  return {
+    animation:true, animationDuration:650, animationEasing:'cubicOut', backgroundColor:'transparent',
+    tooltip:{ trigger:'axis', backgroundColor:'rgba(255,255,255,0.98)', borderColor:'#E2E8F0',
+      textStyle:{ color:'#334155', fontSize:11 }, extraCssText:'box-shadow:0 6px 24px rgba(15,23,42,0.12)',
+      valueFormatter:(v)=> (v==null?'-':`${v}${u}`) },
+    legend:{ top:0, icon:'roundRect', itemWidth:16, itemHeight:7, itemGap:14,
+      textStyle:{ color:'#64748B', fontSize:10.5 }, data:cols.map(c=>c.name) },
+    grid:{ left:6, right:46, top:38, bottom:6, containLabel:true },
+    xAxis:{ type:'category', boundaryGap:false, data:timeline,
+      axisLabel:{ color:'#64748B', fontSize:10 }, axisLine:{ lineStyle:{ color:'#E2E8F0' } }, axisTick:{ show:false } },
+    yAxis:{ type:'value', name:u?`(${u})`:'', nameTextStyle:{ color:'#94A3B8', fontSize:9, align:'right' },
+      axisLabel:{ color:'#94A3B8', fontSize:9 }, axisLine:{ show:false }, axisTick:{ show:false },
+      splitLine:{ lineStyle:{ color:'#F1F5F9', type:'dashed' } } },
+    series: cols.map(c => ({
+      name:c.name, type:'line', smooth:true, symbol:'circle', symbolSize: c.key==='A'?7:5,
+      data:m.series[c.key], z: c.key==='A'?4:2,
+      lineStyle:{ width: c.key==='A'?3.4:2, color:c.color, type: c.dash?'dashed':'solid',
+        shadowColor: c.key==='A'?'rgba(16,185,129,0.35)':'transparent', shadowBlur: c.key==='A'?8:0 },
+      itemStyle:{ color:c.color, borderColor:'#fff', borderWidth:1 },
+      areaStyle: c.area ? { color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[
+        { offset:0, color:'rgba(16,185,129,0.24)' }, { offset:1, color:'rgba(16,185,129,0.02)' } ] } } : undefined,
+      endLabel:{ show:true, formatter:(p)=>`${p.value}${u}`, color:c.color, fontSize:10.5, fontWeight:800,
+        distance:6, backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:3 },
+      emphasis:{ focus:'series', lineStyle:{ width: c.key==='A'?4:2.6 } },
+    })),
+  }
+}
+const story2TrendOption = computed(() => makeTrendOption(story2ChartData.value, story2TrendCols, STORY2_TREND_TL))
+
+// 故事线一（CG-2026001 关联输送）三方案结果推演·四类指标（A 立即止付+冻结 / B 保留付款约谈 / C 不干预）
+const PLAN_TREND_TL = ['处置前', 'T+1天', 'T+3天', 'T+1周', 'T+2周', 'T+4周']
+const planMetrics = [
+  { key:'fund', label:'资金敞口', icon:'💰', unit:'万', better:'low', desc:'¥40万待付 + ¥360万在途关联敞口随处置的变化（越低越好）',
+    series:{ A:[400,150,60,20,5,0], B:[400,360,300,250,210,180], C:[400,398,395,392,388,384] },
+    insight:'方案A 当日止付 ¥40万 并阻断在途关联敞口，T+4周 清零；方案C 不干预，¥384万 敞口长期存续。' },
+  { key:'risk', label:'关联风险指数', icon:'⚠️', unit:'', better:'low', desc:'关联输送·未验收付款风险指数 0–100（越低越好）',
+    series:{ A:[86,60,40,24,13,6], B:[86,78,66,55,46,41], C:[86,85,83,81,79,77] },
+    insight:'方案A 处置后风险快速回落至 6；方案B 稳于 41；方案C 长期高位（>76），关联输送隐患未除。' },
+  { key:'loss', label:'累计预计损失', icon:'📉', unit:'万', better:'low', desc:'累计已发生 + 预计损失（越低越好）',
+    series:{ A:[0,3,6,8,10,10], B:[0,14,30,48,64,76], C:[0,38,86,144,202,262] },
+    insight:'方案A 把损失锁定在 ¥10万；方案C 因放任关联输送，损失扩大至 ¥262万。' },
+  { key:'sla', label:'处置闭环进度', icon:'⏱', unit:'%', better:'high', desc:'响应时效·处置闭环完成度（越快越好）',
+    series:{ A:[0,68,90,98,100,100], B:[0,26,46,66,84,95], C:[0,8,20,36,52,66] },
+    insight:'方案A 当日即响应止付、T+2周 闭环；方案C 进度迟缓，T+4周 仅 66%。' },
+]
+const planChartMetric = ref('fund')
+const planChartData = computed(() => planMetrics.find(m => m.key === planChartMetric.value) || planMetrics[0])
+const planTrendCols = [
+  { key:'A', name:'方案A · 立即止付+冻结', color:'#10B981', area:true,  dash:false },
+  { key:'B', name:'方案B · 保留付款+约谈', color:'#F59E0B', area:false, dash:false },
+  { key:'C', name:'方案C · 不干预',       color:'#EF4444', area:false, dash:true  },
+]
+const planTrendOption = computed(() => makeTrendOption(planChartData.value, planTrendCols, PLAN_TREND_TL))
 // 选中方案后弹窗渲染的结果（A 走逐条实施回执；B/C 给要点）
 const story2PlanResults = {
   A: { tone: 'block', status: '处置中 · 待闭环', receipts: story2Judge.exec,
@@ -1692,15 +1808,33 @@ function onModuleCmd(e) {
     nextTick(() => { const el = document.querySelector('.c1-panel'); if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
   }
 }
+// 小助手「采购高风险有哪些」→ 高亮闪烁实时采购风险列表（闪 5 下）
+const riskListFlash = ref(false)
+let riskFlashTimer = null
+function onFlashRiskList() {
+  // 确保该模块可见（若被布局指令折叠/淡化，先复位）
+  const b3 = layoutState.modules?.b3
+  if (b3 && (b3.collapsed || b3.faded)) { b3.collapsed = false; b3.faded = false }
+  if (riskFlashTimer) { clearTimeout(riskFlashTimer); riskFlashTimer = null }
+  riskListFlash.value = false   // 先复位，便于连续触发重放动画
+  nextTick(() => {
+    riskListFlash.value = true
+    const el = document.querySelector('.b3-panel')
+    if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    riskFlashTimer = setTimeout(() => { riskListFlash.value = false }, 2700)  // 5 次 × 0.5s + 余量
+  })
+}
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('drp-assistant-focus', onAssistantFocus)
     window.addEventListener('drp-module-cmd', onModuleCmd)
+    window.addEventListener('drp-flash-risklist', onFlashRiskList)
   }
 })
 onBeforeUnmount(() => {
-  if (typeof window !== 'undefined') { window.removeEventListener('drp-assistant-focus', onAssistantFocus); window.removeEventListener('drp-module-cmd', onModuleCmd) }
+  if (typeof window !== 'undefined') { window.removeEventListener('drp-assistant-focus', onAssistantFocus); window.removeEventListener('drp-module-cmd', onModuleCmd); window.removeEventListener('drp-flash-risklist', onFlashRiskList) }
   if (supplierHlTimer) clearTimeout(supplierHlTimer)
+  if (riskFlashTimer) clearTimeout(riskFlashTimer)
   clearStory2Exec(); clearStory2Advice()
 })
 
@@ -3662,6 +3796,12 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .glass-panel.linked { border-color:#FBD5DD; transition:border-color .4s ease; }
 /* 实时采购风险：联动时内部渲染淡红渐变（浅，不要太深） */
 .b3-panel.linked { background:linear-gradient(180deg,#FFF6F6 0%,#FFFAFA 38%,#FFFFFF 100%); transition:background .5s ease; }
+/* 小助手「采购高风险有哪些」→ 实时采购风险列表高亮闪烁 5 下 */
+.b3-panel.rl-flash { animation: rl-flash .5s ease-in-out 5; z-index:6; }
+@keyframes rl-flash {
+  0%, 100% { box-shadow:0 0 0 0 rgba(239,68,68,0); border-color:#E5E9F0; background:#fff; }
+  50% { box-shadow:0 0 0 4px rgba(239,68,68,.45), 0 12px 30px rgba(239,68,68,.28); border-color:#EF4444; background:linear-gradient(180deg,#FEECEC 0%,#FFF5F5 60%,#FFFFFF 100%); }
+}
 /* B2 头部·联动徽标 */
 .link-badge { display:inline-flex; align-items:center; gap:5px; margin-left:auto; padding:2px 9px; border-radius:999px; background:#FEF2F2; color:#DC2626; font-size:10px; font-weight:800; border:1px solid #FECACA; white-space:nowrap; }
 .link-dot { width:6px; height:6px; border-radius:50%; background:#DC2626; box-shadow:0 0 0 0 rgba(220,38,38,0.5); animation:link-dot-pulse 1.4s ease-out infinite; }
@@ -4665,6 +4805,22 @@ async function callFlowInstanceStreamRun(riskId, action) {
 .pc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:12px; padding-top:10px; border-top:1px solid #EEF1F6; }
 .pc-legend { display:inline-flex; align-items:center; font-size:10.5px; color:#64748B; }
 .pc-foot-note { flex-basis:100%; font-size:10.5px; color:#94A3B8; line-height:1.5; }
+/* 三方案结果推演·指标对比图 */
+.pc-charts { margin-top:14px; padding-top:12px; border-top:1px dashed #E2E8F0; }
+.pcc-cap { font-size:12px; font-weight:800; color:#3730A3; margin-bottom:9px; }
+.pcc-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.pcc-tab { display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 6px; border:1px solid #E2E8F0; border-radius:10px; background:#F8FAFC; cursor:pointer; transition:all .2s ease; }
+.pcc-tab:hover { border-color:#A5B4FC; background:#fff; transform:translateY(-1px); }
+.pcc-tab.active { border-color:#6366F1; background:linear-gradient(135deg,#EEF2FF,#fff); box-shadow:0 6px 16px rgba(99,102,241,0.18); }
+.pcc-ic { font-size:17px; line-height:1; }
+.pcc-lb { font-size:11.5px; font-weight:800; color:#475569; }
+.pcc-tab.active .pcc-lb { color:#4338CA; }
+.pcc-delta { font-size:9px; color:#94A3B8; font-weight:600; letter-spacing:.01em; }
+.pcc-tab.active .pcc-delta { color:#6366F1; }
+.pcc-desc { margin:11px 2px 0; font-size:10.5px; color:#94A3B8; }
+.pcc-chart { width:100%; height:236px; margin-top:2px; }
+.pcc-insight { display:flex; gap:7px; margin-top:6px; padding:9px 11px; background:#F0F9FF; border:1px solid #BAE6FD; border-radius:9px; font-size:11.5px; color:#075985; line-height:1.55; }
+.pcc-insight-ic { flex-shrink:0; }
 /* 涉及对象放大弹窗 */
 .ent-overlay { position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); }
 .ent-dialog { width:560px; max-width:92vw; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; display:flex; flex-direction:column; }
